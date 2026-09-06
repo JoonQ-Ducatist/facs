@@ -1,8 +1,17 @@
-# FACt.Smack collaboration
+# FACS collaboration
 
 Read `memory-bank/team-workflow.md` before accepting or routing work.
 The master is the Codex task titled `★ PM ★` in the ChatGPT project `창업`.
 The actual repository is this directory, not the old vercel-vercel or product-test directories.
+
+The operating roles are: `★ PM ★` for requirements, task routing, release decisions,
+and user reporting; `(00) 에이전트 세팅` for collaboration rules and independent
+review; `(01) Code 개발` for implementation, tests, fixes, and documentation;
+`(02) 디자인 시스템` for visual UI, components, readability, responsive presentation,
+and interaction expression; `(03) 서비스 설계` for journeys, requirements, product
+policy, priorities, cash flow, and metrics. Antigravity is report-only browser QA,
+and GitHub CI runs repeatable checks. The PM must re-check available tasks and their
+actual scope before routing new work because the project spaces can change.
 
 Read the current user request, then `memory-bank/service-design-rule.md`,
 `memory-bank/TECH-AGENTS.md`, and relevant API/result contracts. Product decisions
@@ -13,6 +22,9 @@ Implementation has one owner per overlapping file set. Preserve existing dirty
 changes. Antigravity is report-only QA; findings return to Codex for fixes.
 Do not mark mock tests as real Auth/DB/Storage validation.
 Every handoff and QA result names its task ID, commit, mode, and evidence.
+Product-flow findings go to `(03)`; visual findings go to `(02)`; implementation
+findings go to `(01)`. A task may involve all three, but only one implementation
+owner may change a given file set.
 
 Never implement directly on `main`. Create a task branch, commit and push it,
 open a draft PR to `main`, and use its Vercel Preview URL for review. Code or UI
