@@ -2,9 +2,9 @@ name: FACS checks
 
 on:
   pull_request:
-    branches: [main, facs]
+    branches: [main]
   push:
-    branches: [main, facs]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
