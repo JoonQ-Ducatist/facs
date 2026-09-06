@@ -26,6 +26,13 @@ Product-flow findings go to `(03)`; visual findings go to `(02)`; implementation
 findings go to `(01)`. A task may involve all three, but only one implementation
 owner may change a given file set.
 
+If an Antigravity QA session ends, times out, or returns no report, the PM first
+checks whether the CLI session can be recovered or needs re-authentication. Run a
+minimal response probe successfully, then repeat QA against the same commit, URL,
+and scope. Without a valid PASS, FAIL, or BLOCKED report and its evidence, do not
+request user visual review or merge to `main`. Ask the user only when recovery needs
+their login or another external-state change.
+
 Never implement directly on `main`. Create a task branch, commit and push it,
 open a draft PR to `main`, and use its Vercel Preview URL for review. Code or UI
 changes require passing CI, Antigravity QA, and explicit user approval in `★ PM ★`
