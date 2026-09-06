@@ -26,6 +26,18 @@ Product-flow findings go to `(03)`; visual findings go to `(02)`; implementation
 findings go to `(01)`. A task may involve all three, but only one implementation
 owner may change a given file set.
 
+If an Antigravity QA session ends, times out, or returns no report, the PM first
+checks whether the CLI session can be recovered or needs re-authentication. Run a
+minimal response probe successfully, then repeat QA against the same commit, URL,
+and scope. Without a valid PASS, FAIL, or BLOCKED report and its evidence, do not
+request user visual review or merge to `main`. Ask the user only when recovery needs
+their login or another external-state change.
+
+When a delegated task completes, its owner returns the result, artifacts to review
+(local paths, PRs, or URLs), and the exact user-approval wording needed to `★ PM ★`.
+The user does not approve work inside a delegated task. The PM tells the user what to
+review and where, then records the only final approval in `★ PM ★`.
+
 Never implement directly on `main`. Create a task branch, commit and push it,
 open a draft PR to `main`, and use its Vercel Preview URL for review. Code or UI
 changes require passing CI, Antigravity QA, and explicit user approval in `★ PM ★`
@@ -36,6 +48,8 @@ next ordered task until the current task is approved and merged. Direct pushes t
 Run `npm test` and `npm run build` for implementation changes. The PM may request
 independent design and review work in parallel, but must check active tasks first.
 Do not recursively send routing requests back to the master; return results once.
-After every local, remote-branch, or `main` deployment handoff, open the relevant
-live URL in a new Chrome tab for the user. Treat that browser tab as the shared
-visual-review surface; record which source and URL it represents.
+For each screen, UI, or behavior that needs user approval, open the relevant local,
+Preview, or `main` URL in a new external Google Chrome window or tab. Do not use the
+Codex in-app browser or panel as the approval surface. Record the URL, source branch,
+and commit with the approval request. Do not start the next implementation task until
+the user has approved that exact visual-review target in `★ PM ★`.
