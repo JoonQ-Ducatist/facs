@@ -33,6 +33,11 @@ and scope. Without a valid PASS, FAIL, or BLOCKED report and its evidence, do no
 request user visual review or merge to `main`. Ask the user only when recovery needs
 their login or another external-state change.
 
+When a delegated task completes, its owner returns the result, artifacts to review
+(local paths, PRs, or URLs), and the exact user-approval wording needed to `★ PM ★`.
+The user does not approve work inside a delegated task. The PM tells the user what to
+review and where, then records the only final approval in `★ PM ★`.
+
 Never implement directly on `main`. Create a task branch, commit and push it,
 open a draft PR to `main`, and use its Vercel Preview URL for review. Code or UI
 changes require passing CI, Antigravity QA, and explicit user approval in `★ PM ★`
