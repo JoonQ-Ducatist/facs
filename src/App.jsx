@@ -34,7 +34,7 @@ function MobilePortraitNotice({ locale }) {
 
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
-  const locale = resolveLocale();
+  const [locale, setLocale] = useState(() => resolveLocale());
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   // 정의: 로컬 라이브와 명시적 preview URL은 세션 유무와 관계없이 항상 스플래시부터 시작한다.
@@ -58,6 +58,18 @@ export default function App() {
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
   const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
   const currentCard = visibleCards[safeIndex];
+
+  /** 정의: 언어만 전환하고 인증·탭·피드 상태는 현재 화면에 그대로 유지한다. */
+  function switchLocale(nextLocale) {
+    window.history.replaceState(null, '', localeUrl(nextLocale));
+    setLocale(nextLocale);
+  }
+
+  useEffect(() => {
+    const syncLocaleFromHistory = () => setLocale(resolveLocale());
+    window.addEventListener('popstate', syncLocaleFromHistory);
+    return () => window.removeEventListener('popstate', syncLocaleFromHistory);
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -244,7 +256,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
@@ -259,7 +271,7 @@ export default function App() {
           <button
             type="button"
             className="flex h-6 min-w-0 items-center justify-center rounded-md border border-[#c5a059]/55 bg-[#fbf9f4] px-1.5 font-latin text-[9px] font-semibold tracking-tight text-[#735c00]/85 hover:bg-surface-container"
-            onClick={() => { window.location.assign(localeUrl(locale === 'ko' ? 'en' : 'ko')); }}
+            onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')}
             aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'}
             title={locale === 'ko' ? 'English' : '한국어'}
           >
@@ -287,7 +299,7 @@ export default function App() {
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
-      <button type="button" className="desktop-nav-language" onClick={() => { window.location.assign(localeUrl(locale === 'ko' ? 'en' : 'ko')); }} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="material-symbols-outlined" aria-hidden="true">translate</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
+      <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="material-symbols-outlined" aria-hidden="true">translate</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
     </nav>
   </div></CanvasStage>;
