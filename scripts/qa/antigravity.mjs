@@ -63,7 +63,7 @@ const schema = { type: 'object', additionalProperties: false, properties: {
 save('schema.json', schema);
 console.log(`QA artifacts: ${output}`);
 if (v['prepare-only']) { save('status.json', { status: 'PREPARED', executed: false }); process.exit(0); }
-const child = spawn(join(homedir(), '.local/bin/agy'), ['--mode', 'plan', '--print-timeout', '5m', '--output-format', 'json', '--json-schema', join(output, 'schema.json'), '-p', prompt], { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(join(homedir(), '.local/bin/agy'), ['--sandbox', '--mode', 'plan', '--print-timeout', '5m', '--output-format', 'json', '--json-schema', join(output, 'schema.json'), '-p', prompt], { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] });
 let stdout = ''; let stderr = ''; let timedOut = false; let killTimer;
 child.stdout.on('data', b => { stdout += b; }); child.stderr.on('data', b => { stderr += b; });
 const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); killTimer = setTimeout(() => child.kill('SIGKILL'), 5000); }, 330000);
