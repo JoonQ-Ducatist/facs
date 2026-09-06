@@ -258,17 +258,13 @@ FACt.Smack는 초기 단계에서 1인 창업자가 운영 가능한 구조를 �
 
 ## 💻 Getting Started
 
-프로젝트 루트에서 간단한 HTTP 서버를 실행합니다.
+프로젝트 루트에서 Vite 개발 서버를 실행합니다.
 
 ```bash
-# Python 3
-python3 -m http.server 4173
-
-# Node.js
-npx serve .
+npm run dev
 ```
 
-브라우저에서 `localhost:4173`으로 접속합니다.
+터미널에 표시된 로컬 URL로 접속합니다.
 
 ---
 
@@ -276,11 +272,12 @@ npx serve .
 
 ```text
 FACt.Smack/
-├── assets/
-│   └── images/
+├── src/                  # React UI, 기능 모듈, 서비스 어댑터
+├── assets/               # 목업·디자인 검증용 미디어
+├── supabase/             # 마이그레이션과 서버 경계
+├── memory-bank/          # 현재 제품·기술·협업 기준
 ├── index.html
-├── styles.css
-├── app.js
+├── vite.config.js
 └── README.md
 ```
 

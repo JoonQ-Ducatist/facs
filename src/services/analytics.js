@@ -1,6 +1,5 @@
 /** 정의: 외부 전송 없이 Cash Loop의 핵심 행동을 검증하는 개발용 익명 이벤트 저장소다. 실제 분석 도입 시 같은 이름·속성 계약을 서버 수집기로 교체한다. */
 const STORAGE_KEY = 'facs_analytics_v1';
-const LEGACY_STORAGE_KEY = 'xcubus_analytics_v1';
 const MAX_EVENTS = 500;
 
 /** 정의: 허용된 제품 이벤트만 저장해 화면 문구·사용자 입력·사진 URL 등 식별 가능 데이터를 수집하지 않는다. */
@@ -16,9 +15,8 @@ export const ANALYTICS_EVENT = {
 
 function readEvents() {
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) ?? '[]';
+    const stored = window.localStorage.getItem(STORAGE_KEY) ?? '[]';
     const events = JSON.parse(stored);
-    if (!window.localStorage.getItem(STORAGE_KEY)) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
     return events;
   } catch { return []; }
 }

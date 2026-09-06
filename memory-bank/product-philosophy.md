@@ -259,7 +259,7 @@ Phase 5 — Commerce
 
 이 문서는 FACt.Smack의 **상위 Product Philosophy 문서**다.
 
-향후 `service-design-rule.md`, `feature-backlog.md`, `plan.md`, `monetization.md`, UX/UI, DB/API 및 마케팅 의사결정이 이 철학과 충돌할 경우 다음 순서로 판단한다.
+향후 `service-design-rule.md`, `feature-backlog.md`, `90-day-cash-loop-plan.md`, `monetization.md`, UX/UI, DB/API 및 마케팅 의사결정이 이 철학과 충돌할 경우 다음 순서로 판단한다.
 
 1. Trust & Safety / 법률 / 개인정보 보호
 2. 이 문서의 Human Desire Product Philosophy

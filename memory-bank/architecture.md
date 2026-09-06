@@ -1,6 +1,6 @@
 # FACt.Smack 아키텍처
 
-> 기준 문서: service-design-rule.md, TECH-AGENTS.md, plan.md, progress.md
+> 기준 문서: service-design-rule.md, TECH-AGENTS.md, 90-day-cash-loop-plan.md, progress.md
 
 ## 1. 현재 실행 구조
 
