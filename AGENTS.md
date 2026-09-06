@@ -36,6 +36,8 @@ next ordered task until the current task is approved and merged. Direct pushes t
 Run `npm test` and `npm run build` for implementation changes. The PM may request
 independent design and review work in parallel, but must check active tasks first.
 Do not recursively send routing requests back to the master; return results once.
-After every local, remote-branch, or `main` deployment handoff, open the relevant
-live URL in a new Chrome tab for the user. Treat that browser tab as the shared
-visual-review surface; record which source and URL it represents.
+For each screen, UI, or behavior that needs user approval, open the relevant local,
+Preview, or `main` URL in a new external Google Chrome window or tab. Do not use the
+Codex in-app browser or panel as the approval surface. Record the URL, source branch,
+and commit with the approval request. Do not start the next implementation task until
+the user has approved that exact visual-review target in `★ PM ★`.
