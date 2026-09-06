@@ -307,7 +307,7 @@ export default function App() {
 
 /** 정의: 이전 심볼에 의존하지 않고 공식 서비스명 FACt.Smack을 일관되게 표기하는 접근 가능한 워드마크다. */
 function BrandWordmark({ compact = false }) {
-  return <span lang="en" aria-label="FACt.Smack" className={`shrink-0 whitespace-nowrap font-latin font-extrabold leading-none tracking-tight text-[#1b1c19] ${compact ? '-translate-y-[2px] text-[15px] sm:text-[17px] md:text-xl' : 'text-[15px]'}`}>FACt.Smack</span>;
+  return <span lang="en" aria-label="FACt.Smack" className={`shrink-0 whitespace-nowrap font-latin font-extrabold leading-none tracking-tight text-[#1b1c19] ${compact ? '-translate-y-[2px] text-[15px] sm:text-[17px] md:text-xl' : 'text-[15px]'}`}><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</span>;
 }
 
 /** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
