@@ -65,6 +65,10 @@ QA의 PASS는 제품 승인 또는 보안 전체 통과를 뜻하지 않는다.
 7. 사용자와 Antigravity가 모두 승인한 뒤에만 PR을 `main`에 병합한다.
 8. 운영 배포의 짧은 smoke test 후 과제를 완료 처리하고 다음 순번을 시작한다.
 
+배포 확인 URL은 로컬, 원격 기능 브랜치 Preview, `main` 운영 배포 중 어느
+대상이든 Chrome의 새 탭으로 연다. 이 탭은 사용자와 PM이 함께 확인하는
+시각 검토 기준이며, 보고에는 기준 커밋·브랜치와 URL을 함께 남긴다.
+
 - `main`에서 직접 구현하거나 승인 전에 병합·운영 배포하지 않는다.
 - Antigravity 결과가 `BLOCKED`, `INCOMPLETE`, `STALE_SOURCE`이면 승인으로 보지 않는다.
 - QA 후 코드가 바뀌면 커밋과 Preview가 달라졌으므로 CI와 영향 범위 QA를 다시 실행한다.

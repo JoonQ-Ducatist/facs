@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* 정의: FACt.Smack 전 화면이 공유하는 표면·텍스트·강조 색상 토큰이다. */
 :root {
   --xc-app-height: 100dvh;
@@ -10,6 +14,7 @@
   --xc-accent: #735c00;
   --xc-accent-soft: #c5a059;
   --xc-primary: #0e1c2d;
+  --xc-brand-red: #ff315f;
 }
 
 html { background: var(--xc-surface); }
@@ -38,6 +43,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 @keyframes splash-media { 0% { opacity: 0; transform: translateX(24%) scale(1.06); } 16% { opacity: 1; transform: translateX(0) scale(1); } 80% { opacity: 1; transform: translateX(0) scale(1); } 100% { opacity: 0; transform: translateX(-16%) scale(1.03); } }
 .splash-language-toggle { position: absolute; top: 1rem; right: 1rem; z-index: 2; min-width: 2.4rem; height: 1.8rem; padding: 0 .48rem; border: 1px solid rgba(236,216,168,.72); border-radius: .45rem; background: rgba(5,20,36,.42); color: #f7e7bd; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: .65rem; font-weight: 750; line-height: 1; letter-spacing: .01em; backdrop-filter: blur(8px); }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
+.brand-wordmark__facs { color: var(--xc-brand-red); }
 @media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
@@ -177,6 +183,8 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-screen { width: 100%; height: 100%; }
 @media (min-width: 600px) {
   .app-stage:has(.splash-screen) { background: #051424; }
+  /* 스플래시는 모바일 폭을 유지하되, 넓은 캔버스의 기본 표면이 드러나지 않게 한다. */
+  .app-canvas:has(.splash-screen) { background: #051424; }
   .splash-screen { width: min(430px, 100%); margin: 0 auto; box-shadow: 0 0 42px rgba(0,0,0,.3); }
 }
 

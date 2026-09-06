@@ -60,7 +60,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
         <header className="flex flex-col items-center text-center">
           <button type="button" onClick={onPreview} className="group flex flex-col items-center rounded-xl px-3 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>
             <img src={logoUrl} width="96" height="64" className="h-16 w-24 object-contain drop-shadow-[0_3px_12px_rgba(0,0,0,0.5)] transition-transform duration-200 group-hover:scale-105" alt="FACt.Smack 뱀 로고" />
-            <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight">FACt.Smack</p>
+            <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
           </button>
           <div className="mt-2 flex items-center gap-2">
             <span className="h-px w-5 bg-[#c5a059]/70" />
