@@ -204,6 +204,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .desktop-nav-brand span { max-width: 0; overflow: hidden; opacity: 0; transform: translateX(-6px); transition: max-width .2s ease, opacity .16s ease, transform .2s ease; }
   .editorial-app > nav:hover .desktop-nav-brand span, .editorial-app > nav:focus-within .desktop-nav-brand span { max-width: 160px; opacity: 1; transform: translateX(0); }
   .desktop-nav-language { display: inline-flex; margin: 0 0 10px; color: var(--xc-accent); font-family: Inter, 'Pretendard Variable', sans-serif; font-size: 12px; font-weight: 750; }
+  .desktop-nav-language__mark { width: 1.1rem; text-align: center; font-size: 15px; font-weight: 800; line-height: 1; }
   .desktop-nav-language span:last-child { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; transition: max-width .2s ease, opacity .16s ease; }
   .editorial-app > nav:hover .desktop-nav-language span:last-child, .editorial-app > nav:focus-within .desktop-nav-language span:last-child { max-width: 90px; opacity: 1; }
   .editorial-app > nav > .desktop-nav-items { height: auto; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 10px; padding: 0; }

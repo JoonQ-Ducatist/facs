@@ -107,14 +107,22 @@ create trigger post_private_details_touch_updated_at before update on public.pos
 create or replace function public.create_profile_for_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
+  requested_handle text;
   generated_handle text;
 begin
-  generated_handle := coalesce(
-    nullif(lower(new.raw_user_meta_data ->> 'handle'), ''),
-    'member_' || substr(replace(new.id::text, '-', ''), 1, 10)
-  );
+  requested_handle := nullif(lower(trim(new.raw_user_meta_data ->> 'handle')), '');
+  generated_handle := case
+    when requested_handle ~ '^[a-z0-9_]{3,30}$' then requested_handle
+    else 'member_' || substr(replace(new.id::text, '-', ''), 1, 10)
+  end;
   insert into public.profiles (id, handle, display_name)
   values (new.id, generated_handle, nullif(new.raw_user_meta_data ->> 'display_name', ''));
+  return new;
+exception when unique_violation then
+  -- A user-supplied handle may already exist. Do not fail Auth signup; fall back
+  -- to a deterministic per-user handle that does not reveal email or provider data.
+  insert into public.profiles (id, handle, display_name)
+  values (new.id, 'member_' || substr(replace(new.id::text, '-', ''), 1, 10), nullif(new.raw_user_meta_data ->> 'display_name', ''));
   return new;
 end;
 $$;
@@ -126,10 +134,11 @@ create trigger auth_user_creates_profile
 -- Auth may already contain test users created before this migration.
 insert into public.profiles (id, handle, display_name)
 select u.id,
-  coalesce(nullif(lower(u.raw_user_meta_data ->> 'handle'), ''), 'member_' || substr(replace(u.id::text, '-', ''), 1, 10)),
+  'member_' || substr(replace(u.id::text, '-', ''), 1, 10),
   nullif(u.raw_user_meta_data ->> 'display_name', '')
 from auth.users u
-where not exists (select 1 from public.profiles p where p.id = u.id);
+where not exists (select 1 from public.profiles p where p.id = u.id)
+on conflict (id) do nothing;
 
 -- Prevent a client from attaching another user's media or exceeding the MVP media rule.
 create or replace function public.validate_post_media_link()
@@ -238,29 +247,15 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 revoke all on function public.get_post_aggregate(uuid) from public;
-grant execute on function public.get_post_aggregate(uuid) to anon, authenticated;
+grant execute on function public.get_post_aggregate(uuid) to authenticated;
 
 comment on table public.votes is 'Raw evaluations are intentionally unreadable by users; use get_post_aggregate for results.';
 
--- Private Storage: objects remain inaccessible by URL guessing. The media worker owns promotion
--- from pending to ready after type/size/safety validation.
+-- Private Storage: browser clients never receive a broad insert/select policy.
+-- A future authenticated Edge Function will issue a short-lived signed upload URL
+-- only after it creates a pending media_assets row. This preserves the required
+-- non-identifying uploads/YYYY/MM/DD/... object key and avoids client-side paths
+-- that embed auth.uid(), email, or handle values.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('facs-media', 'facs-media', false, 15728640, array['image/jpeg', 'image/png', 'image/webp', 'video/mp4'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
-
-create policy "members upload only into their own facs prefix" on storage.objects
-  for insert to authenticated with check (bucket_id = 'facs-media' and (storage.foldername(name))[1] = auth.uid()::text);
-create policy "owners read private facs uploads" on storage.objects
-  for select to authenticated using (bucket_id = 'facs-media' and (storage.foldername(name))[1] = auth.uid()::text);
-create policy "published post media is readable by authorized viewers" on storage.objects
-  for select to authenticated using (
-    bucket_id = 'facs-media' and exists (
-      select 1 from public.media_assets a
-      join public.post_media pm on pm.asset_id = a.id
-      join public.posts p on p.id = pm.post_id
-      where a.storage_path = storage.objects.name
-        and p.status = 'published' and p.visibility = 'public'
-    )
-  );
-create policy "owners delete only their facs uploads" on storage.objects
-  for delete to authenticated using (bucket_id = 'facs-media' and (storage.foldername(name))[1] = auth.uid()::text);
