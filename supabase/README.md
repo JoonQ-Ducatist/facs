@@ -26,7 +26,7 @@ Before any SQL is applied, create a staging Supabase project and configure only 
 - `VITE_APP_ORIGIN`
 - `VITE_AUTH_REDIRECT_URL`
 
-`VITE_AUTH_REDIRECT_URL` must be a fixed HTTPS callback on the same origin as `VITE_APP_ORIGIN`. Register that exact callback in Supabase Auth for the staging Preview deployment; do not derive redirects from `window.location.origin`, use a wildcard, or add OAuth client secrets to Vercel/browser variables. Configure Google, Apple, and Kakao client credentials only in the Supabase dashboard after the fixed Preview callback is approved.
+`VITE_AUTH_REDIRECT_URL` must be a fixed HTTPS callback on the same origin as `VITE_APP_ORIGIN`. Register that exact callback in Supabase Auth for the staging Preview deployment; do not derive redirects from `window.location.origin`, use a wildcard, or add OAuth client secrets to Vercel/browser variables. Configure Google and Kakao client credentials only in the Supabase dashboard after the fixed Preview callback is approved. Apple sign-in stays disabled and hidden until the Apple Developer enrollment is active.
 
 The migration keeps `facs-media` private and grants no direct browser object policies. The next server step is an authenticated Edge Function that creates a pending `media_assets` row, validates ownership and limits, and returns a short-lived signed upload URL for a non-identifying `uploads/YYYY/MM/DD/...` path. A worker promotes an asset to `ready` only after media validation.
 
