@@ -44,6 +44,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-language-toggle { position: absolute; top: 1rem; right: 1rem; z-index: 2; min-width: 2.4rem; height: 1.8rem; padding: 0 .48rem; border: 1px solid rgba(236,216,168,.72); border-radius: .45rem; background: rgba(5,20,36,.42); color: #f7e7bd; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: .65rem; font-weight: 750; line-height: 1; letter-spacing: .01em; backdrop-filter: blur(8px); }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .brand-wordmark__facs { color: var(--xc-brand-red); }
+.brand-ai-mark { align-items: center; justify-content: center; height: 1.15rem; min-width: 1.65rem; padding: 0 .25rem; border: 1px solid rgba(197,160,89,.7); border-radius: .2rem; color: var(--xc-accent); font-family: Inter, sans-serif; font-size: .56rem; font-weight: 800; line-height: 1; letter-spacing: .06em; }
 @media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
