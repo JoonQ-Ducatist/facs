@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { getPublicAuthConfig } from './authConfig.js';
 
 // Node contract tests do not provide Vite's import.meta.env object.
 const environment = import.meta.env ?? {};
-const url = environment.VITE_SUPABASE_URL;
-const publishableKey = environment.VITE_SUPABASE_ANON_KEY;
+const authConfig = getPublicAuthConfig(environment);
+const url = authConfig.ok ? authConfig.supabaseUrl : null;
+const publishableKey = authConfig.ok ? authConfig.publishableKey : null;
 
 /**
  * The browser receives only Supabase's publishable key. All data access must
@@ -14,5 +16,5 @@ export const supabase = url && publishableKey
   : null;
 
 export function getSupabaseConnectionState() {
-  return supabase ? 'configured' : 'missing_public_config';
+  return supabase ? 'configured' : authConfig.code ?? 'missing_public_config';
 }

@@ -14,6 +14,8 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
+import { getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
+import { beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
@@ -35,6 +37,7 @@ function MobilePortraitNotice({ locale }) {
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
+  const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   // 정의: 로컬 라이브와 명시적 preview URL은 세션 유무와 관계없이 항상 스플래시부터 시작한다.
@@ -91,6 +94,15 @@ export default function App() {
     });
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, [previewMode]);
+
+  /** Shows only a generic callback failure and removes provider-provided details from the URL. */
+  useEffect(() => {
+    if (!getAuthCallbackFailure(window.location.search)) return;
+    const query = new URLSearchParams(window.location.search);
+    ['error', 'error_code', 'error_description'].forEach((key) => query.delete(key));
+    window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}${window.location.hash}`);
+    setToast(locale === 'en' ? 'Sign-in could not be completed. Please try again.' : '로그인을 완료하지 못했습니다. 다시 시도해 주세요.');
+  }, [locale]);
 
   /** 정의: 동일 브라우저 세션의 첫 진입만 Visitor 이벤트로 남겨 새로고침에 따른 과대 계수를 막는다. */
   useEffect(() => {
@@ -218,12 +230,18 @@ export default function App() {
   }
 
   async function requestEmailAuth(email) {
-    if (!supabase) { setToast(locale === 'en' ? 'Authentication is not configured yet.' : '인증 연결 설정이 아직 완료되지 않았습니다.'); return; }
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-    setToast(error
-      ? (locale === 'en' ? error.message : `인증 메일을 보낼 수 없습니다: ${error.message}`)
-      : (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.'));
-    return !error;
+    const result = await requestEmailMagicLink(email, authConfig);
+    setToast(result.ok
+      ? (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.')
+      : (locale === 'en' ? 'Authentication is not configured or unavailable. Please try again later.' : '인증 연결을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'));
+    return result.ok;
+  }
+
+  /** OAuth is redirected only to the environment-pinned callback configured for this deployment. */
+  async function requestOAuthAuth(provider) {
+    const result = await beginOAuthSignIn(provider, authConfig);
+    if (!result.ok) setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
+    return result.ok;
   }
 
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
@@ -256,7 +274,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onOAuthAuth={requestOAuthAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
@@ -299,7 +317,7 @@ export default function App() {
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
-      <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="material-symbols-outlined" aria-hidden="true">translate</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
+      <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
     </nav>
   </div></CanvasStage>;
