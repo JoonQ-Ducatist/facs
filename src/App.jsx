@@ -280,10 +280,13 @@ export default function App() {
     <SkipLink />
     <header key={`header-${viewportEpoch}`} className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
-        <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-end gap-1 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
+        <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
           <img src={logoUrl} width="38" height="28" className="h-7 w-9 shrink-0 object-contain" alt="FACt.Smack 뱀 로고" />
-          <BrandWordmark compact />
-          <span aria-label="AI" className="hidden h-[20px] w-[29px] shrink-0 items-center justify-center rounded-[4px] border border-[#c5a059] bg-[#fbf9f4] font-mono text-[10px] font-bold leading-none tracking-[-0.04em] text-[#735c00] md:flex">AI</span><span lang="en" className="hidden whitespace-nowrap font-mono text-[8px] leading-none tracking-wide text-[#735c00] lg:inline">MORE VIEWS, MORE YOU</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <BrandWordmark compact />
+            <span aria-label="AI" className="brand-ai-mark hidden shrink-0 md:inline-flex">AI</span>
+          </span>
+          <span lang="en" className="hidden whitespace-nowrap font-mono text-[8px] leading-none tracking-wide text-[#735c00] lg:inline">MORE VIEWS, MORE YOU</span>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
           <button
@@ -325,7 +328,7 @@ export default function App() {
 
 /** 정의: 이전 심볼에 의존하지 않고 공식 서비스명 FACt.Smack을 일관되게 표기하는 접근 가능한 워드마크다. */
 function BrandWordmark({ compact = false }) {
-  return <span lang="en" aria-label="FACt.Smack" className={`shrink-0 whitespace-nowrap font-latin font-extrabold leading-none tracking-tight text-[#1b1c19] ${compact ? '-translate-y-[2px] text-[15px] sm:text-[17px] md:text-xl' : 'text-[15px]'}`}><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</span>;
+  return <span lang="en" aria-label="FACt.Smack" className={`shrink-0 whitespace-nowrap font-latin font-extrabold leading-none tracking-tight text-[#1b1c19] ${compact ? 'text-[15px] sm:text-[17px] md:text-xl' : 'text-[15px]'}`}><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</span>;
 }
 
 /** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
