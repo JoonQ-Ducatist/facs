@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AUTH_CONFIG_ERROR, getAuthCallbackFailure, getPublicAuthConfig } from './authConfig.js';
+import { AUTH_CONFIG_ERROR, AUTH_PROVIDER, getAuthCallbackFailure, getPublicAuthConfig } from './authConfig.js';
 
 const baseEnvironment = {
   VITE_SUPABASE_URL: 'https://staging-ref.supabase.co',
@@ -28,4 +28,8 @@ test('public Auth config rejects a dynamic cross-origin callback', () => {
 test('callback failures are surfaced without exposing provider error details', () => {
   assert.equal(getAuthCallbackFailure('?error=access_denied&error_description=private'), 'AUTH_CALLBACK_FAILED');
   assert.equal(getAuthCallbackFailure('?locale=ko'), null);
+});
+
+test('only approved social providers are available before Apple enrollment', () => {
+  assert.deepEqual(AUTH_PROVIDER, ['google', 'kakao']);
 });

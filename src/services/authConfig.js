@@ -1,5 +1,6 @@
 /** Public-only authentication settings. Never place OAuth secrets or service-role keys here. */
-export const AUTH_PROVIDER = Object.freeze(['google', 'apple', 'kakao']);
+// Apple sign-in is intentionally deferred until the Apple Developer enrollment is active.
+export const AUTH_PROVIDER = Object.freeze(['google', 'kakao']);
 
 export const AUTH_CONFIG_ERROR = Object.freeze({
   MISSING_PUBLIC_CONFIG: 'MISSING_PUBLIC_CONFIG',
@@ -44,4 +45,3 @@ export function getAuthCallbackFailure(search = '') {
   const params = new URLSearchParams(search);
   return params.has('error') || params.has('error_code') ? 'AUTH_CALLBACK_FAILED' : null;
 }
-
