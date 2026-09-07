@@ -8,7 +8,7 @@ import SplashView from './features/auth/SplashView.jsx';
 import logoUrl from './assets/facs-snake-logo.png';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
-import { submitVote } from './services/mockApi.js';
+import { submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
@@ -197,7 +197,7 @@ export default function App() {
     const payload = currentCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
     // 정의: 지원 기기에서 YES는 잔잔한 단일 진동, NO는 분명한 이중 진동을 제공하며 비지원 브라우저는 조용히 통과한다.
     if (currentCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
-    const result = await submitVote(currentCard, payload, votedIds);
+    const result = await submitCardVote(currentCard, payload, votedIds);
     if (result.error) { setToast(result.error.message); return; }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
     setVotedIds((ids) => new Set([...ids, currentCard.id]));
