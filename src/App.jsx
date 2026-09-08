@@ -14,6 +14,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
+import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
 
@@ -26,13 +27,7 @@ const tabs = [
 ];
 
 /** 정의: 모바일은 전체 폭, PC·태블릿은 중앙 SNS 콘텐츠 컬럼으로 렌더링하는 반응형 프레임이다. */
-function CanvasStage({ children, locale = 'ko' }) { return <div className="app-stage"><div className="app-canvas">{children}</div><MobilePortraitNotice locale={locale} /></div>; }
-
-/** 정의: 스마트폰 가로 회전에서는 레이아웃을 재배치하지 않고 세로 모드 복귀 안내만 노출한다. */
-function MobilePortraitNotice({ locale }) {
-  const english = locale === 'en';
-  return <aside className="portrait-lock" aria-live="polite"><span className="material-symbols-outlined" aria-hidden="true">screen_rotation</span><strong>{english ? 'Portrait mode only' : '세로 모드로 사용해 주세요'}</strong><p>{english ? 'Rotate your device upright to continue.' : '기기를 세로로 돌리면 계속 이용할 수 있어요.'}</p></aside>;
-}
+function CanvasStage({ children }) { return <div className="app-stage"><div className="app-canvas">{children}</div></div>; }
 
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
@@ -44,12 +39,14 @@ export default function App() {
   const previewMode = import.meta.env.DEV || authPreview || new URLSearchParams(window.location.search).has('preview');
   const [isGuest, setIsGuest] = useState(() => previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
+  const [authUser, setAuthUser] = useState(null);
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [votedIds, setVotedIds] = useState(() => new Set());
+  const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [toast, setToast] = useState('');
   const [viewportEpoch, setViewportEpoch] = useState(0);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
@@ -86,14 +83,26 @@ export default function App() {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
+      setAuthUser(data.session?.user ?? null);
       if (data.session && !previewMode) setIsGuest(false);
       setAuthReady(true);
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
       if (session && !previewMode) setIsGuest(false);
     });
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, [previewMode]);
+
+  /** Loads private Scraps only after a real authenticated session exists. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setSavedPostIds(new Set()); return undefined; }
+    getMyScrapPostIds().then((result) => {
+      if (active && result.data) setSavedPostIds(result.data);
+    });
+    return () => { active = false; };
+  }, [authUser?.id]);
 
   /** Shows only a generic callback failure and removes provider-provided details from the URL. */
   useEffect(() => {
@@ -133,15 +142,23 @@ export default function App() {
     };
     const onResume = () => { resetDocumentViewport(); setViewportEpoch((value) => value + 1); };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
+    // iOS Safari resizes visualViewport when the keyboard opens. Rebuilding fixed
+    // layers at that moment pulls the splash upward, so preserve the current
+    // focused form position and only recalculate for real viewport changes.
+    const onVisualViewportResize = () => {
+      const isEditing = document.activeElement?.matches('input, textarea, select');
+      if (isEditing && window.visualViewport && window.visualViewport.height < window.innerHeight) return;
+      resetDocumentViewport();
+    };
     window.addEventListener('pageshow', onResume);
     window.addEventListener('focus', onResume);
-    window.visualViewport?.addEventListener('resize', resetDocumentViewport);
+    window.visualViewport?.addEventListener('resize', onVisualViewportResize);
     document.addEventListener('visibilitychange', onVisibilityChange);
     resetDocumentViewport();
     return () => {
       window.removeEventListener('pageshow', onResume);
       window.removeEventListener('focus', onResume);
-      window.visualViewport?.removeEventListener('resize', resetDocumentViewport);
+      window.visualViewport?.removeEventListener('resize', onVisualViewportResize);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.clearTimeout(delayedReset);
     };
@@ -240,8 +257,17 @@ export default function App() {
   /** OAuth is redirected only to the environment-pinned callback configured for this deployment. */
   async function requestOAuthAuth(provider) {
     const result = await beginOAuthSignIn(provider, authConfig);
-    if (!result.ok) setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
-    return result.ok;
+    if (!result.ok || !result.url) {
+      setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
+      return false;
+    }
+    try {
+      window.location.assign(result.url);
+      return true;
+    } catch {
+      setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
+      return false;
+    }
   }
 
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
@@ -253,6 +279,28 @@ export default function App() {
 
   /** 정의: 목업 프로필에서 카드 노출을 제거하고 완료 안내를 표시한다. @param {string} id 카드 ID */
   function deleteCard(id) { setCards((items) => items.filter((item) => item.id !== id)); setToast(locale === 'en' ? 'Post deleted.' : '게시물을 삭제했습니다.'); }
+
+  /** Sends guests to the existing sign-in screen; signed-in users persist a private Scrap. */
+  async function toggleSavedPost(postId) {
+    if (!authUser) {
+      setIsSharedGuest(false);
+      setIsGuest(true);
+      setToast(locale === 'en' ? 'Sign in to save this post to Scraps.' : '스크랩에 저장하려면 로그인해 주세요.');
+      return { ok: false, authRequired: true };
+    }
+    const wasSaved = savedPostIds.has(postId);
+    const result = await toggleMyScrap(postId, wasSaved);
+    if (result.error) {
+      setToast(locale === 'en' ? 'Scraps could not be updated. Please try again.' : '스크랩을 변경하지 못했습니다. 다시 시도해 주세요.');
+      return { ok: false };
+    }
+    setSavedPostIds((current) => {
+      const next = new Set(current);
+      if (result.data.saved) next.add(postId); else next.delete(postId);
+      return next;
+    });
+    return { ok: true, saved: result.data.saved };
+  }
 
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
@@ -276,7 +324,7 @@ export default function App() {
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onOAuthAuth={requestOAuthAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
 
-  return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
+  return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body ${activeTab === 'feed' ? 'editorial-app--feed' : ''}`}>
     <SkipLink />
     <header key={`header-${viewportEpoch}`} className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
@@ -307,10 +355,10 @@ export default function App() {
 
     <main key={`main-${activeTab}-${viewportEpoch}`} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={() => { if (isSharedGuest) { setIsSharedGuest(false); setIsGuest(true); } else { setActiveTab('upload'); setToast(locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.'); } }} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={() => { if (isSharedGuest) { setIsSharedGuest(false); setIsGuest(true); } else { setActiveTab('upload'); setToast(locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.'); } }} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView cards={displayCards} categories={displayCategories} onDelete={deleteCard} onUpload={() => setActiveTab('upload')} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={() => setActiveTab('upload')} />}
       </>}
     </main>
 

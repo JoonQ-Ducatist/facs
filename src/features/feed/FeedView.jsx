@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bookmark } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
-export default function FeedView({ categories, cards, card, currentIndex, activeCategory, hasVoted, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onBoost, onStartUpload, onAddComment }) {
+export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, savedPostIds, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onBoost, onStartUpload, onAddComment }) {
   const [expandedComments, setExpandedComments] = useState(false);
   const [draft, setDraft] = useState('');
   const gestureStart = useRef(null);
@@ -12,10 +13,11 @@ export default function FeedView({ categories, cards, card, currentIndex, active
   const [dragOffset, setDragOffset] = useState(0);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const [feedMotion, setFeedMotion] = useState('');
+  const [saveNotice, setSaveNotice] = useState('');
   const feedLocked = useRef(false);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
-  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); }, [card.id]);
+  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
   if (!card) return <section className="mt-4 rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-slate-400">표시할 사진이 없습니다.</section>;
   const theme = categories[card.category];
   const cardMedia = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
@@ -25,6 +27,12 @@ export default function FeedView({ categories, cards, card, currentIndex, active
   const total = isAgeEvaluation ? card.ageVoteCount : card.yesVotes + card.noVotes;
   const yesPercent = isAgeEvaluation ? 0 : Math.round((card.yesVotes / total) * 100);
   const noPercent = 100 - yesPercent;
+  const isSaved = savedPostIds?.has(card.id) ?? false;
+
+  async function toggleSavedCard() {
+    const result = await onToggleSave(card.id);
+    if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨'));
+  }
 
   /** 정의: 카드 표면의 시작 좌표를 기록해 가로 앨범·세로 피드 제스처를 구분한다. @param {PointerEvent} event 포인터 이벤트 */
   function startCardGesture(event) {
@@ -108,15 +116,14 @@ export default function FeedView({ categories, cards, card, currentIndex, active
       <div className={`absolute ${cardMedia.length > 1 ? 'inset-y-2 left-3 right-3' : 'inset-0'} z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]`} />
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
-      {hasMultipleMedia && <div className="absolute left-4 right-4 top-3 z-30 flex h-1.5 gap-1" aria-label={`등록된 사진 ${cardMedia.length}장`}>
-        {cardMedia.map((media, index) => <button key={media.id} type="button" aria-label={`${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => setMediaIndex(index)} className="flex-1 rounded-full bg-white/35 p-0 shadow-sm"><span className="block h-full rounded-full transition-all" style={{ backgroundColor: mediaIndex === index ? theme.color : 'transparent' }} /></button>)}
-      </div>}
-      <div className={`absolute left-0 top-0 z-30 flex w-full items-start justify-between px-4 ${hasMultipleMedia ? 'pt-6' : 'pt-3'}`}><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} /></div>
-      <div className={`absolute left-0 top-0 z-30 flex w-full items-center px-4 ${hasMultipleMedia ? 'pt-10' : 'pt-7'}`}><CategoryBadge theme={theme} category={card.category} /></div>
+      <div className="absolute left-0 top-0 z-30 flex w-full items-start justify-between px-4 pt-3"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} /></div>
+      {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
+      <div className="absolute left-0 top-0 z-30 flex w-full items-center px-4 pt-7"><CategoryBadge theme={theme} category={card.category} /></div>
       <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2"><div className="flex flex-col gap-2.5"><ArrowButton label="이전 카드" icon="expand_less" onClick={() => navigateFeed(-1)} /><ArrowButton label="다음 카드" icon="expand_more" onClick={() => navigateFeed(1)} /></div><ShareRailButton onClick={() => onShare(card)} /></div>
-      <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1><p className="feed-card__subtext mt-0.5 text-xs text-slate-300">{card.subtext}</p></div>
+      <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
         {hasVoted ? isAgeEvaluation ? <AgeResult card={card} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} /> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
         {card.commentsAllowed && <CommentPreview comments={card.comments ?? []} onExpand={() => setExpandedComments(true)} />}
+        <SavedPostButton locale={locale} saved={isSaved} color={theme.color} notice={saveNotice} onToggle={toggleSavedCard} />
       </div>
     </article></div>
     {card.commentsAllowed && expandedComments && <CommentPanel card={card} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
@@ -129,6 +136,10 @@ function CategoryButton({ label, active, color, idleColor, icon, onClick }) { re
 function CategoryBadge({ theme, category }) { return <div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="material-symbols-outlined text-[12px]" style={{ color: theme.color }}>{theme.icon}</span><span className="font-mono text-[8px] font-semibold leading-none uppercase tracking-wider text-white">{theme.feedLabel ?? category}</span></div>; }
 /** 정의: 카드 위 작성자 핸들을 LIVE와 동일한 소형 반투명 배지로 보여 준다. */
 function UserBadge({ author }) { return <div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 py-0.5 pl-1 pr-2 shadow-lg backdrop-blur-sm"><span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-container/80"><span className="material-symbols-outlined text-[11px] text-white">person</span></span><span className="font-mono text-[8px] font-semibold leading-none tracking-wide text-white">@{author}</span></div>; }
+/** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
+function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex h-[3px] -translate-x-1/2 gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="min-w-5 flex-1 rounded-full bg-white/25 p-0"><span className="block h-full rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'transparent' }} /></button>)}</div>; }
+/** 정의: 로그인 계정에만 저장되는 비공개 Scrap 제어다. */
+function SavedPostButton({ locale, saved, color, notice, onToggle }) { const copy = locale === 'en' ? (saved ? { label: 'Saved', action: 'Remove from Scraps' } : { label: 'Save', action: 'Save to Scraps' }) : (saved ? { label: '저장됨', action: '스크랩에서 제거' } : { label: '저장', action: '스크랩에 저장' }); return <div className="saved-post-control relative ml-auto mt-1 flex min-h-11 items-center justify-end"><p role="status" aria-live="polite" className="saved-post-control__notice">{notice}</p><button type="button" onClick={onToggle} aria-pressed={saved} aria-label={copy.action} className="saved-post-control__button" style={saved ? { color, borderColor: `${color}cc`, backgroundColor: `${color}24` } : undefined}><Bookmark aria-hidden="true" size={17} strokeWidth={2.1} fill={saved ? 'currentColor' : 'none'} /><span>{copy.label}</span></button></div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
 function CardMedia({ card, media, className, muted = false }) { const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }; return source.type === 'video' ? <video className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} autoPlay loop muted={muted || undefined} playsInline controls={!muted} aria-label={`${card.author}의 ${card.category} 동영상`} /> : <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} />; }
 /** 정의: 다중 미디어 카드의 좌우 다음·이전 사진을 좁게 미리 보이고 해당 사진으로 이동시키는 제어다. */
@@ -174,7 +185,7 @@ function AgeResult({ card, color, onNext, onBoost, onStartUpload }) {
 /** 정의: 카드 위에 첫 댓글만 간결하게 보여 주고 전체 댓글 열기를 제공하는 요약 영역이다. */
 function CommentPreview({ comments, onExpand }) {
   const comment = comments[0];
-  return <div className="relative mt-2 overflow-hidden bg-gradient-to-b from-transparent via-[#061225]/10 to-transparent px-1 py-1.5" aria-label="댓글 미리보기">
+  return <div className="comment-preview relative mt-2 overflow-hidden bg-gradient-to-b from-transparent via-[#061225]/10 to-transparent px-1 py-1.5" aria-label="댓글 미리보기">
     <div className="absolute right-0 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1"><button type="button" onClick={onExpand} aria-label="댓글 더 보기" className="flex items-center gap-0.5 px-1 text-[12px] font-bold text-cyan-glow"><span>더 보기</span><span className="material-symbols-outlined text-[16px]">more_horiz</span></button></div>
     {comment ? <p className="truncate pr-16 text-[13px] leading-5 text-white/90"><strong className="mr-1 text-cyan-50">@{comment.author}</strong>{comment.body}</p> : <p className="pr-16 text-[12px] text-slate-300/80">첫 번째 댓글을 남겨 보세요.</p>}
   </div>;

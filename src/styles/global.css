@@ -50,15 +50,23 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
 .app-stage { display: flex; height: var(--xc-app-height); min-height: 0; width: 100%; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
 .app-canvas { position: relative; width: 100%; height: var(--xc-app-height); overflow: hidden; background: var(--xc-surface); }
-.portrait-lock { display: none; }
 
-/* 정의: 모바일 브라우저는 가로 회전 레이아웃을 제공하지 않는다. OS 회전 잠금은 웹에서 강제할 수 없으므로, 가로 시 앱을 가리고 세로 복귀 안내만 표시한다. */
+/* 정의: 좁은 모바일 가로 화면에서도 헤더·하단 메뉴 사이에 사진 중심 Feed를 유지한다. */
 @media (max-width: 599px) and (orientation: landscape) {
-  .app-canvas { display: none; }
-  .portrait-lock { position: fixed; inset: 0; z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .55rem; padding: 1.5rem; background: #051424; color: #fff; text-align: center; }
-  .portrait-lock .material-symbols-outlined { color: #ecd8a8; font-size: 2rem; }
-  .portrait-lock strong { font-size: 1rem; }
-  .portrait-lock p { margin: 0; color: rgba(255,255,255,.7); font-size: .78rem; }
+  .editorial-main--feed { padding-top: 44px !important; padding-bottom: 0 !important; }
+  .editorial-feed > div:first-child { min-height: 27px; padding: 0 8px 1px; gap: .25rem; }
+  .editorial-feed > div:first-child button { padding: .2rem .45rem; font-size: 9px; }
+  .editorial-feed article { min-height: 180px; background: #051424; }
+  .editorial-feed .media-primary { background: #051424; }
+  .editorial-feed .media-primary > img, .editorial-feed .media-primary > video { object-fit: contain !important; }
+  .editorial-feed .card-details { min-height: 0; padding-top: 2.25rem; }
+  .feed-card__question { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: clamp(1rem, 3.3vw, 1.2rem); }
+  .comment-preview { display: none; }
+  .feed-result { margin-bottom: .25rem; padding: .45rem .55rem; }
+  .feed-result__meta { margin-bottom: .25rem; }
+  .feed-result__actions { margin-top: .35rem; }
+  .age-vote-panel { padding-top: .35rem; padding-bottom: .35rem; }
+  .saved-post-control { margin-top: 0; min-height: 40px; }
 }
 
 /* 정의: 전 화면에 적용하는 Neutral Sans Serif·에디토리얼 표면·텍스트 규칙이다. */
@@ -99,6 +107,13 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-feed .card-details { min-height: 176px; background: linear-gradient(180deg, transparent 0%, rgba(1,8,17,.24) 16%, rgba(1,8,17,.9) 100%); }
 .feed-card__question { max-inline-size: 100%; font-size: clamp(1.125rem, 6cqi, 1.5rem); line-height: 1.22; letter-spacing: -.025em; text-wrap: balance; }
 .feed-card__subtext { overflow-wrap: break-word; text-wrap: pretty; }
+.media-progress { width: min(34%, 148px); max-width: calc(100% - 210px); }
+.media-progress button { min-width: 20px; }
+.saved-post-control__button { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; gap: .3rem; border: 1px solid rgba(255,255,255,.5); border-radius: .5rem; padding: .35rem .55rem; background: rgba(1,8,17,.36); color: #fff; font-size: 11px; font-weight: 750; line-height: 1; transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
+.saved-post-control__button:hover { background: rgba(1,8,17,.6); }
+.saved-post-control__button:active { transform: scale(.96); }
+.saved-post-control__notice { position: absolute; right: 0; bottom: calc(100% + .2rem); width: max-content; max-width: 180px; margin: 0; border-radius: 999px; background: rgba(1,8,17,.78); padding: .22rem .45rem; color: #fff; font-size: 10px; font-weight: 650; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.saved-post-control__notice:not(:empty) { opacity: 1; }
 .feed-result__meta > * { min-width: 0; white-space: nowrap; }
 .feed-result__actions, .feed-result__secondary { min-width: 0; }
 .feed-result__boost, .feed-result__self, .feed-result__next { white-space: nowrap; }
@@ -139,8 +154,39 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 
 /* 정의: 모바일·태블릿 피드는 카드가 화면 가장자리와 하단 메뉴에 맞닿아 콘텐츠 면적을 최대로 쓴다. */
 @media (max-width: 1023px) {
-  .editorial-main--feed { padding-right: 0 !important; padding-bottom: calc(48px + env(safe-area-inset-bottom)) !important; padding-left: 0 !important; }
+  .editorial-main--feed { padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
   .editorial-feed article { border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
+  /* Feed alone uses the navigation as a translucent photo overlay. Other screens
+     retain the opaque fixed bar and its reserved document space. */
+  .editorial-app--feed > nav {
+    position: absolute !important;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    z-index: 50;
+    width: auto;
+    min-height: 56px;
+    border: 1px solid rgba(255,255,255,.32);
+    border-radius: 999px;
+    background: rgba(5,20,36,.58);
+    box-shadow: 0 10px 28px rgba(0,0,0,.28);
+    backdrop-filter: blur(18px) saturate(1.18);
+    -webkit-backdrop-filter: blur(18px) saturate(1.18);
+    padding-bottom: 0 !important;
+  }
+  .editorial-app--feed > nav > .desktop-nav-items { height: 56px; padding: 6px 8px; }
+  .editorial-app--feed > nav > .desktop-nav-items > button {
+    width: auto !important;
+    min-width: 44px;
+    max-width: 68px;
+    height: 44px !important;
+    flex: 1 1 0;
+    border-radius: 999px;
+    color: rgba(255,255,255,.75);
+  }
+  .editorial-app--feed > nav > .desktop-nav-items > button[aria-current="page"] { background: rgba(255,255,255,.14); }
+  .editorial-app--feed > nav > .desktop-nav-items > button .material-symbols-outlined { font-size: 19px; }
+  .editorial-app--feed > nav > .desktop-nav-items > button span:last-child { font-size: 9px; line-height: 1; }
 }
 
 /* 정의: 모바일 댓글 상세는 카드 위를 덮고 아래에서 올라오는 바텀 시트로 제공한다. */
@@ -181,7 +227,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 }
 
 /* 정의: 데스크톱 스플래시는 모바일과 같은 집중형 캔버스를 유지해 배경 사진 확대를 막는다. */
-.splash-screen { width: 100%; height: 100%; }
+.splash-screen { width: 100%; height: var(--xc-app-height); min-height: 100svh; }
 @media (min-width: 600px) {
   .app-stage:has(.splash-screen) { background: #051424; }
   /* 스플래시는 모바일 폭을 유지하되, 넓은 캔버스의 기본 표면이 드러나지 않게 한다. */

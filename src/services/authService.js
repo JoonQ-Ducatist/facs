@@ -17,6 +17,16 @@ function supportedProvider(provider) {
   return AUTH_PROVIDER.includes(provider);
 }
 
+/** Accepts only a complete HTTPS provider handoff URL before navigation occurs. */
+export function getOAuthRedirectUrl(data) {
+  try {
+    const url = new URL(data?.url);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Starts a Magic Link with the environment-pinned callback URL. */
 export async function requestEmailMagicLink(email, config) {
   if (!config?.ok || !supabase) return unavailable(config);
@@ -28,8 +38,20 @@ export async function requestEmailMagicLink(email, config) {
 export async function beginOAuthSignIn(provider, config) {
   if (!supportedProvider(provider)) return { ok: false, code: AUTH_ACTION_ERROR.INVALID_PROVIDER };
   if (!config?.ok || !supabase) return unavailable(config);
-  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: config.redirectTo } });
-  return error ? { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED } : { ok: true };
+  try {
+    // Keep the browser on FACS until Supabase has returned a valid provider URL.
+    // This prevents a malformed or unavailable provider response from exposing a
+    // raw Supabase error page to the visitor.
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: config.redirectTo, skipBrowserRedirect: true },
+    });
+    const url = getOAuthRedirectUrl(data);
+    if (error || !url) return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
+    return { ok: true, url };
+  } catch {
+    return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
+  }
 }
 
 /**
@@ -44,4 +66,3 @@ export async function linkOAuthIdentity(provider, config) {
   const { error } = await supabase.auth.linkIdentity({ provider, options: { redirectTo: config.redirectTo } });
   return error ? { ok: false, code: AUTH_ACTION_ERROR.LINK_FAILED } : { ok: true };
 }
-

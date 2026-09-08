@@ -86,10 +86,20 @@ create table public.votes (
   )
 );
 
+-- A Scrap is a private per-account bookmark. Post deletion automatically removes
+-- its scraps, so inaccessible or deleted posts cannot remain in a user's list.
+create table public.scraps (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  post_id uuid not null references public.posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, post_id)
+);
+
 create index posts_feed_idx on public.posts (status, visibility, category, published_at desc);
 create index posts_author_idx on public.posts (author_id, created_at desc);
 create index media_assets_owner_idx on public.media_assets (owner_id, created_at desc);
 create index votes_post_idx on public.votes (post_id, created_at desc);
+create index scraps_user_created_idx on public.scraps (user_id, created_at desc);
 
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql security invoker set search_path = public as $$
@@ -200,6 +210,7 @@ alter table public.post_private_details enable row level security;
 alter table public.media_assets enable row level security;
 alter table public.post_media enable row level security;
 alter table public.votes enable row level security;
+alter table public.scraps enable row level security;
 
 create policy "public profiles expose only signed-in members" on public.profiles for select to authenticated using (true);
 -- Browser clients can edit only their own member profile. Role changes are server/admin-only.
@@ -221,6 +232,18 @@ create policy "authors detach their own media" on public.post_media for delete t
 
 -- No SELECT policy on votes: voter identity and individual evaluation remain private.
 create policy "members cast one eligible vote" on public.votes for insert to authenticated with check (voter_id = auth.uid());
+
+-- Scraps are private, have no folders/share surface, and only return posts the
+-- current user can still access through the same public/author visibility rule.
+create policy "members read accessible own scraps" on public.scraps for select to authenticated using (
+  user_id = auth.uid() and exists (
+    select 1 from public.posts p
+    where p.id = post_id
+      and ((p.status = 'published' and p.visibility = 'public') or p.author_id = auth.uid())
+  )
+);
+create policy "members create own scraps" on public.scraps for insert to authenticated with check (user_id = auth.uid());
+create policy "members remove own scraps" on public.scraps for delete to authenticated using (user_id = auth.uid());
 
 -- Aggregate RPC exposes counts only, never voter identities or raw values.
 create or replace function public.get_post_aggregate(target_post_id uuid)

@@ -24,14 +24,17 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [selectedProvider, setSelectedProvider] = useState('email');
   const [emailSent, setEmailSent] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
+  const [providerNotice, setProviderNotice] = useState('');
 
   async function selectProvider(provider) {
     setSelectedProvider(provider);
+    setProviderNotice('');
     if (provider === 'email') {
       setEmailOpen(true);
       return;
     }
-    await onOAuthAuth(provider);
+    const started = await onOAuthAuth(provider);
+    if (!started) setProviderNotice(locale === 'en' ? 'This sign-in method is not available yet. Please choose another option.' : '이 로그인 방식은 아직 사용할 수 없습니다. 다른 방법을 선택해 주세요.');
   }
 
   async function submitEmail(event) {
@@ -88,8 +91,9 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
           <div className="relative flex flex-col gap-2">
             <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={locale === 'en' ? 'Continue with Google' : 'Google로 계속하기'} icon="G" onClick={() => selectProvider('google')} />
             <ProviderButton compact={selectedProvider !== 'kakao'} selected={selectedProvider === 'kakao'} label={locale === 'en' ? 'Continue with Kakao' : '카카오로 계속하기'} icon="chat_bubble" onClick={() => selectProvider('kakao')} />
-            {selectedProvider === 'email' && emailOpen ? <form className="relative mx-auto flex w-[92%] flex-wrap gap-1.5 rounded-xl border border-white/20 bg-black/20 p-2.5 shadow-inner" onSubmit={submitEmail}><input required disabled={emailSent} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#22C55E] disabled:cursor-not-allowed disabled:opacity-55" autoFocus /><button type="submit" disabled={emailSent} className="h-9 shrink-0 rounded-full bg-[#22C55E] px-3 text-xs font-extrabold text-[#071c10] transition hover:bg-[#4ade80] disabled:cursor-not-allowed disabled:opacity-55">{locale === 'en' ? 'Send link' : '링크 보내기'}</button>{emailSent && <button type="button" onClick={() => { setEmailSent(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>}{emailNotice && <p role="status" className="absolute -top-10 left-1/2 w-max max-w-[94%] -translate-x-1/2 rounded-full border border-[#22C55E]/60 bg-[#0b2a17]/95 px-3 py-1.5 text-[10px] font-semibold text-white shadow-lg">{emailNotice}</p>}</form> : <ProviderButton compact={false} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
+            {selectedProvider === 'email' && emailOpen ? <form className="relative mx-auto flex w-[92%] flex-wrap gap-1.5 rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-2.5 shadow-inner" onSubmit={submitEmail}><input required disabled={emailSent} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#22C55E] disabled:cursor-not-allowed disabled:opacity-55" /><button type="submit" disabled={emailSent} className="h-9 shrink-0 rounded-full bg-[#22C55E] px-3 text-xs font-extrabold text-[#071c10] transition hover:bg-[#4ade80] disabled:cursor-not-allowed disabled:opacity-55">{locale === 'en' ? 'Send link' : '링크 보내기'}</button>{emailSent && <button type="button" onClick={() => { setEmailSent(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>}{emailNotice && <p role="status" className="absolute -top-10 left-1/2 w-max max-w-[94%] -translate-x-1/2 rounded-full border border-[#22C55E]/60 bg-[#0b2a17]/95 px-3 py-1.5 text-[10px] font-semibold text-white shadow-lg">{emailNotice}</p>}</form> : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
           </div>
+          {providerNotice && <p role="alert" className="mt-2 rounded-lg border border-[#ff8aa5]/45 bg-[#4a1020]/75 px-2.5 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white">{providerNotice}</p>}
           <p className="mt-3 text-center text-[9px] leading-relaxed text-white/45">{locale === 'en' ? 'By continuing, you agree to our Terms and Privacy Policy.' : '계속하면 이용약관 및 개인정보 처리방침에 동의하게 됩니다.'}</p>
         </section>
       </div>
