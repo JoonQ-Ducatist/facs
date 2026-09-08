@@ -106,6 +106,12 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-feed .card-details { min-height: 176px; background: linear-gradient(180deg, transparent 0%, rgba(1,8,17,.24) 16%, rgba(1,8,17,.9) 100%); }
 .feed-card__question { max-inline-size: 100%; font-size: clamp(1.125rem, 6cqi, 1.5rem); line-height: 1.22; letter-spacing: -.025em; text-wrap: balance; }
 .feed-card__subtext { overflow-wrap: break-word; text-wrap: pretty; }
+/* Both single and multi-media cards share this one coordinate system. The media
+   carousel may inset its photos, but it can never change header badge geometry. */
+.feed-top-overlay { position: absolute; inset: 0 0 auto; z-index: 30; height: 52px; pointer-events: none; }
+.feed-top-overlay__row { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; padding: 12px 16px 0; }
+.feed-top-overlay__category { display: flex; align-items: center; padding: 3px 16px 0; }
+.feed-top-overlay :is(button, a) { pointer-events: auto; }
 .media-progress { min-height: 20px; max-width: calc(100% - 150px); border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: rgba(1,8,17,.46); padding: 5px 8px; box-shadow: 0 4px 12px rgba(0,0,0,.22); backdrop-filter: blur(10px); }
 .media-progress button { width: 6px; height: 6px; flex: 0 0 6px; }
 .media-progress button span { width: 6px; height: 6px; }
