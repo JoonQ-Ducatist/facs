@@ -25,3 +25,11 @@ test('server feed safely degrades when Supabase is unavailable', async () => {
   assert.deepEqual(result.data, []);
   assert.equal(result.meta.source, 'unavailable');
 });
+
+test('server feed safely degrades when the public post query fails', async () => {
+  const terminal = { limit: async () => ({ data: null, error: { code: 'PGRST000' } }) };
+  const chained = { ...terminal, from: () => chained, select: () => chained, eq: () => chained, order: () => chained };
+  const result = await listSupabasePublishedPosts({ client: chained });
+  assert.deepEqual(result.data, []);
+  assert.equal(result.meta.source, 'degraded');
+});
