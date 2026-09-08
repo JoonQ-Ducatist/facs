@@ -110,7 +110,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    carousel may inset its photos, but it can never change header badge geometry. */
 .feed-top-overlay { position: absolute; inset: 0 0 auto; z-index: 30; height: 52px; pointer-events: none; }
 .feed-top-overlay__row { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; padding: 12px 16px 0; }
-.feed-top-overlay__category { display: flex; align-items: center; padding: 1px 16px 0; }
+.feed-top-overlay__category { display: flex; align-items: center; padding: 1px 16px 0; transform: translateY(-1px); }
 .feed-top-overlay :is(button, a) { pointer-events: auto; }
 .media-progress { min-height: 20px; max-width: calc(100% - 150px); border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: rgba(1,8,17,.46); padding: 5px 8px; box-shadow: 0 4px 12px rgba(0,0,0,.22); backdrop-filter: blur(10px); }
 .media-progress button { width: 6px; height: 6px; flex: 0 0 6px; }
