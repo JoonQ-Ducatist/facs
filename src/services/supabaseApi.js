@@ -74,3 +74,36 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
   if (error) return normalizeSupabaseError(error, '게시물 초안을 만들지 못했어요.');
   return apiSuccess(data);
 }
+
+/** Maps the reduced deployed post schema without requiring profile, media, or vote-row reads. */
+export function mapSupabaseFeedPost(post) {
+  return {
+    id: post.id,
+    category: post.category,
+    evaluationType: post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY',
+    question: post.question,
+    ageMin: post.age_min,
+    ageMax: post.age_max,
+    publishedAt: post.published_at,
+  };
+}
+
+/**
+ * Prepares the future server feed while keeping today's mock feed untouched.
+ * Empty and unavailable states deliberately return an empty successful page.
+ */
+export async function listSupabasePublishedPosts({ category, limit = 20, client = supabase } = {}) {
+  if (!client) return apiSuccess([], { source: 'unavailable', nextCursor: null });
+  const pageSize = Math.min(Math.max(limit, 1), 50);
+  let query = client
+    .from('posts')
+    .select('id,category,evaluation,question,age_min,age_max,published_at')
+    .eq('status', 'published')
+    .eq('visibility', 'public')
+    .order('published_at', { ascending: false })
+    .limit(pageSize);
+  if (category) query = query.eq('category', category);
+  const { data, error } = await query;
+  if (error) return apiSuccess([], { source: 'degraded', nextCursor: null });
+  return apiSuccess((data ?? []).map(mapSupabaseFeedPost), { source: 'supabase', nextCursor: null });
+}

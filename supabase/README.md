@@ -10,6 +10,8 @@ The active Supabase project intentionally has the reduced core required for the 
 
 `src/services/supabaseApi.js` only writes a vote or creates a draft post; it does not access Storage or media tables. Prototype feed cards stay local until an authenticated UUID-backed feed is delivered.
 
+`listSupabasePublishedPosts` is the non-wired preparation for that delivery. It reads only public, published `posts` fields, returns an empty page when Supabase is unavailable or fails, and never reads profiles, raw votes, media tables, or Storage.
+
 ## Applying safely
 
 Do not apply the full target migration to the active production project without a new schema-diff review: parts of the reduced core already exist. Use a project-owner session, inspect the live schema first, then prepare an additive migration for the next approved milestone. Do not paste a service-role key into this repository or a browser environment.
