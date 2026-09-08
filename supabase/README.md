@@ -1,12 +1,18 @@
 # Supabase migrations
 
-`migrations/202609050001_core_mvp.sql` is the first server-side boundary for FACS.
+`migrations/202609050001_core_mvp.sql` is the target server-side boundary for FACS.
 
-It creates the minimum persistent model for authenticated profiles, posts, up to five owned media assets, one private vote per member, numeric-age ranges, and aggregate-only results. It also creates a private `facs-media` Storage bucket: browsers may upload only to their own ID prefix, and only authorized viewers can read post media. It does **not** create payment flow, a media-validation worker, a moderation queue, or an administrator console.
+It describes the eventual persistent model for authenticated profiles, posts, owned media assets, one private vote per member, numeric-age ranges, and aggregate-only results. It does **not** create payment flow, a media-validation worker, a moderation queue, or an administrator console.
+
+## Current deployed scope
+
+The active Supabase project intentionally has the reduced core required for the current voting integration: `profiles`, `posts`, `votes`, the one-vote constraint and RLS policies, plus `get_post_aggregate`. The browser must not rely on `media_assets`, `post_media`, or the `facs-media` bucket being present. Those remain a separately reviewed upload milestone.
+
+`src/services/supabaseApi.js` only writes a vote or creates a draft post; it does not access Storage or media tables. Prototype feed cards stay local until an authenticated UUID-backed feed is delivered.
 
 ## Applying safely
 
-Use a project-owner session, after reviewing the migration in the Supabase SQL editor or with the Supabase CLI. Do not paste a service-role key into this repository or a browser environment.
+Do not apply the full target migration to the active production project without a new schema-diff review: parts of the reduced core already exist. Use a project-owner session, inspect the live schema first, then prepare an additive migration for the next approved milestone. Do not paste a service-role key into this repository or a browser environment.
 
 Before applying in production, run the SQL in a non-production project and verify:
 
@@ -30,7 +36,7 @@ Before any SQL is applied, create a staging Supabase project and configure only 
 
 The migration keeps `facs-media` private and grants no direct browser object policies. The next server step is an authenticated Edge Function that creates a pending `media_assets` row, validates ownership and limits, and returns a short-lived signed upload URL for a non-identifying `uploads/YYYY/MM/DD/...` path. A worker promotes an asset to `ready` only after media validation.
 
-### Required staging verification before production
+### Required staging verification before the media milestone
 
 1. Test Magic Link, Google, Apple, and Kakao with two user-owned test accounts; do not use real customer accounts.
 2. Confirm the callback accepts only the fixed staging Preview URL and shows a generic failure without provider error details.
