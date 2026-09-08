@@ -52,6 +52,7 @@ export default function App() {
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
+  const authCallbackHandled = useRef(false);
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
 
@@ -81,15 +82,37 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
+
+    const finishAuthenticatedEntry = (session) => {
+      if (!session || previewMode) return;
+      setAuthUser(session.user ?? null);
+      setIsGuest(false);
+
+      // Magic-link tokens belong only in the one-time callback URL. Once
+      // Supabase has persisted the session, remove them and land on the feed.
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const isAuthCallback = hash.has('access_token') || new URLSearchParams(window.location.search).has('code');
+      if (isAuthCallback && !authCallbackHandled.current) {
+        authCallbackHandled.current = true;
+        setIsSharedGuest(false);
+        setActiveTab('feed');
+        const query = new URLSearchParams(window.location.search);
+        query.delete('code');
+        window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}`);
+      }
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setAuthUser(data.session?.user ?? null);
-      if (data.session && !previewMode) setIsGuest(false);
+      finishAuthenticatedEntry(data.session);
       setAuthReady(true);
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user ?? null);
-      if (session && !previewMode) setIsGuest(false);
+      if (!session) {
+        setAuthUser(null);
+        return;
+      }
+      finishAuthenticatedEntry(session);
     });
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, [previewMode]);
