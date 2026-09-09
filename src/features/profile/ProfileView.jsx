@@ -1,18 +1,37 @@
+import { useState } from 'react';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 
 /** 정의: 개인 업로드 요약, 투표 지표, 내 게시물 관리 행동을 제공하는 프로필 화면이다. */
-export default function ProfileView({ locale = 'ko', cards, categories, savedPostIds, onDelete, onRemoveScrap, onUpload }) {
+export default function ProfileView({ locale = 'ko', cards, categories, savedPostIds, profile, profileLoading, isAuthenticated, onSaveHandle, onDelete, onRemoveScrap, onUpload }) {
   const mine = cards.filter((card) => card.isMyUpload);
   const scraps = cards.filter((card) => savedPostIds?.has(card.id));
   const votes = mine.reduce((sum, card) => sum + (card.evaluationType === 'NUMERIC_AGE' ? card.ageVoteCount ?? 0 : (card.yesVotes ?? 0) + (card.noVotes ?? 0)), 0);
   const yes = mine.reduce((sum, card) => sum + (card.yesVotes ?? 0), 0);
   const approval = votes ? Math.round((yes / votes) * 100) : 0;
+  const handleReady = Boolean(profile?.handle && !profile.handle.startsWith('member_'));
   return <section className="editorial-profile w-full pb-3 pt-1">
+    {isAuthenticated && !profileLoading && !handleReady && <HandleSetup locale={locale} onSave={onSaveHandle} />}
     <SurfaceCard as="article" className="mb-4 p-4"><div className="flex items-center gap-3.5"><div className="relative"><img src={cards[0]?.imageUrl} alt="내 프로필" className="h-14 w-14 rounded-full border-2 border-[#c5a059] object-cover" /><span className="absolute bottom-0 right-0 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-background bg-[#c5a059]"><span className="material-symbols-outlined text-[8px] font-bold text-white">check</span></span></div><div className="flex-1"><h1 className="flex items-center gap-1.5 font-headline text-lg font-bold text-white">@today_sora <span className="material-symbols-outlined text-sm text-cyan-glow">verified</span></h1><p className="text-[11px] text-slate-400">오늘의 룩과 일상의 순간을 기록하고 있어요.</p><div className="mt-1 flex items-center gap-1.5"><span className="rounded border border-[#c5a059]/50 bg-[#f9f7f2] px-1.5 py-0.5 font-mono text-[9px] text-cyan-glow">CURATOR</span><span className="font-mono text-[10px] text-slate-400">FACt.Smack Score: <strong className="text-white">94.6</strong></span></div></div></div><div className="mt-3 grid grid-cols-3 gap-2 border-t border-surface-container-high pt-3"><Metric value={mine.length} label="내 업로드" /><Metric value={votes.toLocaleString()} label="받은 투표" color="text-cyan-glow" /><Metric value={`${approval}%`} label="평균 호감도" color="text-[#735c00]" /></div></SurfaceCard>
     <div className="mb-2.5 flex items-center justify-between"><h2 className="font-headline text-sm font-bold text-white">내가 업로드한 사진 분석</h2><button type="button" onClick={onUpload} className="flex items-center gap-0.5 text-sm font-bold text-cyan-glow"><span className="material-symbols-outlined text-base">add</span>새로 업로드</button></div>
     <div className="flex flex-col gap-2.5">{mine.length ? mine.map((card) => <PostRow key={card.id} card={card} category={categories[card.category]} onDelete={() => onDelete(card.id)} />) : <p className="rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-xs text-slate-400">아직 업로드한 사진이 없습니다.</p>}</div>
     <section className="mt-6" aria-labelledby="scraps-heading"><div className="mb-2.5 flex items-center justify-between"><h2 id="scraps-heading" className="font-headline text-sm font-bold text-white">{locale === 'en' ? 'Scraps' : '스크랩'}</h2><span className="font-mono text-[10px] text-slate-400">{locale === 'en' ? `Private · ${scraps.length}` : `비공개 · ${scraps.length}`}</span></div><div className="flex flex-col gap-2.5">{scraps.length ? scraps.map((card) => <ScrapRow key={card.id} locale={locale} card={card} category={categories[card.category]} onRemove={() => onRemoveScrap(card.id)} />) : <p className="rounded-xl border border-surface-container-high bg-surface-container-low p-5 text-center text-xs text-slate-400">{locale === 'en' ? 'No saved posts yet.' : '저장한 게시물이 없습니다.'}</p>}</div></section>
   </section>;
+}
+
+/** Captures the one public identifier required before a member can publish. */
+function HandleSetup({ locale, onSave }) {
+  const [handle, setHandle] = useState('');
+  const [notice, setNotice] = useState('');
+  const [saving, setSaving] = useState(false);
+  async function submit(event) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const result = await onSave(handle);
+    setSaving(false);
+    if (!result.ok) setNotice(result.message);
+  }
+  return <SurfaceCard as="form" onSubmit={submit} className="mb-4 border-[#c52a52]/45 p-3.5"><div className="flex items-start gap-2"><span className="material-symbols-outlined mt-0.5 text-lg text-[#c52a52]">alternate_email</span><div><h2 className="font-headline text-sm font-bold text-white">{locale === 'en' ? 'Set your public ID' : '공개 아이디를 설정해 주세요'}</h2><p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">{locale === 'en' ? 'Your email stays private. A public ID is required before uploading.' : '이메일은 공개되지 않으며, 업로드 전에 @아이디 설정이 필요합니다.'}</p></div></div><div className="mt-3 flex gap-2"><label className="flex min-w-0 flex-1 items-center rounded-md border border-surface-container-high bg-surface-container px-2.5"><span className="text-sm text-slate-500">@</span><input required value={handle} onChange={(event) => { setHandle(event.target.value); setNotice(''); }} maxLength="30" placeholder="my_look" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" aria-describedby={notice ? 'handle-notice' : undefined} /></label><button type="submit" disabled={saving} className="shrink-0 rounded-md bg-[#c52a52] px-3 text-xs font-bold text-white disabled:opacity-55">{saving ? (locale === 'en' ? 'Saving...' : '저장 중...') : (locale === 'en' ? 'Save' : '저장')}</button></div><p className="mt-1.5 text-[9px] text-slate-500">{locale === 'en' ? '3–30 lower-case letters, numbers, or underscores.' : '영문 소문자·숫자·밑줄 3~30자'}</p>{notice && <p id="handle-notice" role="alert" className="mt-1.5 text-[10px] text-[#e06b89]">{notice}</p>}</SurfaceCard>;
 }
 
 /** 정의: 프로필 요약에 표시되는 하나의 수치와 레이블 단위다. */
