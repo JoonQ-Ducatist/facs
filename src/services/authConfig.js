@@ -45,3 +45,8 @@ export function getAuthCallbackFailure(search = '') {
   const params = new URLSearchParams(search);
   return params.has('error') || params.has('error_code') ? 'AUTH_CALLBACK_FAILED' : null;
 }
+
+/** Returns the one-time PKCE code only when an authentication callback supplies it. */
+export function getAuthCallbackCode(search = '') {
+  return new URLSearchParams(search).get('code');
+}

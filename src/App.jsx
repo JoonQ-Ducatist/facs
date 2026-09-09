@@ -15,7 +15,7 @@ import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
-import { getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
+import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
@@ -56,6 +56,7 @@ export default function App() {
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
   const authCallbackHandled = useRef(false);
+  const authCallbackExchange = useRef(null);
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
 
@@ -85,6 +86,7 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
+    const callbackCode = getAuthCallbackCode(window.location.search);
 
     const finishAuthenticatedEntry = (session) => {
       if (!session || previewMode) return;
@@ -106,11 +108,6 @@ export default function App() {
       }
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      finishAuthenticatedEntry(data.session);
-      setAuthReady(true);
-    });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setAuthUser(null);
@@ -118,6 +115,30 @@ export default function App() {
       }
       finishAuthenticatedEntry(session);
     });
+
+    async function bootstrapAuth() {
+      let session = null;
+
+      // Magic-link callbacks can arrive as a PKCE `code`. Exchange it before
+      // rendering the guest screen so successful authentication lands on Feed.
+      if (callbackCode) {
+        if (!authCallbackExchange.current) {
+          authCallbackExchange.current = supabase.auth.exchangeCodeForSession(callbackCode);
+        }
+        const { data, error } = await authCallbackExchange.current;
+        if (!error) session = data.session;
+      }
+
+      if (!session) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+      }
+      if (!active) return;
+      finishAuthenticatedEntry(session);
+      setAuthReady(true);
+    }
+
+    bootstrapAuth();
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, [previewMode]);
 
