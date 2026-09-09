@@ -12,7 +12,7 @@ const splashCopies = [
 ];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 전체 화면 스플래시다. */
-export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onOAuthAuth }) {
+export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth }) {
   const popularCards = useMemo(
     () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
     [cards],
@@ -29,15 +29,15 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
-  async function selectProvider(provider) {
-    setSelectedProvider(provider);
+  function selectProvider(provider) {
     setProviderNotice('');
     if (provider === 'email') {
+      setSelectedProvider(provider);
       setEmailOpen(true);
       return;
     }
-    const started = await onOAuthAuth(provider, rememberMe);
-    if (!started) setProviderNotice(locale === 'en' ? 'This sign-in method is not available yet. Please choose another option.' : '이 로그인 방식은 아직 사용할 수 없습니다. 다른 방법을 선택해 주세요.');
+    setProviderNotice(locale === 'en' ? 'This sign-in method is being prepared. Please continue with email.' : '현재 해당 인증 수단은 준비 중입니다. 이메일로 계속해 주세요.');
+    window.setTimeout(() => setProviderNotice(''), 2400);
   }
 
   async function submitEmail(event) {
@@ -110,12 +110,12 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
               {emailSent && <button type="button" onClick={() => { setEmailSent(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>}
               {emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}
             </form> : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
+            {providerNotice && <p role="status" className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border border-[#ecd8a8]/65 bg-[#132438]/95 px-3 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent after:border-t-[#132438]/95">{providerNotice}</p>}
           </div>
           <label className="mt-3 flex cursor-pointer items-start justify-center gap-1.5 text-center text-[9px] leading-relaxed text-white/60">
             <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="mt-px h-3 w-3 shrink-0 accent-[#c52a52]" />
             <span>{locale === 'en' ? 'Keep me signed in. Do not use this on a shared device.' : '로그인 상태 유지 · 공용 기기에서는 선택하지 마세요.'}</span>
           </label>
-          {providerNotice && <p role="alert" className="mt-2 rounded-lg border border-[#ff8aa5]/45 bg-[#4a1020]/75 px-2.5 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white">{providerNotice}</p>}
           <p className="mt-3 text-center text-[9px] leading-relaxed text-white/45">{locale === 'en' ? 'By continuing, you agree to our Terms and Privacy Policy.' : '계속하면 이용약관 및 개인정보 처리방침에 동의하게 됩니다.'}</p>
         </section>
       </div>
