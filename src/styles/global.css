@@ -200,7 +200,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 }
 
 /* 정의: 데스크톱 스플래시는 모바일과 같은 집중형 캔버스를 유지해 배경 사진 확대를 막는다. */
-.splash-screen { width: 100%; height: var(--xc-app-height); min-height: 100svh; }
+.splash-screen { width: 100%; height: 100%; min-height: 0; }
 @media (min-width: 600px) {
   .app-stage:has(.splash-screen) { background: #051424; }
   /* 스플래시는 모바일 폭을 유지하되, 넓은 캔버스의 기본 표면이 드러나지 않게 한다. */

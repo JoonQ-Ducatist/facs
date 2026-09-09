@@ -183,12 +183,22 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.VISITOR_OPENED, { locale, source: sharedPostId ? 'shared_post' : 'direct' });
   }, [locale, sharedPostId]);
 
-  /** 정의: iOS Safari·모바일 브라우저의 탭/세션 복원 뒤에도 헤더와 본문 시작 좌표를 재계산한다. 복귀 시 고정 레이어를 다시 마운트해 이전 합성 레이어가 남는 현상을 막는다. */
+  /** 정의: iOS Safari·모바일 브라우저의 탭/세션 복원 뒤에도 헤더와 본문 시작 좌표를 재계산한다. 키보드가 여닫히는 동안에는 앱의 기준 높이를 바꾸지 않아, 닫은 뒤 빈 여백이 남지 않게 한다. */
   useEffect(() => {
     let delayedReset;
-    const resetDocumentViewport = () => {
+    const hasOpenSoftwareKeyboard = () => {
+      const editing = document.activeElement?.matches('input, textarea, select');
+      const viewport = window.visualViewport;
+      return Boolean(editing && viewport && viewport.height < window.innerHeight - 80);
+    };
+    const resetDocumentViewport = ({ refreshHeight = false } = {}) => {
       const reset = () => {
-        document.documentElement.style.setProperty('--xc-app-height', `${window.innerHeight}px`);
+        // `innerHeight` may temporarily become the keyboard-reduced visual viewport
+        // in Safari. Only treat it as a layout height after a true page/orientation
+        // recovery, never while an editable control owns the software keyboard.
+        if (refreshHeight && !hasOpenSoftwareKeyboard()) {
+          document.documentElement.style.setProperty('--xc-app-height', `${window.innerHeight}px`);
+        }
         window.scrollTo(0, 0);
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
@@ -202,29 +212,30 @@ export default function App() {
       window.clearTimeout(delayedReset);
       delayedReset = window.setTimeout(reset, 120);
     };
-    const onResume = () => { resetDocumentViewport(); setViewportEpoch((value) => value + 1); };
+    const onResume = () => { resetDocumentViewport({ refreshHeight: true }); setViewportEpoch((value) => value + 1); };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
-    // iOS Safari resizes visualViewport when the keyboard opens. Rebuilding fixed
-    // layers at that moment pulls the splash upward, so preserve the current
-    // focused form position and only recalculate for real viewport changes.
-    const onVisualViewportResize = () => {
-      const isEditing = document.activeElement?.matches('input, textarea, select');
-      if (isEditing && window.visualViewport && window.visualViewport.height < window.innerHeight) return;
-      resetDocumentViewport();
-    };
+    // An orientation change is a real layout change. visualViewport `resize` is
+    // deliberately excluded: iOS emits it for the software keyboard as well.
+    const onOrientationChange = () => { window.setTimeout(onResume, 240); };
     window.addEventListener('pageshow', onResume);
-    window.addEventListener('focus', onResume);
-    window.visualViewport?.addEventListener('resize', onVisualViewportResize);
+    window.addEventListener('orientationchange', onOrientationChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
-    resetDocumentViewport();
+    resetDocumentViewport({ refreshHeight: true });
     return () => {
       window.removeEventListener('pageshow', onResume);
-      window.removeEventListener('focus', onResume);
-      window.visualViewport?.removeEventListener('resize', onVisualViewportResize);
+      window.removeEventListener('orientationchange', onOrientationChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.clearTimeout(delayedReset);
     };
   }, []);
+
+  /** 정의: 인증 전환은 새 화면의 기준점에서 시작해, Safari가 키보드의 이전 스크롤 위치를 피드에 남기지 않게 한다. */
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [isGuest]);
 
   useEnglishUi(locale);
   useEffect(() => { applySeoMetadata(locale); }, [locale]);
