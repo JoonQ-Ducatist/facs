@@ -1,5 +1,5 @@
 import { AUTH_CONFIG_ERROR, AUTH_PROVIDER } from './authConfig.js';
-import { supabase } from './supabaseClient.js';
+import { setAuthPersistence, supabase, withAuthPersistenceRedirect } from './supabaseClient.js';
 
 export const AUTH_ACTION_ERROR = Object.freeze({
   NOT_CONFIGURED: 'AUTH_NOT_CONFIGURED',
@@ -28,23 +28,25 @@ export function getOAuthRedirectUrl(data) {
 }
 
 /** Starts a Magic Link with the environment-pinned callback URL. */
-export async function requestEmailMagicLink(email, config) {
+export async function requestEmailMagicLink(email, config, remember = true) {
   if (!config?.ok || !supabase) return unavailable(config);
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: config.redirectTo } });
+  setAuthPersistence(remember);
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: withAuthPersistenceRedirect(config.redirectTo, remember) } });
   return error ? { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED } : { ok: true };
 }
 
 /** Starts an OAuth sign-in. Provider credentials live only in the Supabase project. */
-export async function beginOAuthSignIn(provider, config) {
+export async function beginOAuthSignIn(provider, config, remember = true) {
   if (!supportedProvider(provider)) return { ok: false, code: AUTH_ACTION_ERROR.INVALID_PROVIDER };
   if (!config?.ok || !supabase) return unavailable(config);
+  setAuthPersistence(remember);
   try {
     // Keep the browser on FACS until Supabase has returned a valid provider URL.
     // This prevents a malformed or unavailable provider response from exposing a
     // raw Supabase error page to the visitor.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: config.redirectTo, skipBrowserRedirect: true },
+      options: { redirectTo: withAuthPersistenceRedirect(config.redirectTo, remember), skipBrowserRedirect: true },
     });
     const url = getOAuthRedirectUrl(data);
     if (error || !url) return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
