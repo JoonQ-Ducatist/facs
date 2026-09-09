@@ -279,16 +279,24 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 /* 정의: 휴대폰을 가로로 돌리면 하단 독을 유지하지 않고, 남는 폭을 사진과 본문에 돌려주는
    축소형 PC 탐색 레일로 바꾼다. 화면 폭이 넓은 태블릿 가로 모드는 데스크톱 규칙을 그대로 쓴다. */
 @media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
-  .editorial-app { display: grid; grid-template-columns: 60px minmax(0, 1fr); }
+  .editorial-app { --landscape-nav-width: 58px; display: grid; grid-template-columns: var(--landscape-nav-width) minmax(0, 1fr); transition: grid-template-columns .2s ease; }
+  .editorial-app--landscape-nav-open { --landscape-nav-width: 196px; }
   .editorial-app > header { display: none; }
   .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: 8px !important; padding-bottom: 8px !important; padding-left: 8px !important; }
   .editorial-main--feed { overflow: hidden; }
   .editorial-main--scroll { overflow-y: auto; }
-  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: 60px; height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px; box-shadow: none; }
-  .editorial-app > nav > .desktop-nav-items { height: 100%; flex-direction: column; align-items: stretch; justify-content: space-evenly; padding: 0; }
-  .editorial-app > nav button { width: 50px; height: 40px; flex-direction: column; justify-content: center; gap: 0; padding: 0; }
+  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: var(--landscape-nav-width); height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px; box-shadow: none; transition: width .2s ease, box-shadow .2s ease; }
+  .landscape-nav-toggle { display: flex; width: 50px; height: 36px; align-items: center; justify-content: center; gap: 10px; overflow: hidden; padding: 0; color: var(--xc-text); transition: width .2s ease, padding .2s ease; }
+  .landscape-nav-toggle .material-symbols-outlined { flex: 0 0 auto; font-size: 22px; }
+  .landscape-nav-toggle span:last-child { max-width: 0; overflow: hidden; opacity: 0; font-size: 12px; font-weight: 700; white-space: nowrap; transition: max-width .2s ease, opacity .16s ease; }
+  .editorial-app--landscape-nav-open .landscape-nav-toggle { width: 100%; justify-content: flex-start; padding: 0 12px; }
+  .editorial-app--landscape-nav-open .landscape-nav-toggle span:last-child { max-width: 64px; opacity: 1; }
+  .editorial-app > nav > .desktop-nav-items { height: auto; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 5px; padding: 8px 0 0; }
+  .editorial-app > nav button:not(.landscape-nav-toggle) { width: 50px; height: 40px; flex-direction: row; justify-content: center; gap: 0; padding: 0; overflow: hidden; transition: width .2s ease, padding .2s ease, gap .2s ease; }
   .editorial-app > nav button .material-symbols-outlined { font-size: 22px; }
-  .editorial-app > nav button span:last-child { display: none; }
+  .editorial-app > nav button:not(.landscape-nav-toggle) span:last-child { max-width: 0; overflow: hidden; opacity: 0; font-size: 12px; white-space: nowrap; transition: max-width .2s ease, opacity .16s ease; }
+  .editorial-app--landscape-nav-open > nav button:not(.landscape-nav-toggle) { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
+  .editorial-app--landscape-nav-open > nav button:not(.landscape-nav-toggle) span:last-child { max-width: 88px; opacity: 1; }
   .desktop-nav-brand, .desktop-nav-language { display: none !important; }
   .editorial-feed > div:first-child { min-height: 26px; padding-bottom: 4px; }
   .editorial-feed article { min-height: 0; }
