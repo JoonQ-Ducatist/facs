@@ -45,13 +45,14 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
     if (isEmailSending || emailSent) return;
     setIsEmailSending(true);
     setEmailNotice('');
-    const sent = await onEmailAuth(email.trim(), rememberMe);
+    const result = await onEmailAuth(email.trim(), rememberMe);
+    const sent = result?.ok;
     setIsEmailSending(false);
     setEmailSent(sent);
     setEmailNoticeTone(sent ? 'success' : 'error');
     setEmailNotice(sent
       ? (locale === 'en' ? 'Link sent. Check your inbox.' : '링크를 보냈어요. 받은편지함을 확인해 주세요.')
-      : (locale === 'en' ? 'Could not send the link. Try again.' : '링크를 보내지 못했어요. 다시 시도해 주세요.'));
+      : (result?.message ?? (locale === 'en' ? 'Could not send the link. Try again.' : '링크를 보내지 못했어요. 다시 시도해 주세요.')));
     window.setTimeout(() => setEmailNotice(''), 2200);
   }
 

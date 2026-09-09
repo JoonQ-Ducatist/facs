@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getOAuthRedirectUrl } from './authService.js';
+import { AUTH_ACTION_ERROR, getOAuthRedirectUrl } from './authService.js';
 import { withAuthPersistenceRedirect } from './supabaseClient.js';
 
 test('OAuth redirects only after Supabase returns a complete HTTPS handoff URL', () => {
@@ -18,4 +18,9 @@ test('session-only choice is retained in the authentication callback URL', () =>
     withAuthPersistenceRedirect('https://www.factsmack.com/auth/callback', true),
     'https://www.factsmack.com/auth/callback',
   );
+});
+
+test('email authentication exposes stable, user-safe failure codes', () => {
+  assert.equal(AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED, 'AUTH_EMAIL_RATE_LIMITED');
+  assert.equal(AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED, 'AUTH_EMAIL_REDIRECT_REJECTED');
 });

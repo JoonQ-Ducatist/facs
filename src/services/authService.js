@@ -7,6 +7,8 @@ export const AUTH_ACTION_ERROR = Object.freeze({
   NOT_SIGNED_IN: 'AUTH_NOT_SIGNED_IN',
   REQUEST_FAILED: 'AUTH_REQUEST_FAILED',
   LINK_FAILED: 'AUTH_LINK_FAILED',
+  EMAIL_RATE_LIMITED: 'AUTH_EMAIL_RATE_LIMITED',
+  EMAIL_REDIRECT_REJECTED: 'AUTH_EMAIL_REDIRECT_REJECTED',
 });
 
 function unavailable(config) {
@@ -32,7 +34,17 @@ export async function requestEmailMagicLink(email, config, remember = true) {
   if (!config?.ok || !supabase) return unavailable(config);
   setAuthPersistence(remember);
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: withAuthPersistenceRedirect(config.redirectTo, remember) } });
-  return error ? { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED } : { ok: true };
+  if (!error) return { ok: true };
+
+  // Provider details are intentionally not shown to visitors, but common
+  // recoverable cases need a useful next step instead of a generic failure.
+  if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
+    return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
+  }
+  if (error.code === 'validation_failed' || /redirect/i.test(error.message ?? '')) {
+    return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED };
+  }
+  return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
 }
 
 /** Starts an OAuth sign-in. Provider credentials live only in the Supabase project. */

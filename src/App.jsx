@@ -16,7 +16,7 @@ import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
+import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -327,10 +327,15 @@ export default function App() {
 
   async function requestEmailAuth(email, remember) {
     const result = await requestEmailMagicLink(email, authConfig, remember);
-    setToast(result.ok
+    const message = result.ok
       ? (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.')
-      : (locale === 'en' ? 'Authentication is not configured or unavailable. Please try again later.' : '인증 연결을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'));
-    return result.ok;
+      : result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
+        ? (locale === 'en' ? 'For security, wait about a minute before requesting another email.' : '보안을 위해 약 1분 뒤에 다시 요청해 주세요.')
+        : result.code === AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED
+          ? (locale === 'en' ? 'Sign-in is being updated. Please try again shortly.' : '인증 주소를 점검 중입니다. 잠시 후 다시 시도해 주세요.')
+          : (locale === 'en' ? 'We could not send the sign-in email. Please try again shortly.' : '인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
+    setToast(message);
+    return { ok: result.ok, code: result.code, message };
   }
 
   /** OAuth is redirected only to the environment-pinned callback configured for this deployment. */
