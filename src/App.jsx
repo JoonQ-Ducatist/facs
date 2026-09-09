@@ -36,8 +36,9 @@ export default function App() {
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
-  // 정의: 로컬 라이브와 명시적 preview URL은 세션 유무와 관계없이 항상 스플래시부터 시작한다.
-  const previewMode = import.meta.env.DEV || authPreview || new URLSearchParams(window.location.search).has('preview');
+  // 정의: 명시적 preview URL만 세션 유무와 관계없이 스플래시부터 시작한다.
+  // 로컬 개발은 실제 Mailpit 인증 흐름을 검증할 수 있도록 세션을 그대로 반영한다.
+  const previewMode = authPreview || new URLSearchParams(window.location.search).has('preview');
   const [isGuest, setIsGuest] = useState(() => previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
   const [authUser, setAuthUser] = useState(null);
