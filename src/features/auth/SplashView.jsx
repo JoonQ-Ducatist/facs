@@ -27,6 +27,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [emailNotice, setEmailNotice] = useState('');
   const [emailNoticeTone, setEmailNoticeTone] = useState('success');
   const [providerNotice, setProviderNotice] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   async function selectProvider(provider) {
     setSelectedProvider(provider);
@@ -35,7 +36,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
       setEmailOpen(true);
       return;
     }
-    const started = await onOAuthAuth(provider);
+    const started = await onOAuthAuth(provider, rememberMe);
     if (!started) setProviderNotice(locale === 'en' ? 'This sign-in method is not available yet. Please choose another option.' : '이 로그인 방식은 아직 사용할 수 없습니다. 다른 방법을 선택해 주세요.');
   }
 
@@ -44,7 +45,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
     if (isEmailSending || emailSent) return;
     setIsEmailSending(true);
     setEmailNotice('');
-    const sent = await onEmailAuth(email.trim());
+    const sent = await onEmailAuth(email.trim(), rememberMe);
     setIsEmailSending(false);
     setEmailSent(sent);
     setEmailNoticeTone(sent ? 'success' : 'error');
@@ -100,15 +101,19 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
             <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={locale === 'en' ? 'Continue with Google' : 'Google로 계속하기'} icon="G" onClick={() => selectProvider('google')} />
             <ProviderButton compact={selectedProvider !== 'kakao'} selected={selectedProvider === 'kakao'} label={locale === 'en' ? 'Continue with Kakao' : '카카오로 계속하기'} icon="chat_bubble" onClick={() => selectProvider('kakao')} />
             {selectedProvider === 'email' && emailOpen ? <form className="relative mx-auto flex w-[92%] flex-wrap gap-1.5 rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-2.5 shadow-inner" onSubmit={submitEmail} aria-busy={isEmailSending}>
-              <input required disabled={emailSent || isEmailSending} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#22C55E] disabled:cursor-not-allowed disabled:opacity-55" />
-              <button type="submit" disabled={emailSent || isEmailSending} className="flex h-9 shrink-0 items-center justify-center rounded-full bg-[#22C55E] px-3 text-xs font-extrabold text-[#071c10] transition duration-150 hover:bg-[#4ade80] active:scale-95 active:bg-[#16a34a] disabled:cursor-not-allowed disabled:opacity-55">
+              <input required disabled={emailSent || isEmailSending} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" />
+              <button type="submit" disabled={emailSent || isEmailSending} className="flex h-8 shrink-0 items-center justify-center rounded-full bg-[#c52a52] px-3 text-xs font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 active:bg-[#9f1f41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8] disabled:cursor-not-allowed disabled:opacity-55">
                 {isEmailSending && <span className="material-symbols-outlined mr-1 animate-spin text-[14px]" aria-hidden="true">progress_activity</span>}
-                {isEmailSending ? (locale === 'en' ? 'Sending...' : '보내는 중...') : (locale === 'en' ? 'Send link' : '링크 보내기')}
+                {isEmailSending ? (locale === 'en' ? 'Sending...' : '보내는 중...') : (locale === 'en' ? 'Send sign-in email' : '인증 메일 보내기')}
               </button>
               {emailSent && <button type="button" onClick={() => { setEmailSent(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>}
               {emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}
             </form> : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
           </div>
+          <label className="mt-3 flex cursor-pointer items-start justify-center gap-1.5 text-center text-[9px] leading-relaxed text-white/60">
+            <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="mt-px h-3 w-3 shrink-0 accent-[#c52a52]" />
+            <span>{locale === 'en' ? 'Keep me signed in. Do not use this on a shared device.' : '로그인 상태 유지 · 공용 기기에서는 선택하지 마세요.'}</span>
+          </label>
           {providerNotice && <p role="alert" className="mt-2 rounded-lg border border-[#ff8aa5]/45 bg-[#4a1020]/75 px-2.5 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white">{providerNotice}</p>}
           <p className="mt-3 text-center text-[9px] leading-relaxed text-white/45">{locale === 'en' ? 'By continuing, you agree to our Terms and Privacy Policy.' : '계속하면 이용약관 및 개인정보 처리방침에 동의하게 됩니다.'}</p>
         </section>

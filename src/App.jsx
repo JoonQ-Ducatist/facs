@@ -98,6 +98,7 @@ export default function App() {
         setActiveTab('feed');
         const query = new URLSearchParams(window.location.search);
         query.delete('code');
+        query.delete('facs_remember');
         window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}`);
       }
     };
@@ -269,8 +270,8 @@ export default function App() {
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
   }
 
-  async function requestEmailAuth(email) {
-    const result = await requestEmailMagicLink(email, authConfig);
+  async function requestEmailAuth(email, remember) {
+    const result = await requestEmailMagicLink(email, authConfig, remember);
     setToast(result.ok
       ? (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.')
       : (locale === 'en' ? 'Authentication is not configured or unavailable. Please try again later.' : '인증 연결을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'));
@@ -278,8 +279,8 @@ export default function App() {
   }
 
   /** OAuth is redirected only to the environment-pinned callback configured for this deployment. */
-  async function requestOAuthAuth(provider) {
-    const result = await beginOAuthSignIn(provider, authConfig);
+  async function requestOAuthAuth(provider, remember) {
+    const result = await beginOAuthSignIn(provider, authConfig, remember);
     if (!result.ok || !result.url) {
       setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
       return false;
