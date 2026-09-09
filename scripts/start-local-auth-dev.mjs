@@ -50,7 +50,7 @@ async function main() {
   await start('npx', ['supabase', 'start', '--ignore-health-check']);
   console.log('Local Supabase and Mailpit are ready. Starting FACS at http://127.0.0.1:5173');
 
-  const vite = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1'], { stdio: 'inherit', env: environment });
+  const vite = spawn('npm', ['run', 'dev:vite', '--', '--host', '127.0.0.1'], { stdio: 'inherit', env: environment });
   const stop = () => vite.kill('SIGINT');
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
