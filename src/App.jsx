@@ -16,7 +16,7 @@ import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink } from './services/authService.js';
+import { AUTH_ACTION_ERROR, requestEmailMagicLink } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -360,22 +360,6 @@ export default function App() {
     return { ok: result.ok, code: result.code, message };
   }
 
-  /** OAuth is redirected only to the environment-pinned callback configured for this deployment. */
-  async function requestOAuthAuth(provider, remember) {
-    const result = await beginOAuthSignIn(provider, authConfig, remember);
-    if (!result.ok || !result.url) {
-      setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
-      return false;
-    }
-    try {
-      window.location.assign(result.url);
-      return true;
-    } catch {
-      setToast(locale === 'en' ? 'This sign-in method is not available yet.' : '이 로그인 방식은 아직 사용할 수 없습니다.');
-      return false;
-    }
-  }
-
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
   function openRankingCard(target) {
     setActiveCategory('ALL');
@@ -428,7 +412,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onOAuthAuth={requestOAuthAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
