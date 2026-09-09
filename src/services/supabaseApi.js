@@ -79,6 +79,7 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
 export function mapSupabaseFeedPost(post) {
   return {
     id: post.id,
+    authorId: post.author_id,
     category: post.category,
     evaluationType: post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY',
     question: post.question,
@@ -97,7 +98,7 @@ export async function listSupabasePublishedPosts({ category, limit = 20, client 
   const pageSize = Math.min(Math.max(limit, 1), 50);
   let query = client
     .from('posts')
-    .select('id,category,evaluation,question,age_min,age_max,published_at')
+    .select('id,author_id,category,evaluation,question,age_min,age_max,published_at')
     .eq('status', 'published')
     .eq('visibility', 'public')
     .order('published_at', { ascending: false })

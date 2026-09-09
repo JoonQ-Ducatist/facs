@@ -44,4 +44,10 @@ The migration keeps `facs-media` private and grants no direct browser object pol
 2. Confirm the callback accepts only the fixed staging Preview URL and shows a generic failure without provider error details.
 3. Confirm a member cannot read raw votes, set their own role, cast a second vote, or access another member's pending media.
 4. Confirm only authenticated users can execute `get_post_aggregate`; confirm public feed media is returned only through a future authorized signed-read path.
+
+## Live reaction events (separate approval)
+
+`202609100001_live_reaction_events.sql` introduces a one-hour, anonymous presentation stream for Result screens. It emits the selected `Y`, `N`, or perceived-age number plus aggregate counters, but never a voter handle, email, account id, or raw vote row. Only a post author and a member who evaluated that exact post can subscribe. The server clock enforces the one-hour period.
+
+Apply this migration only after approving the product policy that these anonymous individual values may be shown to the post author and eligible evaluators.
 5. Record the migration version, test evidence, rollback owner, and Storage/Edge Function status before any production promotion.
