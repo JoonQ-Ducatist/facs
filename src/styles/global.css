@@ -76,6 +76,10 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-main--feed { overflow: hidden; }
 .editorial-main--scroll { overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
 .editorial-main--scroll::-webkit-scrollbar { display: none; }
+.editorial-profile { min-height: max-content; flex: 0 0 auto; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+.profile-account-actions { display: flex; justify-content: flex-end; }
+.profile-account-actions__sign-out { min-height: 32px; padding: .35rem .55rem; color: #74777d; font-size: 11px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.profile-account-actions__sign-out:hover { color: #1b1c19; }
 .editorial-main .bg-surface-container-lowest { background-color: var(--xc-surface-card) !important; }
 .editorial-main .bg-surface-container-low { background-color: var(--xc-surface-low) !important; }
 .editorial-main .bg-surface-container { background-color: #f0eee9 !important; }
@@ -270,6 +274,24 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .comment-panel__comments::-webkit-scrollbar { display: none; }
   .comment-panel__form { flex-shrink: 0; min-height: 58px; padding: .75rem 1.25rem; }
   .comment-panel__close { position: fixed; right: 22px; top: 20px; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.7); border-radius: .35rem; background: rgba(0,0,0,.18); color: #fff; }
+}
+
+/* 정의: 휴대폰을 가로로 돌리면 하단 독을 유지하지 않고, 남는 폭을 사진과 본문에 돌려주는
+   축소형 PC 탐색 레일로 바꾼다. 화면 폭이 넓은 태블릿 가로 모드는 데스크톱 규칙을 그대로 쓴다. */
+@media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
+  .editorial-app { display: grid; grid-template-columns: 60px minmax(0, 1fr); }
+  .editorial-app > header { display: none; }
+  .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: 8px !important; padding-bottom: 8px !important; padding-left: 8px !important; }
+  .editorial-main--feed { overflow: hidden; }
+  .editorial-main--scroll { overflow-y: auto; }
+  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: 60px; height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px; box-shadow: none; }
+  .editorial-app > nav > .desktop-nav-items { height: 100%; flex-direction: column; align-items: stretch; justify-content: space-evenly; padding: 0; }
+  .editorial-app > nav button { width: 50px; height: 40px; flex-direction: column; justify-content: center; gap: 0; padding: 0; }
+  .editorial-app > nav button .material-symbols-outlined { font-size: 22px; }
+  .editorial-app > nav button span:last-child { display: none; }
+  .desktop-nav-brand, .desktop-nav-language { display: none !important; }
+  .editorial-feed > div:first-child { min-height: 26px; padding-bottom: 4px; }
+  .editorial-feed article { min-height: 0; }
 }
 /* 정의: 넓은 데스크톱에서는 Instagram처럼 좌측 아이콘 메뉴·중앙 피드·우측 추천 정보를 동시에 배치한다. */
 @media (min-width: 1200px) {

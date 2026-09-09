@@ -9,6 +9,7 @@ export const AUTH_ACTION_ERROR = Object.freeze({
   LINK_FAILED: 'AUTH_LINK_FAILED',
   EMAIL_RATE_LIMITED: 'AUTH_EMAIL_RATE_LIMITED',
   EMAIL_REDIRECT_REJECTED: 'AUTH_EMAIL_REDIRECT_REJECTED',
+  SIGN_OUT_FAILED: 'AUTH_SIGN_OUT_FAILED',
 });
 
 function unavailable(config) {
@@ -65,6 +66,17 @@ export async function beginOAuthSignIn(provider, config, remember = true) {
     return { ok: true, url };
   } catch {
     return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
+  }
+}
+
+/** Ends only the active browser session; persistent account data remains intact. */
+export async function signOutCurrentSession() {
+  if (!supabase) return { ok: false, code: AUTH_ACTION_ERROR.NOT_CONFIGURED };
+  try {
+    const { error } = await supabase.auth.signOut();
+    return error ? { ok: false, code: AUTH_ACTION_ERROR.SIGN_OUT_FAILED } : { ok: true };
+  } catch {
+    return { ok: false, code: AUTH_ACTION_ERROR.SIGN_OUT_FAILED };
   }
 }
 

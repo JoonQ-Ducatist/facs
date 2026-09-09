@@ -16,7 +16,7 @@ import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { AUTH_ACTION_ERROR, requestEmailMagicLink } from './services/authService.js';
+import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -305,6 +305,11 @@ export default function App() {
 
   /** 정의: 업로드 목업 결과를 피드 맨 앞에 넣고 피드 탭으로 전환한다. @param {object} card 새 카드 데이터 */
   function addCard(card) {
+    if (!isConfiguredHandle(profile?.handle)) {
+      setActiveTab('profile');
+      setToast(locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.');
+      return;
+    }
     setCards((items) => [card, ...items]);
     setActiveCategory('ALL');
     setCurrentIndex(0);
@@ -333,13 +338,34 @@ export default function App() {
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
-    if (!isConfiguredHandle(profile?.handle)) {
-      setActiveTab('profile');
-      setToast(locale === 'en' ? 'Set your public ID before uploading.' : '업로드 전에 공개 아이디를 설정해 주세요.');
+    setActiveTab('upload');
+    setToast(!profileLoading && !isConfiguredHandle(profile?.handle)
+      ? (locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.')
+      : (locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.'));
+  }
+
+  /** Ends the actual Supabase browser session and returns to the safe guest entry. */
+  async function signOut() {
+    if (!authUser) {
+      setIsSharedGuest(false);
+      setActiveTab('feed');
+      setIsGuest(true);
       return;
     }
-    setActiveTab('upload');
-    setToast(locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.');
+    const result = await signOutCurrentSession();
+    if (!result.ok) {
+      setToast(locale === 'en' ? 'We could not sign you out. Please try again.' : '로그아웃하지 못했어요. 다시 시도해 주세요.');
+      return;
+    }
+    setAuthUser(null);
+    setProfile(null);
+    setSavedPostIds(new Set());
+    setVotedIds(new Set());
+    setIsSharedGuest(false);
+    setActiveCategory('ALL');
+    setCurrentIndex(0);
+    setActiveTab('feed');
+    setIsGuest(true);
   }
 
   function openTab(id) {
@@ -448,7 +474,7 @@ export default function App() {
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
       </>}
     </main>
 
@@ -459,7 +485,7 @@ export default function App() {
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
-      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
+      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
     </nav>
   </div></CanvasStage>;
 }

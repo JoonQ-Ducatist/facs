@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 
 /** 정의: 개인 업로드 요약, 투표 지표, 내 게시물 관리 행동을 제공하는 프로필 화면이다. */
-export default function ProfileView({ locale = 'ko', cards, categories, savedPostIds, profile, profileLoading, isAuthenticated, onCheckHandle, onLoadHandleSuggestions, onSaveHandle, onDelete, onRemoveScrap, onUpload }) {
+export default function ProfileView({ locale = 'ko', cards, categories, savedPostIds, profile, profileLoading, isAuthenticated, onCheckHandle, onLoadHandleSuggestions, onSaveHandle, onDelete, onRemoveScrap, onUpload, onSignOut }) {
   const mine = cards.filter((card) => card.isMyUpload);
   const scraps = cards.filter((card) => savedPostIds?.has(card.id));
   const votes = mine.reduce((sum, card) => sum + (card.evaluationType === 'NUMERIC_AGE' ? card.ageVoteCount ?? 0 : (card.yesVotes ?? 0) + (card.noVotes ?? 0)), 0);
@@ -15,6 +15,7 @@ export default function ProfileView({ locale = 'ko', cards, categories, savedPos
     <div className="mb-2.5 flex items-center justify-between"><h2 className="font-headline text-sm font-bold text-white">내가 업로드한 사진 분석</h2><button type="button" onClick={onUpload} className="flex items-center gap-0.5 text-sm font-bold text-cyan-glow"><span className="material-symbols-outlined text-base">add</span>새로 업로드</button></div>
     <div className="flex flex-col gap-2.5">{mine.length ? mine.map((card) => <PostRow key={card.id} card={card} category={categories[card.category]} onDelete={() => onDelete(card.id)} />) : <p className="rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-xs text-slate-400">아직 업로드한 사진이 없습니다.</p>}</div>
     <section className="mt-6" aria-labelledby="scraps-heading"><div className="mb-2.5 flex items-center justify-between"><h2 id="scraps-heading" className="font-headline text-sm font-bold text-white">{locale === 'en' ? 'Scraps' : '스크랩'}</h2><span className="font-mono text-[10px] text-slate-400">{locale === 'en' ? `Private · ${scraps.length}` : `비공개 · ${scraps.length}`}</span></div><div className="flex flex-col gap-2.5">{scraps.length ? scraps.map((card) => <ScrapRow key={card.id} locale={locale} card={card} category={categories[card.category]} onRemove={() => onRemoveScrap(card.id)} />) : <p className="rounded-xl border border-surface-container-high bg-surface-container-low p-5 text-center text-xs text-slate-400">{locale === 'en' ? 'No saved posts yet.' : '저장한 게시물이 없습니다.'}</p>}</div></section>
+    {isAuthenticated && <section className="profile-account-actions mt-7 border-t border-surface-container-high pt-3"><button type="button" onClick={onSignOut} className="profile-account-actions__sign-out">{locale === 'en' ? 'Sign out' : '로그아웃'}</button></section>}
   </section>;
 }
 
