@@ -5,14 +5,15 @@
 Local authentication never sends a real email. Supabase CLI captures Magic
 Links in Mailpit at `http://127.0.0.1:54324`.
 
-1. Install and open Docker Desktop.
-2. Run `npm run supabase:start` from the repository root.
-3. Run `npm run supabase:status` and copy the local API URL and anon key into
+1. Install Docker Desktop once. It is started automatically by `npm run dev:local`.
+2. Run `npm run supabase:status` and copy the local API URL and anon key into
    an ignored `.env.local` file as `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_ANON_KEY`.
-4. Set `VITE_APP_ORIGIN=http://127.0.0.1:5173` and
+3. Set `VITE_APP_ORIGIN=http://127.0.0.1:5173` and
    `VITE_AUTH_REDIRECT_URL=http://127.0.0.1:5173/auth/callback`.
-5. Run `npm run dev`, request a Magic Link, and open Mailpit to complete it.
+4. Run `npm run dev:local`. It starts Docker Desktop when needed, then local
+   Supabase, Mailpit, and FACS in that order.
+5. Request a Magic Link and open Mailpit to complete it.
 
 The local project permits a 1 second resend interval and a high test-mail
 limit. Those settings live only in `supabase/config.toml` and never affect
