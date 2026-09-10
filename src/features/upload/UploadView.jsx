@@ -69,7 +69,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const canAddImage = imageCount < MAX_IMAGES;
   const canAddVideo = videoCount < MAX_VIDEOS;
   const canAddMedia = canAddImage || canAddVideo;
-  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif', canAddVideo && 'video/mp4,video/webm,video/quicktime'].filter(Boolean).join(',');
+  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/webm,video/quicktime'].filter(Boolean).join(',');
 
   /** 정의: 파일 형식·용량·개수·영상 길이를 확인해 미리보기 가능한 미디어 목록에 추가한다. @param {FileList|File[]} fileList 선택 또는 드롭된 파일 */
   async function addFiles(fileList) {
@@ -79,7 +79,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     let nextImages = imageCount;
     let nextVideos = videoCount;
     for (const file of candidates) {
-      const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
+      const type = detectMediaType(file);
       if (!type) { setError('이미지 또는 동영상 파일만 선택할 수 있습니다.'); continue; }
       if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
       if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
@@ -153,8 +153,21 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
 }
 
 /** 정의: File 객체를 화면 미리보기·정렬에 필요한 표준 미디어 항목으로 변환한다. */
-function makeItem(file, url, type, duration = 0) { return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` }; }
+function detectMediaType(file) {
+  const mime = (file.type ?? '').toLowerCase();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  const extension = (file.name ?? '').toLowerCase().split('.').pop();
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(extension)) return 'image';
+  if (['mp4', 'webm', 'mov', 'quicktime'].includes(extension)) return 'video';
+  return null;
+}
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
-function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) { return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>{item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} />}<span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">{item.type === 'video' ? `VIDEO ${item.duration.toFixed(1)}s` : `IMAGE ${index + 1}`}</span><div className="absolute left-1 top-1 flex gap-0.5"><button type="button" disabled={!canMovePrevious} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_right</span></button></div><button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white"><span className="material-symbols-outlined text-[13px]">close</span></button></div>; }
+function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) {
+  const [previewError, setPreviewError] = useState(false);
+  return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>
+    {previewError ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline onError={() => setPreviewError(true)} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} onError={() => setPreviewError(true)} />}
+    <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">{item.type === 'video' ? `VIDEO ${item.duration.toFixed(1)}s` : `IMAGE ${index + 1}`}</span><div className="absolute left-1 top-1 flex gap-0.5"><button type="button" disabled={!canMovePrevious} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_right</span></button></div><button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white"><span className="material-symbols-outlined text-[13px]">close</span></button></div>;
+}
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */
 function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); video.preload = 'metadata'; video.onloadedmetadata = () => resolve(video.duration); video.onerror = () => resolve(Number.NaN); video.src = url; }); }
