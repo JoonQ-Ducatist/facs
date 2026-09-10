@@ -146,7 +146,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 @keyframes result-fill-from-right { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 /* 정의: 업로더와 해당 평가자에게만 전달된 익명 반응을 작고 투명한 풍선으로 표현한다.
    꼬리는 한 줄의 흐림으로 제한해 장식적인 효과보다 현재 반응의 감각을 우선한다. */
-.live-reaction-layer { position: absolute; right: 16%; bottom: 31%; z-index: 26; width: 130px; height: 130px; pointer-events: none; overflow: visible; }
+.live-reaction-layer { position: absolute; right: 12%; bottom: 9px; z-index: 26; width: 130px; height: 130px; pointer-events: none; overflow: visible; }
 .live-reaction { position: absolute; left: calc(22% + var(--reaction-index) * 17%); bottom: calc(4% + var(--reaction-index) * 4%); display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.48); border-radius: 999px; color: #fff; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: 11px; font-weight: 850; line-height: 1; box-shadow: 0 4px 12px rgba(1,8,17,.12); opacity: 0; animation: live-reaction-rise 2.05s cubic-bezier(.2,.72,.3,1) both; }
 .live-reaction::after { position: absolute; top: 92%; width: 1px; height: 19px; border-radius: 99px; background: currentColor; content: ''; filter: blur(.7px); opacity: .18; transform: rotate(8deg); transform-origin: top center; }
 .live-reaction--yes { border-color: rgba(255,196,215,.6); background: rgba(255,106,149,.48); color: #fff5f8; }
