@@ -79,7 +79,10 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     let nextImages = imageCount;
     let nextVideos = videoCount;
     for (const file of candidates) {
-      const type = detectMediaType(file);
+      // Some mobile file providers omit both MIME and an extension. The input
+      // is already constrained by `accept`, so keep a non-empty file as an
+      // image candidate instead of silently dropping the user's selection.
+      const type = detectMediaType(file) ?? (file.size > 0 ? 'image' : null);
       if (!type) { setError('이미지 또는 동영상 파일만 선택할 수 있습니다.'); continue; }
       if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
       if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
