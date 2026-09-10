@@ -164,6 +164,9 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
 }
 
 /** 정의: File 객체를 화면 미리보기·정렬에 필요한 표준 미디어 항목으로 변환한다. */
+function makeItem(file, url, type, duration = 0) {
+  return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` };
+}
 function detectMediaType(file) {
   const mime = (file.type ?? '').toLowerCase();
   if (mime.startsWith('image/')) return 'image';
