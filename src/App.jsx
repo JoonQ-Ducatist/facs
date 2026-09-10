@@ -429,10 +429,13 @@ export default function App() {
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
+    if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
+      setActiveTab('profile');
+      setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
+      return;
+    }
     setActiveTab('upload');
-    setToast(!profileLoading && !isConfiguredHandle(profile?.handle)
-      ? (locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.')
-      : (locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.'));
+    setToast(locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.');
   }
 
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */
@@ -460,7 +463,8 @@ export default function App() {
   }
 
   function openTab(id) {
-    setIsLandscapeNavExpanded(false);
+    const landscapePhone = window.matchMedia?.('(orientation: landscape) and (max-height: 599px) and (max-width: 1023px)').matches;
+    setIsLandscapeNavExpanded(Boolean(landscapePhone));
     if (id === 'upload') { openUpload(); return; }
     setActiveTab(id);
   }
@@ -575,7 +579,6 @@ export default function App() {
     {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
-      <button type="button" className="landscape-nav-toggle" onClick={() => setIsLandscapeNavExpanded((open) => !open)} aria-expanded={isLandscapeNavExpanded} aria-label={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'} title={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'}><span className="material-symbols-outlined" aria-hidden="true">menu</span></button>
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
