@@ -293,20 +293,22 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app { --landscape-nav-width: 58px; display: grid; grid-template-columns: var(--landscape-nav-width) minmax(0, 1fr); transition: grid-template-columns .2s ease; }
   .editorial-app--landscape-nav-open { --landscape-nav-width: 196px; }
   .editorial-app > header { display: none; }
-  .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: 8px !important; padding-bottom: 8px !important; padding-left: 8px !important; }
+  .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: 12px !important; padding-bottom: 8px !important; padding-left: 12px !important; }
   .editorial-main--feed { overflow: hidden; }
   .editorial-main--scroll { overflow-y: auto; }
   .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: var(--landscape-nav-width); height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px; box-shadow: none; transition: width .2s ease, box-shadow .2s ease; }
-  .landscape-nav-toggle { display: flex; width: 50px; height: 36px; align-items: center; justify-content: center; gap: 10px; overflow: hidden; padding: 0; color: var(--xc-text); transition: width .2s ease, padding .2s ease; }
-  .landscape-nav-toggle .material-symbols-outlined { flex: 0 0 auto; font-size: 22px; }
-  .editorial-app--landscape-nav-open .landscape-nav-toggle { width: 100%; justify-content: flex-start; padding: 0 12px; }
+  .desktop-nav-brand { display: flex; align-items: center; width: 50px; height: 38px; margin: 0 0 8px; padding: 0 10px; overflow: hidden; color: var(--xc-text); text-align: left; white-space: nowrap; transition: width .2s ease, padding .2s ease; }
+  .desktop-nav-brand img { width: 30px; height: 24px; flex: 0 0 auto; object-fit: contain; }
+  .desktop-nav-brand span { max-width: 0; overflow: hidden; opacity: 0; transform: translateX(-6px); transition: max-width .2s ease, opacity .16s ease, transform .2s ease; }
   .editorial-app > nav > .desktop-nav-items { height: auto; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 5px; padding: 8px 0 0; }
-  .editorial-app > nav button:not(.landscape-nav-toggle) { width: 50px; height: 40px; flex-direction: row; justify-content: center; gap: 0; padding: 0; overflow: hidden; transition: width .2s ease, padding .2s ease, gap .2s ease; }
+  .editorial-app > nav > .desktop-nav-items button { width: 50px; height: 40px; flex-direction: row; justify-content: center; gap: 0; padding: 0; overflow: hidden; transition: width .2s ease, padding .2s ease, gap .2s ease; }
   .editorial-app > nav button .material-symbols-outlined { font-size: 22px; }
-  .editorial-app > nav button:not(.landscape-nav-toggle) span:last-child { max-width: 0; overflow: hidden; opacity: 0; font-size: 12px; white-space: nowrap; transition: max-width .2s ease, opacity .16s ease; }
-  .editorial-app--landscape-nav-open > nav button:not(.landscape-nav-toggle) { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
-  .editorial-app--landscape-nav-open > nav button:not(.landscape-nav-toggle) span:last-child { max-width: 88px; opacity: 1; }
-  .desktop-nav-brand, .desktop-nav-language { display: none !important; }
+  .editorial-app > nav > .desktop-nav-items button span:last-child { max-width: 0; overflow: hidden; opacity: 0; font-size: 12px; white-space: nowrap; transition: max-width .2s ease, opacity .16s ease; }
+  .editorial-app--landscape-nav-open .desktop-nav-brand { width: 100%; gap: 9px; padding: 0 12px; }
+  .editorial-app--landscape-nav-open .desktop-nav-brand span { max-width: 140px; opacity: 1; transform: translateX(0); }
+  .editorial-app--landscape-nav-open > nav > .desktop-nav-items button { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
+  .editorial-app--landscape-nav-open > nav > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; }
+  .desktop-nav-language { display: none !important; }
   .editorial-feed > div:first-child { min-height: 26px; padding-bottom: 4px; }
   .editorial-feed article { min-height: 0; }
 }
