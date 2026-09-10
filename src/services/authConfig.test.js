@@ -15,6 +15,17 @@ test('public Auth config accepts a fixed same-origin HTTPS callback', () => {
   assert.equal(config.redirectTo, 'https://facs-preview.example/auth/callback');
 });
 
+test('the known FACS Vercel Preview returns to the exact deployment that requested sign-in', () => {
+  const config = getPublicAuthConfig(baseEnvironment, 'https://product-test-1c1d5yxnt-joonq-ducatist.vercel.app');
+  assert.equal(config.ok, true);
+  assert.equal(config.redirectTo, 'https://product-test-1c1d5yxnt-joonq-ducatist.vercel.app/auth/callback');
+});
+
+test('an unrelated Vercel host cannot replace the configured callback', () => {
+  const config = getPublicAuthConfig(baseEnvironment, 'https://untrusted-preview.vercel.app');
+  assert.equal(config.redirectTo, 'https://facs-preview.example/auth/callback');
+});
+
 test('public Auth config allows the temporary anon-key alias during migration', () => {
   const environment = { ...baseEnvironment, VITE_SUPABASE_PUBLISHABLE_KEY: '', VITE_SUPABASE_ANON_KEY: 'legacy-public-key' };
   assert.equal(getPublicAuthConfig(environment).ok, true);
