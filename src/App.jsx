@@ -55,6 +55,7 @@ export default function App() {
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
+  const [profileNotice, setProfileNotice] = useState('');
   const [isLandscapeNavExpanded, setIsLandscapeNavExpanded] = useState(false);
   const [viewportEpoch, setViewportEpoch] = useState(0);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
@@ -413,6 +414,7 @@ export default function App() {
     const result = await updateMyHandle(handle);
     if (!result.ok) return { ok: false, message: result.error?.message ?? '아이디를 저장하지 못했어요.' };
     setProfile(result.data);
+    setProfileNotice('');
     setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
     return { ok: true };
   }
@@ -431,6 +433,9 @@ export default function App() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
     if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
+      setProfileNotice(locale === 'en'
+        ? 'You were sent to Profile because a public ID is required before you can upload. Save one below, then tap Upload again.'
+        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장한 뒤 업로드를 다시 눌러 주세요.');
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
@@ -466,6 +471,7 @@ export default function App() {
     const landscapePhone = window.matchMedia?.('(orientation: landscape) and (max-height: 599px) and (max-width: 1023px)').matches;
     setIsLandscapeNavExpanded(Boolean(landscapePhone));
     if (id === 'upload') { openUpload(); return; }
+    if (id !== 'profile') setProfileNotice('');
     setActiveTab(id);
   }
 
@@ -570,7 +576,7 @@ export default function App() {
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
       </>}
     </main>
 
