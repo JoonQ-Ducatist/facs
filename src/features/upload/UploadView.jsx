@@ -87,7 +87,8 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
       if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
       if (type === 'video' && nextVideos >= MAX_VIDEOS) { setError('동영상은 1개만 선택할 수 있습니다.'); continue; }
-      const url = URL.createObjectURL(file);
+      const url = type === 'image' ? await getImagePreviewUrl(file) : URL.createObjectURL(file);
+      if (!url) { setError(`${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`); continue; }
       if (type === 'video') {
         const duration = await getVideoDuration(url);
         if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); setError('동영상은 10초 이하만 업로드할 수 있습니다.'); continue; }
@@ -171,6 +172,15 @@ function detectMediaType(file) {
   if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(extension)) return 'image';
   if (['mp4', 'webm', 'mov', 'quicktime'].includes(extension)) return 'video';
   return null;
+}
+/** 정의: 모바일 파일 제공자에서도 안정적으로 표시되도록 이미지 미리보기를 data URL로 읽는다. */
+function getImagePreviewUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
 }
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
 function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) {
