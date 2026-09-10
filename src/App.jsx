@@ -14,7 +14,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
@@ -151,6 +151,21 @@ export default function App() {
     if (!authUser) { setSavedPostIds(new Set()); return undefined; }
     getMyScrapPostIds().then((result) => {
       if (active && result.data) setSavedPostIds(result.data);
+    });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
+  /** Hydrates the top of the feed from real published posts after authentication. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) return undefined;
+    listSupabasePublishedFeedCards().then((result) => {
+      if (!active || result.error || !result.data?.length) return;
+      setCards((existing) => {
+        const serverIds = new Set(result.data.map((card) => card.id));
+        const localOnly = existing.filter((card) => !serverIds.has(card.id));
+        return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
+      });
     });
     return () => { active = false; };
   }, [authUser?.id]);

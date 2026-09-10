@@ -133,6 +133,75 @@ export function toDatabaseCategory(category) {
   }[category] ?? category;
 }
 
+/** Maps persisted category values back to the product's presentation category IDs. */
+export function fromDatabaseCategory(category) {
+  return {
+    perceived_age: 'PerceivedAge',
+    outfit: 'Outfit',
+    profile: 'SocialProfile',
+    date: 'Date',
+    fitness: 'Fitness',
+    work: 'Work',
+  }[category] ?? category;
+}
+
+/**
+ * Reads only published post data, public handles, and media that RLS has made
+ * visible. Signed URLs stay short-lived and are recreated whenever the feed
+ * is refreshed.
+ */
+export async function listSupabasePublishedFeedCards({ limit = 20, client = supabase } = {}) {
+  if (!client) return apiSuccess([], { source: 'unavailable' });
+  const { data, error } = await client
+    .from('posts')
+    .select('id,author_id,category,evaluation,question,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
+    .eq('status', 'published')
+    .eq('visibility', 'public')
+    .order('published_at', { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 50));
+  if (error) return apiSuccess([], { source: 'degraded' });
+
+  const cards = await Promise.all((data ?? []).map(async (post) => {
+    const assets = (post.post_media ?? [])
+      .sort((left, right) => left.position - right.position)
+      .map((link) => link.media_assets)
+      .filter(Boolean);
+    if (!assets.length) return null;
+    const signedMedia = await Promise.all(assets.map(async (asset) => {
+      const { data: signed, error: signedError } = await client.storage.from('facs-media').createSignedUrl(asset.storage_path, 60 * 60);
+      return signedError ? null : { id: asset.id, type: asset.media_type, url: signed.signedUrl, storagePath: asset.storage_path, objectPosition: 'center 20%' };
+    }));
+    if (signedMedia.some((item) => !item)) return null;
+    const media = signedMedia;
+    const evaluationType = post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY';
+    return {
+      id: post.id,
+      authorId: post.author_id,
+      author: post.profiles?.handle ?? 'member',
+      category: fromDatabaseCategory(post.category),
+      evaluationType,
+      question: post.question,
+      subtext: evaluationType === 'NUMERIC_AGE' ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다',
+      imageUrl: media[0].url,
+      mediaType: media[0].type,
+      media,
+      objectPosition: 'center 20%',
+      yesVotes: 0,
+      noVotes: 0,
+      ageMin: post.age_min,
+      ageMax: post.age_max,
+      ageEstimate: 0,
+      ageVoteCount: 0,
+      timestamp: '방금 전',
+      publishedAt: post.published_at,
+      isMyUpload: false,
+      commentsAllowed: true,
+      comments: [],
+    };
+  }));
+  return apiSuccess(cards.filter(Boolean), { source: 'supabase' });
+}
+
 /** Maps the reduced deployed post schema without requiring profile, media, or vote-row reads. */
 export function mapSupabaseFeedPost(post) {
   return {
