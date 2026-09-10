@@ -75,6 +75,64 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
   return apiSuccess(data);
 }
 
+/**
+ * Uploads selected media through a server-created private path, then publishes
+ * the post only after every object is present in Storage. The browser never
+ * chooses an account-identifying storage path or writes a ready asset state.
+ */
+export async function createSupabasePublishedPost({ category, evaluationType, question, ageMin = null, ageMax = null, media }) {
+  const identity = await requireUser();
+  if (identity.error) return identity.error;
+  if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
+  const inputMedia = media.map((item) => ({
+    type: item.type,
+    mimeType: item.file?.type,
+    byteSize: item.file?.size,
+    durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
+  }));
+  const { data: prepared, error: prepareError } = await supabase.rpc('create_post_upload', {
+    input_category: toDatabaseCategory(category),
+    input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
+    input_question: question,
+    input_age_min: evaluationType === 'NUMERIC_AGE' ? ageMin : null,
+    input_age_max: evaluationType === 'NUMERIC_AGE' ? ageMax : null,
+    input_media: inputMedia,
+  });
+  if (prepareError || !prepared?.length) return normalizeSupabaseError(prepareError, '업로드를 준비하지 못했어요.');
+
+  const uploads = [...prepared].sort((a, b) => a.media_position - b.media_position);
+  for (const [index, target] of uploads.entries()) {
+    const source = media[index]?.file;
+    if (!source) return apiFailure(API_ERROR.VALIDATION_FAILED, '선택한 파일 정보를 찾지 못했어요.');
+    const { error } = await supabase.storage.from('facs-media').upload(target.storage_path, source, {
+      contentType: source.type,
+      upsert: false,
+    });
+    if (error) return normalizeSupabaseError(error, '사진을 안전하게 저장하지 못했어요.');
+  }
+
+  const { data: post, error: publishError } = await supabase.rpc('publish_post_upload', { target_post_id: uploads[0].post_id });
+  if (publishError || !post) return normalizeSupabaseError(publishError, '게시물을 공개하지 못했어요.');
+  const urlResults = await Promise.all(uploads.map(async (target) => {
+    const { data, error } = await supabase.storage.from('facs-media').createSignedUrl(target.storage_path, 60 * 60);
+    return error ? null : { id: target.asset_id, url: data.signedUrl, storagePath: target.storage_path, type: media[target.media_position]?.type };
+  }));
+  if (urlResults.some((item) => !item)) return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드는 완료됐지만 사진 주소를 만들지 못했어요.');
+  return apiSuccess({ post, media: urlResults });
+}
+
+/** Maps UI category IDs to the database enum-compatible category values. */
+export function toDatabaseCategory(category) {
+  return {
+    PerceivedAge: 'perceived_age',
+    Outfit: 'outfit',
+    SocialProfile: 'profile',
+    Date: 'date',
+    Fitness: 'fitness',
+    Work: 'work',
+  }[category] ?? category;
+}
+
 /** Maps the reduced deployed post schema without requiring profile, media, or vote-row reads. */
 export function mapSupabaseFeedPost(post) {
   return {

@@ -61,6 +61,7 @@ export default function UploadView({ categories, locale = 'ko', onSubmit, onMess
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const imageCount = media.filter((item) => item.type === 'image').length;
   const videoCount = media.filter((item) => item.type === 'video').length;
@@ -112,7 +113,7 @@ export default function UploadView({ categories, locale = 'ko', onSubmit, onMess
     cameraInputRef.current?.click();
   }
   /** 정의: 닉네임·질문·미디어 조건을 검사한 뒤 UI용 새 카드 데이터를 부모에 전달한다. @param {SubmitEvent} event 폼 제출 이벤트 */
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     const nextFieldErrors = {};
     if (!/^[a-zA-Z0-9가-힣_]{2,30}$/.test(author.trim())) nextFieldErrors.author = '닉네임은 2~30자의 한글·영문·숫자·밑줄만 사용할 수 있어요.';
@@ -126,7 +127,12 @@ export default function UploadView({ categories, locale = 'ko', onSubmit, onMess
     if (!media.length) { setError('사진 또는 동영상을 선택해 주세요.'); inputRef.current?.click(); return; }
     const primary = media[0];
     const actualAgeProvided = shareActualAge && Number.isInteger(Number(actualAge));
-    onSubmit({ id: `local-${Date.now()}`, author: author.trim() || 'my_look', category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '첫인상에서 호감과 신뢰감이 느껴지나요?'), subtext: isAgeEvaluation ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 1, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
+    setIsPublishing(true);
+    try {
+      await onSubmit({ author: author.trim(), category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '첫인상에서 호감과 신뢰감이 느껴지나요?'), subtext: isAgeEvaluation ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
+    } finally {
+      setIsPublishing(false);
+    }
   }
 
   return <section className="editorial-upload w-full pb-3 pt-1">
@@ -142,14 +148,14 @@ export default function UploadView({ categories, locale = 'ko', onSubmit, onMess
       {selectedTheme.evaluationType === 'NUMERIC_AGE' && <><fieldset className="rounded-lg border border-[#ff0050]/25 bg-[#ff0050]/[0.04] p-3"><legend className="px-1 text-[11px] font-bold text-[#d90043]">3. 평가 나이 범위</legend><p className="mb-2 text-[10px] text-slate-500">평가자는 이 범위 안에서 슬라이더와 ± 버튼으로 예상 나이를 선택합니다.</p><div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-semibold text-[#44474c]">최소 나이<input type="number" min="18" max="98" value={ageMin} onChange={(event) => { setAgeMin(event.target.value); setFieldErrors((errors) => ({ ...errors, ageRange: undefined })); }} className="mt-1 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" /></label><label className="text-[11px] font-semibold text-[#44474c]">최대 나이<input type="number" min="19" max="99" value={ageMax} onChange={(event) => { setAgeMax(event.target.value); setFieldErrors((errors) => ({ ...errors, ageRange: undefined })); }} className="mt-1 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" /></label></div>{fieldErrors.ageRange && <p role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.ageRange}</p>}</fieldset><fieldset className="rounded-lg border border-[#ff0050]/25 bg-[#ff0050]/[0.04] p-3"><legend className="px-1 text-[11px] font-bold text-[#d90043]">4. 실제 나이 비교 (선택)</legend><label className="flex items-start gap-2 text-xs text-[#44474c]"><input type="checkbox" checked={shareActualAge} onChange={(event) => setShareActualAge(event.target.checked)} className="mt-0.5 accent-[#ff0050]" />결과에서만 실제 나이와 비교하기</label><p className="mt-1 text-[10px] leading-relaxed text-slate-500">실제 나이는 평가자·프로필·피드에 공개되지 않으며, 본인 결과 비교에만 사용됩니다.</p>{shareActualAge && <input type="number" min="18" max="99" value={actualAge} onChange={(event) => setActualAge(event.target.value)} placeholder="실제 나이 (18~99)" className="mt-2 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" />}</fieldset></>}
       <div><label htmlFor="author-input" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-300">{selectedTheme.evaluationType === 'NUMERIC_AGE' ? '5.' : '3.'} 닉네임 / 핸들</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">@</span><input id="author-input" value={author} maxLength="30" onChange={(event) => { setAuthor(event.target.value); setFieldErrors((errors) => ({ ...errors, author: undefined })); }} aria-invalid={Boolean(fieldErrors.author)} aria-describedby={fieldErrors.author ? 'author-error' : undefined} className="w-full rounded-xl border border-surface-container-high bg-surface-container py-2 pl-8 pr-3 text-xs text-white focus:border-cyan-glow focus:outline-none sm:text-sm" /></div>{fieldErrors.author && <p id="author-error" role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.author}</p>}</div>
       {error && <p role="alert" aria-live="assertive" className="text-xs text-[#9b5c55]">{error}</p>}
-      <button type="submit" className="ui-primary-action mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#0e1c2d] bg-primary-container py-2 font-body text-sm font-bold text-white shadow-[0_4px_20px_rgba(0,0,0,.08)] active:scale-95"><span className="material-symbols-outlined text-base">arrow_upward</span>피드에 업로드하기</button>
-      <p className="text-center text-[10px] text-slate-500">현재는 브라우저 목업입니다. 실서비스에서는 권리 동의·검토·안전한 미디어 저장 절차가 적용됩니다.</p>
+      <button type="submit" disabled={isPublishing} className="ui-primary-action mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#0e1c2d] bg-primary-container py-2 font-body text-sm font-bold text-white shadow-[0_4px_20px_rgba(0,0,0,.08)] active:scale-95 disabled:cursor-wait disabled:opacity-65"><span className="material-symbols-outlined text-base">{isPublishing ? 'progress_activity' : 'arrow_upward'}</span>{isPublishing ? '사진을 저장하고 있어요...' : '피드에 업로드하기'}</button>
+      <p className="text-center text-[10px] text-slate-500">선택한 사진은 안전하게 저장된 뒤 공개 피드에 등록됩니다.</p>
     </form>
   </section>;
 }
 
 /** 정의: File 객체를 화면 미리보기·정렬에 필요한 표준 미디어 항목으로 변환한다. */
-function makeItem(file, url, type, duration = 0) { return { id: `${file.name}-${file.lastModified}-${Math.random()}`, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` }; }
+function makeItem(file, url, type, duration = 0) { return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` }; }
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
 function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) { return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>{item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} />}<span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">{item.type === 'video' ? `VIDEO ${item.duration.toFixed(1)}s` : `IMAGE ${index + 1}`}</span><div className="absolute left-1 top-1 flex gap-0.5"><button type="button" disabled={!canMovePrevious} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_right</span></button></div><button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white"><span className="material-symbols-outlined text-[13px]">close</span></button></div>; }
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */

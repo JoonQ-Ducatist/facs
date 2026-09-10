@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError } from './supabaseApi.js';
+import { listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -32,4 +32,10 @@ test('server feed safely degrades when the public post query fails', async () =>
   const result = await listSupabasePublishedPosts({ client: chained });
   assert.deepEqual(result.data, []);
   assert.equal(result.meta.source, 'degraded');
+});
+
+test('upload categories map to the database contract without exposing display labels', () => {
+  assert.equal(toDatabaseCategory('PerceivedAge'), 'perceived_age');
+  assert.equal(toDatabaseCategory('SocialProfile'), 'profile');
+  assert.equal(toDatabaseCategory('Outfit'), 'outfit');
 });

@@ -14,6 +14,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
+import { createSupabasePublishedPost } from './services/supabaseApi.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
@@ -303,18 +304,40 @@ export default function App() {
     setToast(locale === 'en' ? 'Comment posted.' : '댓글을 남겼습니다.');
   }
 
-  /** 정의: 업로드 목업 결과를 피드 맨 앞에 넣고 피드 탭으로 전환한다. @param {object} card 새 카드 데이터 */
-  function addCard(card) {
+  /** Stores selected media privately, publishes only after storage confirms it, then shows the server-backed card. */
+  async function addCard(card) {
     if (!isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
       setToast(locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.');
       return;
     }
-    setCards((items) => [card, ...items]);
+    const result = await createSupabasePublishedPost({
+      category: card.category,
+      evaluationType: card.evaluationType,
+      question: card.question,
+      ageMin: card.ageMin ?? null,
+      ageMax: card.ageMax ?? null,
+      media: card.media,
+    });
+    if (result.error) {
+      setToast(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
+      return;
+    }
+    const serverMedia = result.data.media;
+    const publishedCard = {
+      ...card,
+      id: result.data.post.id,
+      author: profile.handle,
+      imageUrl: serverMedia[0].url,
+      mediaType: serverMedia[0].type,
+      media: serverMedia.map((item) => ({ ...item, objectPosition: card.objectPosition })),
+      publishedAt: result.data.post.published_at,
+    };
+    setCards((items) => [publishedCard, ...items]);
     setActiveCategory('ALL');
     setCurrentIndex(0);
     setActiveTab('feed');
-    trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: card.category, evaluationType: card.evaluationType, locale });
+    trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
   }
 
