@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "node --test src/**/*.test.js",
     "dev:local": "node scripts/start-local-auth-dev.mjs",
+    "qa:synthetic": "node scripts/qa/run-synthetic-qa.mjs",
     "supabase:start": "npx supabase start",
     "supabase:stop": "npx supabase stop",
     "supabase:status": "npx supabase status"
