@@ -57,7 +57,6 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
   const [isLandscapeNavExpanded, setIsLandscapeNavExpanded] = useState(false);
-  const [viewportEpoch, setViewportEpoch] = useState(0);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
@@ -255,7 +254,7 @@ export default function App() {
       window.clearTimeout(delayedReset);
       delayedReset = window.setTimeout(reset, 120);
     };
-    const onResume = () => { resetDocumentViewport(); setViewportEpoch((value) => value + 1); };
+    const onResume = () => { resetDocumentViewport(); };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
     // iOS Chrome reports a transient visual viewport while its keyboard opens.
     // Keep the canvas stable then, but immediately restore its full height when
@@ -431,6 +430,10 @@ export default function App() {
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
+    if (profileLoading) {
+      setToast(locale === 'en' ? 'Checking your public ID before opening Upload.' : '업로드를 열기 전에 공개 아이디를 확인하고 있어요.');
+      return;
+    }
     if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
       setProfileNotice(locale === 'en'
@@ -544,7 +547,7 @@ export default function App() {
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>
     <SkipLink />
-    <header key={`header-${viewportEpoch}`} className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
+    <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
         <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
           <img src={logoUrl} width="38" height="28" className="h-7 w-9 shrink-0 object-contain" alt="FACt.Smack 뱀 로고" />
@@ -571,7 +574,7 @@ export default function App() {
       </div>
     </header>
 
-    <main key={`main-${activeTab}-${viewportEpoch}`} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+    <main key={activeTab} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
