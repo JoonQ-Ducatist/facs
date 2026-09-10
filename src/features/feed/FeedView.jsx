@@ -3,7 +3,7 @@ import { Bookmark } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
-export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, savedPostIds, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onBoost, onStartUpload, onAddComment }) {
+export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, canViewLiveReactions = false, liveReactions = [], savedPostIds, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onBoost, onStartUpload, onAddComment }) {
   const [expandedComments, setExpandedComments] = useState(false);
   const [draft, setDraft] = useState('');
   const gestureStart = useRef(null);
@@ -118,12 +118,18 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
       <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2"><ShareRailButton onClick={() => onShare(card)} /><div className="flex flex-col gap-2.5"><ArrowButton label="이전 카드" icon="expand_less" onClick={() => navigateFeed(-1)} /><ArrowButton label="다음 카드" icon="expand_more" onClick={() => navigateFeed(1)} /></div></div>
       <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
-        {hasVoted ? isAgeEvaluation ? <AgeResult card={card} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} /> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
+        {hasVoted ? <>{isAgeEvaluation ? <AgeResult card={card} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onNext={() => navigateFeed(1)} onBoost={onBoost} onStartUpload={onStartUpload} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
         {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onExpand={() => setExpandedComments(true)} />}
       </div>
     </article></div>
     {card.commentsAllowed && expandedComments && <CommentPanel card={card} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
   </section>;
+}
+
+/** Displays only anonymous post-evaluation signals; each bubble fades while it drifts upward. */
+function LiveReactionBalloons({ reactions }) {
+  if (!reactions.length) return null;
+  return <div className="live-reaction-layer" aria-live="polite" aria-label="새 평가 반응">{reactions.slice(-4).map((reaction, index) => <span key={reaction.id} className={`live-reaction live-reaction--${reaction.kind}`} style={{ '--reaction-index': index }}><span>{reaction.value}</span></span>)}</div>;
 }
 
 /** 정의: 현재 선택된 카테고리 상태를 보여 주고 필터 변경을 요청하는 버튼이다. */
