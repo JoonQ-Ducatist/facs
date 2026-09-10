@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPersonas } from './synthetic-personas.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const REPORTS_DIR = path.join(ROOT, 'memory-bank/100-qa-bot-results');
@@ -19,6 +20,16 @@ const categories = [
   ['date', 'binary'], ['fitness', 'binary'], ['work', 'binary'],
 ];
 
+function validatePersonaMix() {
+  const count = (key, value) => syntheticPersonas.filter((persona) => persona[key] === value).length;
+  if (syntheticPersonas.length !== PERSONA_COUNT
+    || count('locale', 'ko') !== 25 || count('locale', 'en') !== 25
+    || count('gender', 'female') !== 25 || count('gender', 'male') !== 25
+    || count('reportLanguage', 'English') !== 25) {
+    throw new Error('Synthetic QA requires 25 Korean and 25 English personas with an even gender split.');
+  }
+}
+
 function localStatus() {
   const raw = execFileSync('npx', ['supabase', 'status', '--output', 'json'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const status = JSON.parse(raw);
@@ -28,19 +39,13 @@ function localStatus() {
 }
 
 function makePersonas(runId) {
-  return Array.from({ length: PERSONA_COUNT }, (_, index) => {
-    const number = String(index + 1).padStart(3, '0');
-    const locale = index < 50 ? 'ko' : 'en';
-    const gender = index % 2 === 0 ? 'female' : 'male';
-    const age = 20 + (index % 30);
+  return syntheticPersonas.map((persona) => {
+    const number = persona.code.toLowerCase();
     return {
+      ...persona,
       id: `qa_${runId}_${number}`,
       email: `qa_${runId}_${number}@synthetic.facs.test`,
-      handle: `${locale === 'ko' ? 'seoul' : 'global'}_${gender === 'female' ? 'style' : 'look'}_${number}`,
-      locale,
-      gender,
-      age,
-      activity: ['quick_viewer', 'careful_rater', 'album_browser', 'saver', 'trend_scanner'][index % 5],
+      handle: `${persona.locale === 'ko' ? 'seoul' : 'global'}_${persona.gender === 'female' ? 'style' : 'look'}_${number}`,
     };
   });
 }
@@ -77,21 +82,25 @@ async function mapWithConcurrency(items, limit, task) {
   return results;
 }
 
-async function createPosts(clients) {
+async function createPosts(clients, personas) {
   const assets = await Promise.all(assetPaths.map(async (assetPath) => ({
     bytes: await readFile(path.join(ROOT, assetPath)),
     mimeType: 'image/jpeg',
   })));
   const posts = [];
   for (let index = 0; index < POST_COUNT; index += 1) {
-    const client = clients[index];
+    const authorIndex = index % 2 === 0 ? index / 2 : 25 + Math.floor(index / 2);
+    const client = clients[authorIndex];
+    const author = personas[authorIndex];
     const [category, evaluation] = categories[index % categories.length];
     const mediaCount = 1 + (index % assets.length);
     const inputMedia = assets.slice(0, mediaCount).map((asset) => ({ type: 'image', mimeType: asset.mimeType, byteSize: asset.bytes.byteLength, durationMs: null }));
     const { data: prepared, error: prepareError } = await client.rpc('create_post_upload', {
       input_category: category,
       input_evaluation: evaluation,
-      input_question: evaluation === 'numeric_age' ? 'How old do I look in this test photo?' : 'Does this look feel right for today?',
+      input_question: evaluation === 'numeric_age'
+        ? (author.locale === 'ko' ? '이 테스트 사진에서 몇 살로 보이나요?' : 'How old do I look in this test photo?')
+        : (author.locale === 'ko' ? '오늘 이 룩이 잘 어울리나요?' : 'Does this look feel right for today?'),
       input_age_min: evaluation === 'numeric_age' ? 20 : null,
       input_age_max: evaluation === 'numeric_age' ? 49 : null,
       input_media: inputMedia,
@@ -104,7 +113,7 @@ async function createPosts(clients) {
     }
     const { data: post, error: publishError } = await client.rpc('publish_post_upload', { target_post_id: prepared[0].post_id });
     if (publishError || !post) throw new Error(`post publish failed: ${publishError?.message ?? 'no post'}`);
-    posts.push({ id: post.id, evaluation, authorIndex: index });
+    posts.push({ id: post.id, evaluation, authorIndex });
   }
   return posts;
 }
@@ -112,6 +121,7 @@ async function createPosts(clients) {
 async function run() {
   const startedAt = new Date();
   const runId = process.env.FACS_QA_RUN_ID ?? startedAt.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  validatePersonaMix();
   const status = localStatus();
   const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const personas = makePersonas(runId);
@@ -129,7 +139,7 @@ async function run() {
   const clients = authenticated.filter(Boolean);
   if (clients.length !== PERSONA_COUNT) throw new Error(`Only ${clients.length}/${PERSONA_COUNT} synthetic sessions are available.`);
 
-  const posts = await createPosts(clients.map(({ client }) => client));
+  const posts = await createPosts(clients.map(({ client }) => client), personas);
   report.counts.posts = posts.length;
   await mapWithConcurrency(clients, 10, async (session, index) => {
     const target = index < posts.length ? posts[index] : posts[index % posts.length];
@@ -158,6 +168,15 @@ async function run() {
     '## 데이터 정리', '- 이 실행의 데이터는 로컬 Docker에만 존재하며, 사용자 시각 점검 완료 뒤 별도 승인으로 삭제한다.', '',
   ];
   await writeFile(path.join(REPORTS_DIR, `${report.runId}.md`), rows.join('\n'));
+  const personaRows = [
+    '# (50) QA bot persona catalog', '',
+    '| Code | Locale | Report language | Nationality | Gender | Age | Job | QA style | Hobbies | Preference |',
+    '|---|---|---|---|---|---:|---|---|---|---|',
+    ...personas.map((persona) => `| ${persona.code} | ${persona.locale} | ${persona.reportLanguage} | ${persona.nationality} | ${persona.gender} | ${persona.age} | ${persona.job} | ${persona.activity} | ${persona.hobbies} | ${persona.preference} |`),
+    '',
+    '- English-locale personas open and report against the English UI. Korean-locale personas use the Korean UI and Korean reports.', '',
+  ];
+  await writeFile(path.join(REPORTS_DIR, `${report.runId}-personas.md`), personaRows.join('\n'));
   console.log(JSON.stringify(report, null, 2));
 }
 
