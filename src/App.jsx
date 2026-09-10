@@ -333,6 +333,17 @@ export default function App() {
     const result = await submitCardVote(currentCard, payload, votedIds);
     if (result.error) { setToast(result.error.message); return; }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
+    if (isSupabasePost(currentCard)) {
+      const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
+      setLiveReactions((items) => [...items, {
+        id: `local-${currentCard.id}-${Date.now()}`,
+        postId: currentCard.id,
+        kind,
+        value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
+        aggregate: result.data.aggregate,
+        receivedAt: Date.now(),
+      }].slice(-18));
+    }
     setVotedIds((ids) => {
       const next = new Set([...ids, currentCard.id]);
       if (authUser?.id && isSupabasePost(currentCard)) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
@@ -564,7 +575,7 @@ export default function App() {
     {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
-      <button type="button" className="landscape-nav-toggle" onClick={() => setIsLandscapeNavExpanded((open) => !open)} aria-expanded={isLandscapeNavExpanded} aria-label={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'} title={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'}><span className="material-symbols-outlined" aria-hidden="true">menu</span><span>메뉴</span></button>
+      <button type="button" className="landscape-nav-toggle" onClick={() => setIsLandscapeNavExpanded((open) => !open)} aria-expanded={isLandscapeNavExpanded} aria-label={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'} title={isLandscapeNavExpanded ? '메뉴 접기' : '메뉴 펼치기'}><span className="material-symbols-outlined" aria-hidden="true">menu</span></button>
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
