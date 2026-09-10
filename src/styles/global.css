@@ -45,7 +45,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .brand-wordmark__facs { color: var(--xc-brand-red); }
 .brand-ai-mark { align-items: center; justify-content: center; height: 1.15rem; min-width: 1.65rem; padding: 0 .25rem; border: 1px solid rgba(197,160,89,.7); border-radius: .2rem; color: var(--xc-accent); font-family: Inter, sans-serif; font-size: .56rem; font-weight: 800; line-height: 1; letter-spacing: .06em; }
-@media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
 .app-stage { display: flex; height: var(--xc-app-height); min-height: 0; width: 100%; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
@@ -143,6 +143,16 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .result-bar--no { transform-origin: right center; border-left: 1px solid #101828; animation: result-fill-from-right .48s cubic-bezier(.16,1,.3,1) both; }
 @keyframes result-fill-from-left { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes result-fill-from-right { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+/* 정의: 업로더와 해당 평가자에게만 전달된 익명 반응을 작고 투명한 풍선으로 표현한다.
+   꼬리는 한 줄의 흐림으로 제한해 장식적인 효과보다 현재 반응의 감각을 우선한다. */
+.live-reaction-layer { position: absolute; right: 16%; bottom: 31%; z-index: 26; width: 130px; height: 130px; pointer-events: none; overflow: visible; }
+.live-reaction { position: absolute; left: calc(22% + var(--reaction-index) * 17%); bottom: calc(4% + var(--reaction-index) * 4%); display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.48); border-radius: 999px; color: #fff; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: 11px; font-weight: 850; line-height: 1; box-shadow: 0 4px 12px rgba(1,8,17,.12); opacity: 0; animation: live-reaction-rise 2.05s cubic-bezier(.2,.72,.3,1) both; }
+.live-reaction::after { position: absolute; top: 92%; width: 1px; height: 19px; border-radius: 99px; background: currentColor; content: ''; filter: blur(.7px); opacity: .18; transform: rotate(8deg); transform-origin: top center; }
+.live-reaction--yes { border-color: rgba(255,196,215,.6); background: rgba(255,106,149,.48); color: #fff5f8; }
+.live-reaction--no { border-color: rgba(236,238,241,.58); background: rgba(92,101,110,.43); color: #f6f7f8; }
+.live-reaction--age { border-color: rgba(249,223,150,.65); background: rgba(186,142,43,.38); color: #fff1bb; }
+@keyframes live-reaction-rise { 0% { opacity: 0; transform: translate3d(0,8px,0) scale(.72) rotate(-2deg); } 13% { opacity: .92; } 30% { transform: translate3d(6px,-19px,0) scale(1) rotate(2deg); } 54% { transform: translate3d(-5px,-49px,0) scale(.97) rotate(-2deg); } 78% { opacity: .68; transform: translate3d(4px,-76px,0) scale(.92) rotate(2deg); } 100% { opacity: 0; transform: translate3d(-2px,-101px,0) scale(.83) rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .live-reaction { opacity: .9; animation-duration: 1s; } .live-reaction::after { display: none; } }
 .media-carousel--kick-left { animation: carousel-kick-left .28s cubic-bezier(.18,.7,.32,1); }
 .media-carousel--kick-right { animation: carousel-kick-right .28s cubic-bezier(.18,.7,.32,1); }
 @keyframes carousel-kick-left { 0% { transform: translateX(0); } 42% { transform: translateX(-10px); } 100% { transform: translateX(0); } }

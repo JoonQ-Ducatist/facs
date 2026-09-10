@@ -3,7 +3,7 @@ import { Bookmark } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
-export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, savedPostIds, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onBoost, onStartUpload, onAddComment }) {
+export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, canViewLiveReactions = false, liveReactions = [], savedPostIds, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onBoost, onStartUpload, onAddComment }) {
   const [expandedComments, setExpandedComments] = useState(false);
   const [draft, setDraft] = useState('');
   const gestureStart = useRef(null);
@@ -112,6 +112,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={() => { gestureStart.current = null; setIsDraggingMedia(false); setDragOffset(0); }} onWheel={moveCardByWheel} className={`relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${feedMotion}`}>
       <div className={`media-primary absolute inset-0 z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translateX(${dragOffset}px)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" /></div>
       <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
+      {canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
       <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
@@ -124,6 +125,12 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </article></div>
     {card.commentsAllowed && expandedComments && <CommentPanel card={card} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
   </section>;
+}
+
+/** Displays only anonymous post-evaluation signals; each bubble fades while it drifts upward. */
+function LiveReactionBalloons({ reactions }) {
+  if (!reactions.length) return null;
+  return <div className="live-reaction-layer" aria-live="polite" aria-label="새 평가 반응">{reactions.slice(-4).map((reaction, index) => <span key={reaction.id} className={`live-reaction live-reaction--${reaction.kind}`} style={{ '--reaction-index': index }}><span>{reaction.value}</span></span>)}</div>;
 }
 
 /** 정의: 현재 선택된 카테고리 상태를 보여 주고 필터 변경을 요청하는 버튼이다. */

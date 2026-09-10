@@ -8,13 +8,14 @@ import SplashView from './features/auth/SplashView.jsx';
 import logoUrl from './assets/facs-snake-logo.png';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
-import { submitCardVote } from './services/voteService.js';
+import { isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { createSupabasePublishedPost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { applyLiveReactionToCard, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
@@ -52,6 +53,7 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [votedIds, setVotedIds] = useState(() => new Set());
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
+  const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [isLandscapeNavExpanded, setIsLandscapeNavExpanded] = useState(false);
   const [viewportEpoch, setViewportEpoch] = useState(0);
@@ -183,6 +185,34 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id]);
 
+  /** Restores only this member's completed server evaluations on this device. */
+  useEffect(() => {
+    if (!authUser) { setVotedIds(new Set()); return; }
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(`facs_voted_posts_${authUser.id}`) ?? '[]');
+      setVotedIds(new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : []));
+    } catch {
+      setVotedIds(new Set());
+    }
+  }, [authUser?.id]);
+
+  /** Opens real-time reactions only to a post owner or a member who evaluated that exact post. */
+  useEffect(() => {
+    if (!authUser) return undefined;
+    const eligibleCards = cards.filter((card) => isLiveReactionWindow(card.publishedAt) && (card.authorId === authUser.id || votedIds.has(card.id)));
+    const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, (reaction) => {
+      setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
+      setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt: Date.now() }].slice(-18));
+    }));
+    return () => unsubscribe.forEach((close) => close());
+  }, [authUser?.id, cards, votedIds]);
+
+  useEffect(() => {
+    if (!liveReactions.length) return undefined;
+    const timer = window.setTimeout(() => setLiveReactions((items) => items.filter((item) => Date.now() - item.receivedAt < 2200)), 2300);
+    return () => window.clearTimeout(timer);
+  }, [liveReactions]);
+
   /** Shows only a generic callback failure and removes provider-provided details from the URL. */
   useEffect(() => {
     if (!getAuthCallbackFailure(window.location.search)) return;
@@ -303,7 +333,11 @@ export default function App() {
     const result = await submitCardVote(currentCard, payload, votedIds);
     if (result.error) { setToast(result.error.message); return; }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
-    setVotedIds((ids) => new Set([...ids, currentCard.id]));
+    setVotedIds((ids) => {
+      const next = new Set([...ids, currentCard.id]);
+      if (authUser?.id && isSupabasePost(currentCard)) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
+      return next;
+    });
     trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
     trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
     setToast(locale === 'en'
@@ -518,7 +552,7 @@ export default function App() {
 
     <main key={`main-${activeTab}-${viewportEpoch}`} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
