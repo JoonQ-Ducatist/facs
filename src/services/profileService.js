@@ -69,8 +69,12 @@ export async function updateMyHandle(rawHandle) {
   if (!HANDLE_PATTERN.test(handle) || handle.startsWith('member_')) return apiFailure(API_ERROR.VALIDATION_FAILED, '영문 소문자, 숫자, 밑줄로 3~30자 아이디를 입력해 주세요.');
   const identity = await requireUser();
   if (identity.error) return identity.error;
-  const { data, error } = await supabase.from('profiles').update({ handle }).eq('id', identity.user.id).select('id,handle,display_name').single();
-  if (error?.code === '23505') return apiFailure(API_ERROR.VALIDATION_FAILED, '이미 사용 중인 아이디예요.');
-  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '아이디를 저장하지 못했어요.');
+  const { data, error } = await supabase.rpc('set_my_public_handle', { input_handle: handle });
+  if (error?.code === '23505') return apiFailure(API_ERROR.VALIDATION_FAILED, '이미 사용 중인 아이디예요. 다른 아이디를 선택해 주세요.');
+  if (error?.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '아이디는 영문 소문자·숫자·밑줄로 3~30자까지 입력해 주세요.');
+  if (error?.code === '42501' && error?.message === 'profile_not_ready') return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
+  if (error?.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '현재 계정에서는 아이디를 저장할 수 없어요. 다시 로그인해 주세요.');
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '아이디 저장 중 연결 문제가 발생했어요. 잠시 후 다시 시도해 주세요.');
+  if (!data?.id) return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   return apiSuccess(data);
 }
