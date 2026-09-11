@@ -18,7 +18,7 @@ import { createSupabasePublishedPost, listSupabasePublishedFeedCards } from './s
 import { applyLiveReactionToCard, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
+import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -523,7 +523,7 @@ export default function App() {
   async function requestEmailAuth(email, remember) {
     const result = await requestEmailMagicLink(email, authConfig, remember);
     const message = result.ok
-      ? (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.')
+      ? (locale === 'en' ? 'Enter the verification code from your email here.' : '이메일로 받은 인증 코드를 이 화면에 입력해 주세요.')
       : result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
         ? (locale === 'en' ? 'For security, wait about a minute before requesting another email.' : '보안을 위해 약 1분 뒤에 다시 요청해 주세요.')
         : result.code === AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED
@@ -531,6 +531,18 @@ export default function App() {
           : (locale === 'en' ? 'We could not send the sign-in email. Please try again shortly.' : '인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
     setToast(message);
     return { ok: result.ok, code: result.code, message };
+  }
+
+  /** Completes email sign-in inside the original browser tab, without a link redirect. */
+  async function confirmEmailCode(email, code, remember) {
+    const result = await verifyEmailCode(email, code, authConfig, remember);
+    if (result.ok) return result;
+    return {
+      ...result,
+      message: result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
+        ? (locale === 'en' ? 'Please wait a moment before trying again.' : '잠시 후 다시 시도해 주세요.')
+        : (locale === 'en' ? 'That code is invalid or has expired. Request a new code.' : '인증 코드가 맞지 않거나 만료되었어요. 새 코드를 요청해 주세요.'),
+    };
   }
 
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
@@ -585,7 +597,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>

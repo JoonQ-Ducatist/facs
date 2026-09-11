@@ -22,6 +22,7 @@ test('session-only choice is retained in the authentication callback URL', () =>
 
 test('email authentication exposes stable, user-safe failure codes', () => {
   assert.equal(AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED, 'AUTH_EMAIL_RATE_LIMITED');
+  assert.equal(AUTH_ACTION_ERROR.EMAIL_CODE_INVALID, 'AUTH_EMAIL_CODE_INVALID');
   assert.equal(AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED, 'AUTH_EMAIL_REDIRECT_REJECTED');
   assert.equal(AUTH_ACTION_ERROR.SIGN_OUT_FAILED, 'AUTH_SIGN_OUT_FAILED');
 });
