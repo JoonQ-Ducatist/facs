@@ -28,6 +28,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [emailNoticeTone, setEmailNoticeTone] = useState('success');
   const [verificationCode, setVerificationCode] = useState('');
   const [isCodeVerifying, setIsCodeVerifying] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -76,6 +77,31 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
     return () => window.clearInterval(timer);
   }, [popularCards.length]);
 
+  useEffect(() => {
+    let settleTimer;
+    const syncKeyboardOffset = () => {
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+      const keyboardHeight = window.innerHeight - visualHeight;
+      // iPhone Chrome keeps the layout viewport at full height. Only move the
+      // panel after a real software keyboard has reduced the visual viewport.
+      setKeyboardOffset(keyboardHeight > 120 ? Math.min(600, Math.max(0, keyboardHeight - 60)) : 0);
+    };
+    const scheduleSync = () => {
+      syncKeyboardOffset();
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(syncKeyboardOffset, 180);
+    };
+    window.visualViewport?.addEventListener('resize', scheduleSync);
+    window.visualViewport?.addEventListener('scroll', scheduleSync);
+    window.addEventListener('resize', scheduleSync);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', scheduleSync);
+      window.visualViewport?.removeEventListener('scroll', scheduleSync);
+      window.removeEventListener('resize', scheduleSync);
+      window.clearTimeout(settleTimer);
+    };
+  }, []);
+
   const activeCard = popularCards[activeIndex] ?? cards[0];
 
   return (
@@ -108,7 +134,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
           {locale !== 'en' && <p className="mt-2 text-xs text-white/75">{copy.english}</p>}
         </section>
 
-        <section className="splash-auth-card mx-auto w-[86%] max-w-[330px] rounded-2xl border border-white/10 bg-white/[0.025] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
+        <section className="splash-auth-card mx-auto w-[86%] max-w-[330px] rounded-2xl border border-white/10 bg-white/[0.025] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]" style={keyboardOffset ? { transform: `translateY(-${keyboardOffset}px)` } : undefined}>
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
           </p>
