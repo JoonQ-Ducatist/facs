@@ -49,14 +49,28 @@ export async function requestEmailMagicLink(email, config, remember = true) {
   return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
 }
 
+/**
+ * Verifies a six-digit code against the current email OTP flow. Older GoTrue
+ * projects can still label passwordless email codes as `magiclink`; retrying
+ * that legacy label keeps the migration transparent without accepting a bad code.
+ */
+export async function verifyEmailOtp(client, email, token) {
+  const credentials = { email, token: token.trim() };
+  const first = await client.auth.verifyOtp({ ...credentials, type: 'email' });
+  if (!first.error) return { ok: true };
+  if (first.error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
+
+  const legacy = await client.auth.verifyOtp({ ...credentials, type: 'magiclink' });
+  if (!legacy.error) return { ok: true };
+  if (legacy.error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
+  return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_CODE_INVALID };
+}
+
 /** Verifies a short-lived email code without navigating away from the sign-in tab. */
 export async function verifyEmailCode(email, token, config, remember = true) {
   if (!config?.ok || !supabase) return unavailable(config);
   setAuthPersistence(remember);
-  const { error } = await supabase.auth.verifyOtp({ email, token: token.trim(), type: 'email' });
-  if (!error) return { ok: true };
-  if (error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
-  return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_CODE_INVALID };
+  return verifyEmailOtp(supabase, email, token);
 }
 
 /** Starts an OAuth sign-in. Provider credentials live only in the Supabase project. */
