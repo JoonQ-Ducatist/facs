@@ -53,8 +53,8 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
     setEmailSent(sent);
     setEmailNoticeTone(sent ? 'success' : 'error');
     setEmailNotice(sent
-      ? (locale === 'en' ? 'Link sent. Check your inbox.' : '링크를 보냈어요. 받은편지함을 확인해 주세요.')
-      : (result?.message ?? (locale === 'en' ? 'Could not send the link. Try again.' : '링크를 보내지 못했어요. 다시 시도해 주세요.')));
+      ? (locale === 'en' ? 'Code sent. Check your inbox.' : '인증 코드를 보냈어요. 받은편지함을 확인해 주세요.')
+      : (result?.message ?? (locale === 'en' ? 'Could not send the code. Try again.' : '인증 코드를 보내지 못했어요. 다시 시도해 주세요.')));
     window.setTimeout(() => setEmailNotice(''), 2200);
   }
 
@@ -108,7 +108,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
           {locale !== 'en' && <p className="mt-2 text-xs text-white/75">{copy.english}</p>}
         </section>
 
-        <section className="mx-auto w-[86%] max-w-[330px] rounded-2xl border border-white/10 bg-white/[0.025] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
+        <section className="splash-auth-card mx-auto w-[86%] max-w-[330px] rounded-2xl border border-white/10 bg-white/[0.025] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
           </p>
