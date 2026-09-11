@@ -14,7 +14,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
@@ -198,19 +198,35 @@ export default function App() {
     let active = true;
     if (!authUser) { setFeedHydrated(true); return undefined; }
     setFeedHydrated(false);
-    listSupabasePublishedFeedCards().then((result) => {
-      if (!active) return;
-      if (!result.error && result.data?.length) {
-        setCards((existing) => {
-          const serverIds = new Set(result.data.map((card) => card.id));
-          const localOnly = existing.filter((card) => !serverIds.has(card.id));
-          return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
-        });
+    async function hydrateFeed() {
+      try {
+        const result = await listSupabasePublishedFeedCards();
+        if (!active) return;
+        const serverCards = result.error ? [] : (result.data ?? []);
+        if (serverCards.length) {
+          const serverIds = new Set(serverCards.map((card) => card.id));
+          setCards((existing) => {
+            const localOnly = existing.filter((card) => !serverIds.has(card.id));
+            return [...serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
+          });
+
+          // Local storage makes a just-submitted vote feel instant. The server
+          // remains authoritative after a refresh or on a different device.
+          const voteState = await getSupabaseMyVotedPostIds([...serverIds]);
+          if (active && !voteState.error) {
+            setVotedIds((existing) => {
+              const next = new Set([...existing].filter((id) => !serverIds.has(id)));
+              voteState.data.forEach((id) => next.add(id));
+              window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
+              return next;
+            });
+          }
+        }
+      } finally {
+        if (active) setFeedHydrated(true);
       }
-      setFeedHydrated(true);
-    }).catch(() => {
-      if (active) setFeedHydrated(true);
-    });
+    }
+    void hydrateFeed();
     return () => { active = false; };
   }, [authUser?.id]);
 
@@ -373,7 +389,22 @@ export default function App() {
     // 정의: 지원 기기에서 YES는 잔잔한 단일 진동, NO는 분명한 이중 진동을 제공하며 비지원 브라우저는 조용히 통과한다.
     if (currentCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
     const result = await submitCardVote(currentCard, payload, votedIds);
-    if (result.error) { setToast(result.error.message); return; }
+    if (result.error) {
+      // A previously completed evaluation can surface only when two tabs vote
+      // at the same time or an older page has not hydrated yet. Move straight
+      // to the result state rather than leaving a dead voting control behind.
+      if (result.error.code === 'ALREADY_VOTED' && isSupabasePost(currentCard)) {
+        setVotedIds((ids) => {
+          const next = new Set([...ids, currentCard.id]);
+          if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
+          return next;
+        });
+        setToast(locale === 'en' ? 'Your evaluation is already reflected in this result.' : '이미 남긴 평가는 현재 결과에 반영되어 있어요.');
+        return;
+      }
+      setToast(result.error.message);
+      return;
+    }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
     if (isSupabasePost(currentCard)) {
       const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';

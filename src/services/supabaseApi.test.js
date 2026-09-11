@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fromDatabaseCategory, getSupabaseFeedAggregates, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, toDatabaseCategory } from './supabaseApi.js';
+import { fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -45,6 +45,18 @@ test('feed aggregate reads a page in one aggregate-only RPC without raw vote row
   assert.deepEqual(calls, [{ name: 'get_published_post_aggregates', args: { target_post_ids: ['post-a', 'post-b'] } }]);
   assert.deepEqual(result.data.get('post-a'), { yesCount: 7, noCount: 3, averageAge: null, totalVotes: 10, sampleStatus: 'EARLY_SIGNAL' });
   assert.equal(result.data.has('post-b'), false);
+});
+
+test('my vote state reads only the current member\'s completed post IDs', async () => {
+  const calls = [];
+  const result = await getSupabaseMyVotedPostIds(['post-a', 'post-a', 'post-b'], {
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-b' }], error: null };
+    },
+  });
+  assert.deepEqual(calls, [{ name: 'get_my_voted_post_ids', args: { target_post_ids: ['post-a', 'post-b'] } }]);
+  assert.deepEqual([...result.data], ['post-b']);
 });
 
 test('upload categories map to the database contract without exposing display labels', () => {

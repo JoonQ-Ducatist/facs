@@ -52,6 +52,18 @@ export async function getSupabaseFeedAggregates(postIds, client = supabase) {
   }])));
 }
 
+/**
+ * Reads only the current member's completed post IDs for the feed page. The
+ * browser never receives another member's vote, identity, or vote value.
+ */
+export async function getSupabaseMyVotedPostIds(postIds, client = supabase) {
+  const ids = [...new Set((postIds ?? []).filter(Boolean))];
+  if (!ids.length || !client) return apiSuccess(new Set());
+  const { data, error } = await client.rpc('get_my_voted_post_ids', { target_post_ids: ids });
+  if (error) return normalizeSupabaseError(error, '내 평가 상태를 불러오지 못했어요.');
+  return apiSuccess(new Set((data ?? []).map((vote) => vote.post_id).filter(Boolean)));
+}
+
 /** Writes a single immutable vote, then returns the server aggregate. */
 export async function submitSupabaseVote({ postId, evaluationType, value }) {
   const identity = await requireUser();
