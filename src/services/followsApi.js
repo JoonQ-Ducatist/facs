@@ -14,17 +14,23 @@ export function getFollowTargetKey(authorId, author = '') {
   return UUID_PATTERN.test(authorId ?? '') ? authorId : `sample:${String(author).trim().toLowerCase()}`;
 }
 
-function localFollowingIds() {
+function localFollowingIds(userId) {
   try {
-    const saved = JSON.parse(window.localStorage.getItem(LOCAL_FOLLOWING_KEY) ?? '[]');
-    return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string' && id.startsWith('sample:')) : []);
+    const saved = JSON.parse(window.localStorage.getItem(`${LOCAL_FOLLOWING_KEY}:${userId}`) ?? '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : []);
   } catch {
     return new Set();
   }
 }
 
-function writeLocalFollowingIds(ids) {
-  window.localStorage.setItem(LOCAL_FOLLOWING_KEY, JSON.stringify([...ids]));
+function writeLocalFollowingIds(userId, ids) {
+  window.localStorage.setItem(`${LOCAL_FOLLOWING_KEY}:${userId}`, JSON.stringify([...ids]));
+}
+
+function updateLocalFollowingIds(userId, followedId, following) {
+  const local = localFollowingIds(userId);
+  if (following) local.add(followedId); else local.delete(followedId);
+  writeLocalFollowingIds(userId, local);
 }
 
 async function authenticatedUser() {
@@ -38,7 +44,7 @@ export async function getMyFollowingIds() {
   const identity = await authenticatedUser();
   if (identity.error) return identity;
   const { data, error } = await supabase.from('follows').select('followed_id').eq('follower_id', identity.user.id);
-  const local = localFollowingIds();
+  const local = localFollowingIds(identity.user.id);
   return error ? { data: local } : { data: new Set([...local, ...(data ?? []).map((item) => item.followed_id)]) };
 }
 
@@ -48,9 +54,7 @@ export async function toggleMyFollow(followedId, isFollowing) {
   if (identity.error) return identity;
   if (!UUID_PATTERN.test(followedId)) {
     if (!followedId?.startsWith('sample:')) return { error: FOLLOW_ERROR.INVALID_TARGET };
-    const local = localFollowingIds();
-    if (isFollowing) local.delete(followedId); else local.add(followedId);
-    writeLocalFollowingIds(local);
+    updateLocalFollowingIds(identity.user.id, followedId, !isFollowing);
     return { data: { following: !isFollowing, localOnly: true } };
   }
   if (followedId === identity.user.id) return { error: FOLLOW_ERROR.INVALID_TARGET };
@@ -58,5 +62,8 @@ export async function toggleMyFollow(followedId, isFollowing) {
     ? supabase.from('follows').delete().eq('follower_id', identity.user.id).eq('followed_id', followedId)
     : supabase.from('follows').insert({ follower_id: identity.user.id, followed_id: followedId });
   const { error } = await request;
-  return error ? { error: FOLLOW_ERROR.UNAVAILABLE } : { data: { following: !isFollowing } };
+  if (error) return { error: FOLLOW_ERROR.UNAVAILABLE };
+  // Keep a private device cache so refreshes never briefly erase a confirmed follow.
+  updateLocalFollowingIds(identity.user.id, followedId, !isFollowing);
+  return { data: { following: !isFollowing } };
 }
