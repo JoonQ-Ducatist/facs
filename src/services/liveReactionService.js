@@ -24,7 +24,21 @@ export function toLiveReaction(payload) {
       averageAge: event.average_age === null ? null : Number(event.average_age),
       totalVotes: Number(event.total_votes ?? 0),
     },
+    createdAt: event.created_at ?? null,
   };
+}
+
+/** Reads the latest anonymous event that the author or evaluator may already view. */
+export async function getRecentPostLiveReactions(postId, client = supabase) {
+  if (!client || !postId) return [];
+  const { data, error } = await client
+    .from('post_live_reaction_events')
+    .select('id, post_id, reaction, perceived_age, yes_count, no_count, average_age, total_votes, created_at')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) return [];
+  return (data ?? []).map(toLiveReaction).filter(Boolean);
 }
 
 /** Applies only aggregate fields; the browser never receives a voter identity. */

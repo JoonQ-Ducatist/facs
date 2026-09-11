@@ -37,6 +37,33 @@ export async function getSupabaseAggregate(postId) {
   });
 }
 
+/** Retrieves aggregate-only results for one feed page with a single RPC call. */
+export async function getSupabaseFeedAggregates(postIds, client = supabase) {
+  const ids = [...new Set((postIds ?? []).filter(Boolean))];
+  if (!ids.length || !client) return apiSuccess(new Map());
+  const { data, error } = await client.rpc('get_published_post_aggregates', { target_post_ids: ids });
+  if (error) return normalizeSupabaseError(error, '피드 결과를 불러오지 못했어요.');
+  return apiSuccess(new Map((data ?? []).map((aggregate) => [aggregate.post_id, {
+    yesCount: Number(aggregate.yes_count ?? 0),
+    noCount: Number(aggregate.no_count ?? 0),
+    averageAge: aggregate.average_age === null ? null : Number(aggregate.average_age),
+    totalVotes: Number(aggregate.total_votes ?? 0),
+    sampleStatus: aggregate.sample_status,
+  }])));
+}
+
+/**
+ * Reads only the current member's completed post IDs for the feed page. The
+ * browser never receives another member's vote, identity, or vote value.
+ */
+export async function getSupabaseMyVotedPostIds(postIds, client = supabase) {
+  const ids = [...new Set((postIds ?? []).filter(Boolean))];
+  if (!ids.length || !client) return apiSuccess(new Set());
+  const { data, error } = await client.rpc('get_my_voted_post_ids', { target_post_ids: ids });
+  if (error) return normalizeSupabaseError(error, '내 평가 상태를 불러오지 못했어요.');
+  return apiSuccess(new Set((data ?? []).map((vote) => vote.post_id).filter(Boolean)));
+}
+
 /** Writes a single immutable vote, then returns the server aggregate. */
 export async function submitSupabaseVote({ postId, evaluationType, value }) {
   const identity = await requireUser();
@@ -161,6 +188,10 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
     .limit(Math.min(Math.max(limit, 1), 50));
   if (error) return apiSuccess([], { source: 'degraded' });
 
+  const aggregateResult = await getSupabaseFeedAggregates((data ?? []).map((post) => post.id), client);
+  // A temporary aggregate failure must not hide otherwise readable feed cards.
+  const aggregates = aggregateResult.error ? new Map() : aggregateResult.data;
+
   const cards = await Promise.all((data ?? []).map(async (post) => {
     const assets = (post.post_media ?? [])
       .sort((left, right) => left.position - right.position)
@@ -174,6 +205,7 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
     if (signedMedia.some((item) => !item)) return null;
     const media = signedMedia;
     const evaluationType = post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY';
+    const aggregate = aggregates.get(post.id);
     return {
       id: post.id,
       authorId: post.author_id,
@@ -186,12 +218,12 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
       mediaType: media[0].type,
       media,
       objectPosition: 'center 20%',
-      yesVotes: 0,
-      noVotes: 0,
+      yesVotes: aggregate?.yesCount ?? 0,
+      noVotes: aggregate?.noCount ?? 0,
       ageMin: post.age_min,
       ageMax: post.age_max,
-      ageEstimate: 0,
-      ageVoteCount: 0,
+      ageEstimate: aggregate?.averageAge ?? 0,
+      ageVoteCount: aggregate?.totalVotes ?? 0,
       timestamp: '방금 전',
       publishedAt: post.published_at,
       isMyUpload: false,

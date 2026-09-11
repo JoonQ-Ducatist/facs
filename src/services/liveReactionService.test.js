@@ -18,6 +18,7 @@ test('live reaction maps only anonymous presentation fields', () => {
   assert.deepEqual(reaction, {
     id: '28', postId: 'post-1', kind: 'age', value: 32,
     aggregate: { yesCount: 0, noCount: 0, averageAge: 32, totalVotes: 1 },
+    createdAt: null,
   });
 });
 
