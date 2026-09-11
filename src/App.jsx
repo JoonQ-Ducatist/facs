@@ -15,7 +15,7 @@ import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
-import { applyLiveReactionToCard, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
+import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
@@ -63,6 +63,7 @@ export default function App() {
   const mainRef = useRef(null);
   const authCallbackHandled = useRef(false);
   const authCallbackExchange = useRef(null);
+  const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
@@ -266,11 +267,23 @@ export default function App() {
   useEffect(() => {
     if (!authUser) return undefined;
     const eligibleCards = cards.filter((card) => isLiveReactionWindow(card.publishedAt) && (card.authorId === authUser.id || votedIds.has(card.id)));
-    const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, (reaction) => {
+    let active = true;
+    const showReaction = (reaction) => {
+      if (!reaction || receivedLiveReactionIds.current.has(reaction.id)) return;
+      receivedLiveReactionIds.current.add(reaction.id);
       setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
       setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt: Date.now() }].slice(-18));
-    }));
-    return () => unsubscribe.forEach((close) => close());
+    };
+    const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, showReaction));
+    eligibleCards.forEach((card) => {
+      void getRecentPostLiveReactions(card.id).then((reactions) => {
+        if (!active) return;
+        reactions
+          .filter((reaction) => reaction.createdAt && Date.now() - Date.parse(reaction.createdAt) < 12_000)
+          .forEach(showReaction);
+      });
+    });
+    return () => { active = false; unsubscribe.forEach((close) => close()); };
   }, [authUser?.id, cards, votedIds]);
 
   useEffect(() => {
