@@ -179,20 +179,27 @@ export function fromDatabaseCategory(category) {
  */
 export async function listSupabasePublishedFeedCards({ limit = 20, client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
+  if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
+  const pageSize = Math.min(Math.max(limit, 1), 50);
+  const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_ids', { page_size: pageSize, category_filter: null });
+  if (orderError) return apiSuccess([], { source: 'degraded' });
+  const postIds = (orderedPosts ?? []).map((item) => item.post_id).filter(Boolean);
+  if (!postIds.length) return apiSuccess([], { source: 'supabase' });
   const { data, error } = await client
     .from('posts')
     .select('id,author_id,category,evaluation,question,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
     .eq('status', 'published')
-    .eq('visibility', 'public')
-    .order('published_at', { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 50));
+    .in('id', postIds);
   if (error) return apiSuccess([], { source: 'degraded' });
 
   const aggregateResult = await getSupabaseFeedAggregates((data ?? []).map((post) => post.id), client);
   // A temporary aggregate failure must not hide otherwise readable feed cards.
   const aggregates = aggregateResult.error ? new Map() : aggregateResult.data;
 
-  const cards = await Promise.all((data ?? []).map(async (post) => {
+  const orderById = new Map(postIds.map((id, index) => [id, index]));
+  const sourceById = new Map((orderedPosts ?? []).map((item) => [item.post_id, item.source]));
+  const orderedData = [...(data ?? [])].sort((left, right) => (orderById.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (orderById.get(right.id) ?? Number.MAX_SAFE_INTEGER));
+  const cards = await Promise.all(orderedData.map(async (post) => {
     const assets = (post.post_media ?? [])
       .sort((left, right) => left.position - right.position)
       .map((link) => link.media_assets)
@@ -226,6 +233,7 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
       ageVoteCount: aggregate?.totalVotes ?? 0,
       timestamp: '방금 전',
       publishedAt: post.published_at,
+      feedSource: sourceById.get(post.id) ?? 'discovery',
       isMyUpload: false,
       commentsAllowed: true,
       comments: [],
@@ -254,16 +262,21 @@ export function mapSupabaseFeedPost(post) {
  */
 export async function listSupabasePublishedPosts({ category, limit = 20, client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable', nextCursor: null });
+  if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded', nextCursor: null });
   const pageSize = Math.min(Math.max(limit, 1), 50);
+  const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_ids', { page_size: pageSize, category_filter: category ?? null });
+  if (orderError) return apiSuccess([], { source: 'degraded', nextCursor: null });
+  const postIds = (orderedPosts ?? []).map((item) => item.post_id).filter(Boolean);
+  if (!postIds.length) return apiSuccess([], { source: 'supabase', nextCursor: null });
   let query = client
     .from('posts')
     .select('id,author_id,category,evaluation,question,age_min,age_max,published_at')
     .eq('status', 'published')
-    .eq('visibility', 'public')
-    .order('published_at', { ascending: false })
-    .limit(pageSize);
-  if (category) query = query.eq('category', category);
+    .in('id', postIds);
   const { data, error } = await query;
   if (error) return apiSuccess([], { source: 'degraded', nextCursor: null });
-  return apiSuccess((data ?? []).map(mapSupabaseFeedPost), { source: 'supabase', nextCursor: null });
+  const orderById = new Map(postIds.map((id, index) => [id, index]));
+  return apiSuccess([...(data ?? [])]
+    .sort((left, right) => (orderById.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (orderById.get(right.id) ?? Number.MAX_SAFE_INTEGER))
+    .map(mapSupabaseFeedPost), { source: 'supabase', nextCursor: null });
 }
