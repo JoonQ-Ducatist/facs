@@ -49,6 +49,7 @@ export default function App() {
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
+  const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [votedIds, setVotedIds] = useState(() => new Set());
@@ -110,7 +111,23 @@ export default function App() {
         query.delete('code');
         query.delete('facs_remember');
         window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}`);
+        // Let the tab that requested the email know immediately. This keeps the
+        // original sign-in screen as the place the member lands, even when a
+        // mail client opens the verification link in another tab.
+        try {
+          window.localStorage.setItem('facs_auth_completed_at', String(Date.now()));
+          window.opener?.postMessage({ type: 'facs-auth-complete' }, window.location.origin);
+        } catch { /* Private browsing can deny browser storage. */ }
+        // Mail clients sometimes force a verification link into a new browser
+        // tab. When the browser permits it, dismiss that transient callback so
+        // the member continues in the tab where they started signing in.
+        window.setTimeout(() => window.close(), 300);
       }
+    };
+
+    const restoreOriginalTab = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) finishAuthenticatedEntry(data.session);
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -120,6 +137,18 @@ export default function App() {
       }
       finishAuthenticatedEntry(session);
     });
+
+    const onStorage = (event) => {
+      if (event.key === 'facs_auth_completed_at' || event.key?.startsWith('sb-')) void restoreOriginalTab();
+    };
+    const onMessage = (event) => {
+      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(); };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('message', onMessage);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
 
     async function bootstrapAuth() {
       let session = null;
@@ -144,7 +173,14 @@ export default function App() {
     }
 
     bootstrapAuth();
-    return () => { active = false; subscription.subscription.unsubscribe(); };
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('message', onMessage);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [previewMode]);
 
   /** Loads private Scraps only after a real authenticated session exists. */
@@ -160,14 +196,20 @@ export default function App() {
   /** Hydrates the top of the feed from real published posts after authentication. */
   useEffect(() => {
     let active = true;
-    if (!authUser) return undefined;
+    if (!authUser) { setFeedHydrated(true); return undefined; }
+    setFeedHydrated(false);
     listSupabasePublishedFeedCards().then((result) => {
-      if (!active || result.error || !result.data?.length) return;
-      setCards((existing) => {
-        const serverIds = new Set(result.data.map((card) => card.id));
-        const localOnly = existing.filter((card) => !serverIds.has(card.id));
-        return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
-      });
+      if (!active) return;
+      if (!result.error && result.data?.length) {
+        setCards((existing) => {
+          const serverIds = new Set(result.data.map((card) => card.id));
+          const localOnly = existing.filter((card) => !serverIds.has(card.id));
+          return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
+        });
+      }
+      setFeedHydrated(true);
+    }).catch(() => {
+      if (active) setFeedHydrated(true);
     });
     return () => { active = false; };
   }, [authUser?.id]);
@@ -544,6 +586,7 @@ export default function App() {
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>
     <SkipLink />
