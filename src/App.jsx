@@ -65,6 +65,8 @@ export default function App() {
   const authCallbackExchange = useRef(null);
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
+  const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
+  const supabaseCardIdsKey = supabaseCardIds.join('|');
 
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
   const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
@@ -210,17 +212,6 @@ export default function App() {
             return [...serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
           });
 
-          // Local storage makes a just-submitted vote feel instant. The server
-          // remains authoritative after a refresh or on a different device.
-          const voteState = await getSupabaseMyVotedPostIds([...serverIds]);
-          if (active && !voteState.error) {
-            setVotedIds((existing) => {
-              const next = new Set([...existing].filter((id) => !serverIds.has(id)));
-              voteState.data.forEach((id) => next.add(id));
-              window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
-              return next;
-            });
-          }
         }
       } finally {
         if (active) setFeedHydrated(true);
@@ -254,6 +245,23 @@ export default function App() {
     }
   }, [authUser?.id]);
 
+  /** The server is authoritative for real posts after a refresh or device change. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser || !supabaseCardIds.length) return undefined;
+    getSupabaseMyVotedPostIds(supabaseCardIds).then((result) => {
+      if (!active || result.error) return;
+      const serverIds = new Set(supabaseCardIds);
+      setVotedIds((existing) => {
+        const next = new Set([...existing].filter((id) => !serverIds.has(id)));
+        result.data.forEach((id) => next.add(id));
+        window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
+        return next;
+      });
+    });
+    return () => { active = false; };
+  }, [authUser?.id, supabaseCardIdsKey]);
+
   /** Opens real-time reactions only to a post owner or a member who evaluated that exact post. */
   useEffect(() => {
     if (!authUser) return undefined;
@@ -267,7 +275,7 @@ export default function App() {
 
   useEffect(() => {
     if (!liveReactions.length) return undefined;
-    const timer = window.setTimeout(() => setLiveReactions((items) => items.filter((item) => Date.now() - item.receivedAt < 2200)), 2300);
+    const timer = window.setTimeout(() => setLiveReactions((items) => items.filter((item) => Date.now() - item.receivedAt < 2500)), 2550);
     return () => window.clearTimeout(timer);
   }, [liveReactions]);
 
@@ -406,20 +414,18 @@ export default function App() {
       return;
     }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
-    if (isSupabasePost(currentCard)) {
-      const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
-      setLiveReactions((items) => [...items, {
-        id: `local-${currentCard.id}-${Date.now()}`,
-        postId: currentCard.id,
-        kind,
-        value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
-        aggregate: result.data.aggregate,
-        receivedAt: Date.now(),
-      }].slice(-18));
-    }
+    const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
+    setLiveReactions((items) => [...items, {
+      id: `local-${currentCard.id}-${Date.now()}`,
+      postId: currentCard.id,
+      kind,
+      value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
+      aggregate: result.data.aggregate,
+      receivedAt: Date.now(),
+    }].slice(-18));
     setVotedIds((ids) => {
       const next = new Set([...ids, currentCard.id]);
-      if (authUser?.id && isSupabasePost(currentCard)) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
+      if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
       return next;
     });
     trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
