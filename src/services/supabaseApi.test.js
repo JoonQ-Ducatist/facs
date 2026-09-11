@@ -34,6 +34,27 @@ test('server feed safely degrades when the public post query fails', async () =>
   assert.equal(result.meta.source, 'degraded');
 });
 
+test('server feed preserves the private personalized order returned by the RPC', async () => {
+  const calls = [];
+  const postA = { id: 'post-a', author_id: 'author-a', category: 'outfit', evaluation: 'binary', question: 'A', age_min: null, age_max: null, published_at: '2026-09-10T00:00:00Z' };
+  const postB = { id: 'post-b', author_id: 'author-b', category: 'fitness', evaluation: 'binary', question: 'B', age_min: null, age_max: null, published_at: '2026-09-11T00:00:00Z' };
+  const query = {
+    select: () => query,
+    eq: () => query,
+    in: async () => ({ data: [postB, postA], error: null }),
+  };
+  const client = {
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-a', source: 'followed' }, { post_id: 'post-b', source: 'similar_interest' }], error: null };
+    },
+    from: () => query,
+  };
+  const result = await listSupabasePublishedPosts({ limit: 20, client });
+  assert.deepEqual(calls, [{ name: 'get_personalized_feed_post_ids', args: { page_size: 20, category_filter: null } }]);
+  assert.deepEqual(result.data.map((post) => post.id), ['post-a', 'post-b']);
+});
+
 test('feed aggregate reads a page in one aggregate-only RPC without raw vote rows', async () => {
   const calls = [];
   const result = await getSupabaseFeedAggregates(['post-a', 'post-a', 'post-b'], {

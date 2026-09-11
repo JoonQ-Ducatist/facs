@@ -17,6 +17,7 @@ import { supabase } from './services/supabaseClient.js';
 import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
+import { getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
@@ -54,6 +55,7 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [votedIds, setVotedIds] = useState(() => new Set());
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
+  const [followingIds, setFollowingIds] = useState(() => new Set());
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -68,6 +70,7 @@ export default function App() {
   const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
+  const followingIdsKey = [...followingIds].sort().join('|');
 
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
   const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
@@ -196,6 +199,16 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id]);
 
+  /** Loads only this member's explicit follow targets; other members' social graphs stay private. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setFollowingIds(new Set()); return undefined; }
+    getMyFollowingIds().then((result) => {
+      if (active && result.data) setFollowingIds(result.data);
+    });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
   /** Hydrates the top of the feed from real published posts after authentication. */
   useEffect(() => {
     let active = true;
@@ -220,7 +233,7 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id]);
+  }, [authUser?.id, followingIdsKey]);
 
   /** Loads the public handle only for the authenticated member, never from email. */
   useEffect(() => {
@@ -627,6 +640,30 @@ export default function App() {
     return { ok: true, saved: result.data.saved };
   }
 
+  /** Updates an explicit follow, then refreshes the server-ranked feed order. */
+  async function toggleFollowing(authorId) {
+    if (!authUser) {
+      setIsGuest(true);
+      setToast(locale === 'en' ? 'Sign in to follow this member.' : '팔로우하려면 로그인해 주세요.');
+      return { ok: false };
+    }
+    const wasFollowing = followingIds.has(authorId);
+    const result = await toggleMyFollow(authorId, wasFollowing);
+    if (result.error) {
+      setToast(locale === 'en' ? 'Follow could not be updated. Please try again.' : '팔로우를 변경하지 못했어요. 다시 시도해 주세요.');
+      return { ok: false };
+    }
+    setFollowingIds((ids) => {
+      const next = new Set(ids);
+      if (result.data.following) next.add(authorId); else next.delete(authorId);
+      return next;
+    });
+    setToast(result.data.following
+      ? (locale === 'en' ? 'Following. New posts will appear first.' : '팔로우했어요. 새 게시물이 피드에 먼저 보여요.')
+      : (locale === 'en' ? 'Unfollowed.' : '팔로우를 취소했어요.'));
+    return { ok: true, following: result.data.following };
+  }
+
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
     if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, [role="dialog"], .media-carousel')) return;
@@ -681,14 +718,14 @@ export default function App() {
 
     <main key={activeTab} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
       </>}
     </main>
 
-    <DesktopRecommendationAside cards={displayCards} onProfile={() => setActiveTab('profile')} />
+    <DesktopRecommendationAside cards={displayCards} onProfile={() => setActiveTab('profile')} followingIds={followingIds} currentUserId={authUser?.id} onToggleFollow={toggleFollowing} />
 
     {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
 
@@ -706,7 +743,7 @@ function BrandWordmark({ compact = false }) {
 }
 
 /** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
-function DesktopRecommendationAside({ cards, onProfile }) {
+function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUserId, onToggleFollow }) {
   const suggestions = cards.slice(1, 6);
   return <aside className="desktop-recommendations" aria-label="회원님을 위한 추천">
     <button type="button" onClick={onProfile} className="mb-7 flex w-full items-center gap-3 text-left">
@@ -715,7 +752,7 @@ function DesktopRecommendationAside({ cards, onProfile }) {
       <span className="font-mono text-[11px] font-bold text-[#5865F2]">전환</span>
     </button>
     <div className="mb-3 flex items-center justify-between"><h2 className="text-[13px] font-bold text-[#44474c]">회원님을 위한 추천</h2><button type="button" className="text-[11px] font-bold text-[#1b1c19]">모두 보기</button></div>
-    <div className="space-y-3">{suggestions.map((item) => <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div><button type="button" className="text-[11px] font-bold text-[#5865F2]">팔로우</button></div>)}</div>
+    <div className="space-y-3">{suggestions.map((item) => { const canFollow = Boolean(item.authorId && item.authorId !== currentUserId); const following = followingIds?.has(item.authorId); return <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div>{canFollow && <button type="button" onClick={() => onToggleFollow(item.authorId)} className="text-[11px] font-bold text-[#5865F2]">{following ? '팔로잉' : '팔로우'}</button>}</div>; })}</div>
     <p className="mt-8 text-[10px] leading-relaxed text-[#9a9a95]">소개 · 도움말 · 안전 · 개인정보처리방침 · 약관 · 위치 · 언어</p>
     <p className="mt-3 font-mono text-[10px] text-[#9a9a95]">© 2026 FACt.Smack</p>
   </aside>;
