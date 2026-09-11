@@ -17,7 +17,7 @@ import { supabase } from './services/supabaseClient.js';
 import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
-import { getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
+import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
@@ -67,10 +67,15 @@ export default function App() {
   const authCallbackExchange = useRef(null);
   const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
-  const displayCards = useMemo(() => cards.map((card) => localizeCard(card, locale)), [cards, locale]);
+  const followingIdsKey = [...followingIds].sort().join('|');
+  const orderedCards = useMemo(() => [...cards].sort((left, right) => {
+    const leftFollowed = followingIds.has(getFollowTargetKey(left.authorId, left.author));
+    const rightFollowed = followingIds.has(getFollowTargetKey(right.authorId, right.author));
+    return Number(rightFollowed) - Number(leftFollowed);
+  }), [cards, followingIdsKey]);
+  const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
-  const followingIdsKey = [...followingIds].sort().join('|');
 
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
   const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
@@ -752,7 +757,7 @@ function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUse
       <span className="font-mono text-[11px] font-bold text-[#5865F2]">전환</span>
     </button>
     <div className="mb-3 flex items-center justify-between"><h2 className="text-[13px] font-bold text-[#44474c]">회원님을 위한 추천</h2><button type="button" className="text-[11px] font-bold text-[#1b1c19]">모두 보기</button></div>
-    <div className="space-y-3">{suggestions.map((item) => { const canFollow = Boolean(item.authorId && item.authorId !== currentUserId); const following = followingIds?.has(item.authorId); return <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div>{canFollow && <button type="button" onClick={() => onToggleFollow(item.authorId)} className="text-[11px] font-bold text-[#5865F2]">{following ? '팔로잉' : '팔로우'}</button>}</div>; })}</div>
+    <div className="space-y-3">{suggestions.map((item) => { const target = getFollowTargetKey(item.authorId, item.author); const canFollow = Boolean(item.author) && !item.isMyUpload && item.authorId !== currentUserId; const following = followingIds?.has(target); return <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div>{canFollow && <button type="button" onClick={() => onToggleFollow(target)} className="text-[11px] font-bold text-[#5865F2]">{following ? '팔로잉' : '팔로우'}</button>}</div>; })}</div>
     <p className="mt-8 text-[10px] leading-relaxed text-[#9a9a95]">소개 · 도움말 · 안전 · 개인정보처리방침 · 약관 · 위치 · 언어</p>
     <p className="mt-3 font-mono text-[10px] text-[#9a9a95]">© 2026 FACt.Smack</p>
   </aside>;
