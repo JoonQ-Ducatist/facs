@@ -18,7 +18,7 @@ import { createSupabasePublishedPost, listSupabasePublishedFeedCards } from './s
 import { applyLiveReactionToCard, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession } from './services/authService.js';
+import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -49,6 +49,7 @@ export default function App() {
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
+  const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [votedIds, setVotedIds] = useState(() => new Set());
@@ -57,7 +58,6 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
   const [isLandscapeNavExpanded, setIsLandscapeNavExpanded] = useState(false);
-  const [viewportEpoch, setViewportEpoch] = useState(0);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
@@ -111,7 +111,23 @@ export default function App() {
         query.delete('code');
         query.delete('facs_remember');
         window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}`);
+        // Let the tab that requested the email know immediately. This keeps the
+        // original sign-in screen as the place the member lands, even when a
+        // mail client opens the verification link in another tab.
+        try {
+          window.localStorage.setItem('facs_auth_completed_at', String(Date.now()));
+          window.opener?.postMessage({ type: 'facs-auth-complete' }, window.location.origin);
+        } catch { /* Private browsing can deny browser storage. */ }
+        // Mail clients sometimes force a verification link into a new browser
+        // tab. When the browser permits it, dismiss that transient callback so
+        // the member continues in the tab where they started signing in.
+        window.setTimeout(() => window.close(), 300);
       }
+    };
+
+    const restoreOriginalTab = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) finishAuthenticatedEntry(data.session);
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -121,6 +137,18 @@ export default function App() {
       }
       finishAuthenticatedEntry(session);
     });
+
+    const onStorage = (event) => {
+      if (event.key === 'facs_auth_completed_at' || event.key?.startsWith('sb-')) void restoreOriginalTab();
+    };
+    const onMessage = (event) => {
+      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(); };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('message', onMessage);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
 
     async function bootstrapAuth() {
       let session = null;
@@ -145,7 +173,14 @@ export default function App() {
     }
 
     bootstrapAuth();
-    return () => { active = false; subscription.subscription.unsubscribe(); };
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('message', onMessage);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [previewMode]);
 
   /** Loads private Scraps only after a real authenticated session exists. */
@@ -161,14 +196,20 @@ export default function App() {
   /** Hydrates the top of the feed from real published posts after authentication. */
   useEffect(() => {
     let active = true;
-    if (!authUser) return undefined;
+    if (!authUser) { setFeedHydrated(true); return undefined; }
+    setFeedHydrated(false);
     listSupabasePublishedFeedCards().then((result) => {
-      if (!active || result.error || !result.data?.length) return;
-      setCards((existing) => {
-        const serverIds = new Set(result.data.map((card) => card.id));
-        const localOnly = existing.filter((card) => !serverIds.has(card.id));
-        return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
-      });
+      if (!active) return;
+      if (!result.error && result.data?.length) {
+        setCards((existing) => {
+          const serverIds = new Set(result.data.map((card) => card.id));
+          const localOnly = existing.filter((card) => !serverIds.has(card.id));
+          return [...result.data.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
+        });
+      }
+      setFeedHydrated(true);
+    }).catch(() => {
+      if (active) setFeedHydrated(true);
     });
     return () => { active = false; };
   }, [authUser?.id]);
@@ -255,7 +296,7 @@ export default function App() {
       window.clearTimeout(delayedReset);
       delayedReset = window.setTimeout(reset, 120);
     };
-    const onResume = () => { resetDocumentViewport(); setViewportEpoch((value) => value + 1); };
+    const onResume = () => { resetDocumentViewport(); };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
     // iOS Chrome reports a transient visual viewport while its keyboard opens.
     // Keep the canvas stable then, but immediately restore its full height when
@@ -431,6 +472,10 @@ export default function App() {
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
+    if (profileLoading) {
+      setToast(locale === 'en' ? 'Checking your public ID before opening Upload.' : '업로드를 열기 전에 공개 아이디를 확인하고 있어요.');
+      return;
+    }
     if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
       setProfileNotice(locale === 'en'
@@ -478,7 +523,7 @@ export default function App() {
   async function requestEmailAuth(email, remember) {
     const result = await requestEmailMagicLink(email, authConfig, remember);
     const message = result.ok
-      ? (locale === 'en' ? 'Check your email to finish signing in.' : '이메일의 로그인 링크를 확인해 주세요.')
+      ? (locale === 'en' ? 'Enter the verification code from your email here.' : '이메일로 받은 인증 코드를 이 화면에 입력해 주세요.')
       : result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
         ? (locale === 'en' ? 'For security, wait about a minute before requesting another email.' : '보안을 위해 약 1분 뒤에 다시 요청해 주세요.')
         : result.code === AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED
@@ -486,6 +531,18 @@ export default function App() {
           : (locale === 'en' ? 'We could not send the sign-in email. Please try again shortly.' : '인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
     setToast(message);
     return { ok: result.ok, code: result.code, message };
+  }
+
+  /** Completes email sign-in inside the original browser tab, without a link redirect. */
+  async function confirmEmailCode(email, code, remember) {
+    const result = await verifyEmailCode(email, code, authConfig, remember);
+    if (result.ok) return result;
+    return {
+      ...result,
+      message: result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
+        ? (locale === 'en' ? 'Please wait a moment before trying again.' : '잠시 후 다시 시도해 주세요.')
+        : (locale === 'en' ? 'That code is invalid or has expired. Request a new code.' : '인증 코드가 맞지 않거나 만료되었어요. 새 코드를 요청해 주세요.'),
+    };
   }
 
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
@@ -540,11 +597,12 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>
     <SkipLink />
-    <header key={`header-${viewportEpoch}`} className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
+    <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
         <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
           <img src={logoUrl} width="38" height="28" className="h-7 w-9 shrink-0 object-contain" alt="FACt.Smack 뱀 로고" />
@@ -571,7 +629,7 @@ export default function App() {
       </div>
     </header>
 
-    <main key={`main-${activeTab}-${viewportEpoch}`} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+    <main key={activeTab} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}

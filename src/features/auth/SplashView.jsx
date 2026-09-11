@@ -12,7 +12,7 @@ const splashCopies = [
 ];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 전체 화면 스플래시다. */
-export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth }) {
+export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode }) {
   const popularCards = useMemo(
     () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
     [cards],
@@ -26,6 +26,8 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
   const [emailNoticeTone, setEmailNoticeTone] = useState('success');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isCodeVerifying, setIsCodeVerifying] = useState(false);
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -54,6 +56,18 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
       ? (locale === 'en' ? 'Link sent. Check your inbox.' : '링크를 보냈어요. 받은편지함을 확인해 주세요.')
       : (result?.message ?? (locale === 'en' ? 'Could not send the link. Try again.' : '링크를 보내지 못했어요. 다시 시도해 주세요.')));
     window.setTimeout(() => setEmailNotice(''), 2200);
+  }
+
+  async function submitCode(event) {
+    event.preventDefault();
+    if (isCodeVerifying || verificationCode.trim().length < 6) return;
+    setIsCodeVerifying(true);
+    setEmailNotice('');
+    const result = await onEmailCode(email.trim(), verificationCode.trim(), rememberMe);
+    setIsCodeVerifying(false);
+    if (result?.ok) return;
+    setEmailNoticeTone('error');
+    setEmailNotice(result?.message ?? (locale === 'en' ? 'That code is not valid. Request a new one.' : '인증 코드가 맞지 않아요. 새 코드를 요청해 주세요.'));
   }
 
   useEffect(() => {
@@ -101,15 +115,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
           <div className="relative flex flex-col gap-2">
             <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={locale === 'en' ? 'Continue with Google' : 'Google로 계속하기'} icon="G" onClick={() => selectProvider('google')} />
             <ProviderButton compact={selectedProvider !== 'kakao'} selected={selectedProvider === 'kakao'} label={locale === 'en' ? 'Continue with Kakao' : '카카오로 계속하기'} icon="chat_bubble" onClick={() => selectProvider('kakao')} />
-            {selectedProvider === 'email' && emailOpen ? <form className="relative mx-auto flex w-[92%] flex-wrap gap-1.5 rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-2.5 shadow-inner" onSubmit={submitEmail} aria-busy={isEmailSending}>
-              <input required disabled={emailSent || isEmailSending} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" />
-              <button type="submit" disabled={emailSent || isEmailSending} className="flex h-8 shrink-0 items-center justify-center rounded-full bg-[#c52a52] px-3 text-xs font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 active:bg-[#9f1f41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8] disabled:cursor-not-allowed disabled:opacity-55">
-                {isEmailSending && <span className="material-symbols-outlined mr-1 animate-spin text-[14px]" aria-hidden="true">progress_activity</span>}
-                {isEmailSending ? (locale === 'en' ? 'Sending...' : '보내는 중...') : (locale === 'en' ? 'Send sign-in email' : '인증 메일 보내기')}
-              </button>
-              {emailSent && <button type="button" onClick={() => { setEmailSent(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>}
-              {emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}
-            </form> : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
+            {selectedProvider === 'email' && emailOpen ? <div className="relative mx-auto w-[92%] rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-2.5 shadow-inner">{emailSent ? <form className="flex flex-wrap gap-1.5" onSubmit={submitCode} aria-busy={isCodeVerifying}><p className="w-full text-center text-[10px] leading-relaxed text-white/75">{locale === 'en' ? `Enter the 6-digit code sent to ${email}.` : `${email}로 보낸 6자리 인증 코드를 입력해 주세요.`}</p><input required inputMode="numeric" autoComplete="one-time-code" maxLength="6" value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, ''))} placeholder={locale === 'en' ? '6-digit code' : '6자리 인증 코드'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-center text-xs tracking-[0.24em] text-white placeholder:tracking-normal placeholder:text-white/45 outline-none focus:border-[#de3c65]" /><button type="submit" disabled={isCodeVerifying || verificationCode.length !== 6} className="flex h-8 shrink-0 items-center justify-center rounded-full bg-[#c52a52] px-3 text-xs font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 disabled:cursor-not-allowed disabled:opacity-55">{isCodeVerifying ? (locale === 'en' ? 'Checking...' : '확인 중...') : (locale === 'en' ? 'Verify' : '인증 완료')}</button><button type="button" onClick={() => { setEmailSent(false); setVerificationCode(''); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button></form> : <form className="flex flex-wrap gap-1.5" onSubmit={submitEmail} aria-busy={isEmailSending}><input required disabled={isEmailSending} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-9 min-w-0 flex-1 rounded-full border border-[#ecd8a8]/85 bg-black/15 px-3 text-xs text-white placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" /><button type="submit" disabled={isEmailSending} className="flex h-8 shrink-0 items-center justify-center rounded-full bg-[#c52a52] px-3 text-xs font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 active:bg-[#9f1f41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8] disabled:cursor-not-allowed disabled:opacity-55">{isEmailSending && <span className="material-symbols-outlined mr-1 animate-spin text-[14px]" aria-hidden="true">progress_activity</span>}{isEmailSending ? (locale === 'en' ? 'Sending...' : '보내는 중...') : (locale === 'en' ? 'Send code' : '인증 코드 보내기')}</button></form>}{emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}</div> : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
             {providerNotice && <p role="status" className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border border-[#ecd8a8]/65 bg-[#132438]/95 px-3 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent after:border-t-[#132438]/95">{providerNotice}</p>}
           </div>
           <label className="mt-3 flex cursor-pointer items-start justify-center gap-1.5 text-center text-[9px] leading-relaxed text-white/60">

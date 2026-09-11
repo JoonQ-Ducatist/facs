@@ -69,7 +69,8 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const canAddImage = imageCount < MAX_IMAGES;
   const canAddVideo = videoCount < MAX_VIDEOS;
   const canAddMedia = canAddImage || canAddVideo;
-  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif', canAddVideo && 'video/mp4,video/webm,video/quicktime'].filter(Boolean).join(',');
+  const canOpenDropzone = !media.length && canAddMedia;
+  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/webm,video/quicktime'].filter(Boolean).join(',');
 
   /** 정의: 파일 형식·용량·개수·영상 길이를 확인해 미리보기 가능한 미디어 목록에 추가한다. @param {FileList|File[]} fileList 선택 또는 드롭된 파일 */
   async function addFiles(fileList) {
@@ -79,12 +80,16 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     let nextImages = imageCount;
     let nextVideos = videoCount;
     for (const file of candidates) {
-      const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
+      // Some mobile file providers omit both MIME and an extension. The input
+      // is already constrained by `accept`, so keep a non-empty file as an
+      // image candidate instead of silently dropping the user's selection.
+      const type = detectMediaType(file) ?? (file.size > 0 ? 'image' : null);
       if (!type) { setError('이미지 또는 동영상 파일만 선택할 수 있습니다.'); continue; }
       if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
       if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
       if (type === 'video' && nextVideos >= MAX_VIDEOS) { setError('동영상은 1개만 선택할 수 있습니다.'); continue; }
-      const url = URL.createObjectURL(file);
+      const url = type === 'image' ? await getImagePreviewUrl(file) : URL.createObjectURL(file);
+      if (!url) { setError(`${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`); continue; }
       if (type === 'video') {
         const duration = await getVideoDuration(url);
         if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); setError('동영상은 10초 이하만 업로드할 수 있습니다.'); continue; }
@@ -96,7 +101,14 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       }
     }
     if (accepted.length) { setMedia((items) => [...items, ...accepted]); setError(''); }
+    else if (candidates.length) setError('선택한 파일을 읽지 못했어요. JPG, PNG, GIF, HEIC 또는 동영상 파일을 다시 선택해 주세요.');
     if (inputRef.current) inputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+  }
+
+  /** 정의: 파일 입력 이벤트를 한 곳에서 처리해 브라우저 파일 선택기 복귀 시에도 오류를 화면에 남긴다. */
+  function handleFileChange(event) {
+    void addFiles(event.currentTarget.files).catch(() => setError('파일을 읽는 중 문제가 생겼어요. 다시 선택해 주세요.'));
   }
 
   /** 정의: 미디어 제거 시 생성한 object URL도 해제한다. @param {string} id 미디어 ID */
@@ -136,10 +148,10 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   return <section className="editorial-upload w-full pb-3 pt-1">
     <PageHeading eyebrow="CREATE A LOOKBOOK" title="새로운 룩 공유하기" description="사진 최대 5개와 10초 이하 동영상 1개를 함께 선택할 수 있습니다." action={<button type="button" onClick={openCamera} aria-label="카메라로 촬영하기" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#fbf9f4] text-cyan-glow"><span className="material-symbols-outlined text-lg">add_a_photo</span></button>} />
     <form className="flex flex-col gap-3.5" onSubmit={submit}>
-      <div role={canAddMedia ? 'button' : undefined} tabIndex={canAddMedia ? 0 : undefined} onClick={() => canAddMedia && inputRef.current?.click()} onKeyDown={(event) => { if (canAddMedia && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canAddMedia ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
-        <input ref={inputRef} type="file" multiple accept={acceptedTypes} className="hidden" onChange={(event) => addFiles(event.target.files)} />
-        <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={(event) => addFiles(event.target.files)} />
-        {!media.length ? <div className="flex min-h-[164px] flex-col items-center justify-center text-center"><span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-2xl">upload_file</span></span><p className="font-headline text-sm font-bold text-white">사진 또는 짧은 동영상 선택</p><p className="mt-1 font-mono text-[11px] text-slate-400">이미지 5개 + 동영상 1개 · 동영상 최대 10초 · 파일당 15MB</p><span className="mt-3 rounded-full border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-medium text-cyan-glow">로컬 디바이스에서 파일 찾기</span><span className="mt-2 hidden text-[11px] text-[#5f9f9a] sm:block">파일을 이 영역에 끌어다 놓아도 바로 추가할 수 있어요</span></div> : <><div className="mb-2 flex items-center justify-between text-[11px] font-mono"><span className="text-slate-300">이미지 <strong style={{ color: selectedTheme.color }}>{imageCount}/{MAX_IMAGES}</strong> · 동영상 <strong style={{ color: selectedTheme.color }}>{videoCount}/{MAX_VIDEOS}</strong></span><span className="text-slate-500">{canAddMedia ? '클릭 또는 드롭하여 추가' : '최대 선택 완료'}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{media.map((item, index) => <MediaPreview key={item.id} item={item} index={index} color={selectedTheme.color} onRemove={() => removeMedia(item.id)} onMove={(direction) => moveMedia(index, direction)} canMovePrevious={index > 0} canMoveNext={index < media.length - 1} />)}{canAddMedia && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="미디어 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">add</span></button>}</div></>}
+      <div role={canOpenDropzone ? 'button' : undefined} tabIndex={canOpenDropzone ? 0 : undefined} onClick={() => canOpenDropzone && inputRef.current?.click()} onKeyDown={(event) => { if (canOpenDropzone && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canOpenDropzone ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
+        <input id="upload-media-input" ref={inputRef} type="file" multiple accept={acceptedTypes} className="sr-only" onChange={handleFileChange} />
+        <input id="upload-camera-input" ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="sr-only" onChange={handleFileChange} />
+        {!media.length ? <div className="flex min-h-[164px] flex-col items-center justify-center text-center"><span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-2xl">upload_file</span></span><p className="font-headline text-sm font-bold text-white">사진 또는 짧은 동영상 선택</p><p className="mt-1 font-mono text-[11px] text-slate-400">이미지 5개 + 동영상 1개 · 동영상 최대 10초 · 파일당 15MB</p><label htmlFor="upload-media-input" onClick={(event) => event.stopPropagation()} className="mt-3 cursor-pointer rounded-full border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-medium text-cyan-glow">로컬 디바이스에서 파일 찾기</label><span className="mt-2 hidden text-[11px] text-[#5f9f9a] sm:block">파일을 이 영역에 끌어다 놓아도 바로 추가할 수 있어요</span></div> : <><div className="mb-2 flex items-center justify-between text-[11px] font-mono"><span className="text-slate-300">이미지 <strong style={{ color: selectedTheme.color }}>{imageCount}/{MAX_IMAGES}</strong> · 동영상 <strong style={{ color: selectedTheme.color }}>{videoCount}/{MAX_VIDEOS}</strong></span><span className="text-slate-500">{canAddImage ? '사진 또는 동영상을 추가할 수 있어요' : canAddVideo ? '동영상 1개를 더 추가할 수 있어요' : '최대 선택 완료'}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{media.map((item, index) => <MediaPreview key={item.id} item={item} index={index} color={selectedTheme.color} onRemove={() => removeMedia(item.id)} onMove={(direction) => moveMedia(index, direction)} canMovePrevious={index > 0} canMoveNext={index < media.length - 1} />)}{canAddImage && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="사진 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">add</span></button>}{canAddVideo && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="동영상 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">videocam</span></button>}</div></>}
       </div>
       <fieldset><legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300">1. 카테고리 선택</legend><div className="upload-category-grid grid grid-cols-3 gap-2">{Object.entries(categories).map(([id, item]) => <button key={id} type="button" onClick={() => setCategory(id)} className="flex min-w-0 items-center justify-center gap-1 rounded-md border px-2 py-2 font-body text-xs transition-all" style={category === id ? { borderColor: item.color, color: item.color, backgroundColor: `${item.color}14`, fontWeight: 700 } : { borderColor: '#c4c6cd', color: '#44474c', backgroundColor: '#ffffff' }}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: item.color, color: item.color }}><span className="material-symbols-outlined text-[13px]">{item.icon}</span></span><span>{item.label}</span></button>)}</div></fieldset>
       <div><label htmlFor="question-input" className="mb-1 block text-[12px] font-bold uppercase tracking-wider text-slate-300">2. 어떤 점을 평가받고 싶나요?</label><div className="mb-2 rounded-lg bg-[#f5f3ee] p-2.5"><p className="mb-1.5 font-mono text-[11px] text-slate-400">{selectedTheme.label} · {media.length ? '선택한 사진·영상에 맞춰 제안하는 질문' : '사진을 올리면 상황에 맞게 다듬어지는 추천 질문'}</p><div className="flex flex-wrap gap-1.5">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setQuestion(suggestion); setFieldErrors((errors) => ({ ...errors, question: undefined })); }} style={{ borderColor: question === suggestion ? selectedTheme.color : '#c4c6cd', color: question === suggestion ? selectedTheme.color : '#44474c', backgroundColor: question === suggestion ? `${selectedTheme.color}12` : '#ffffff' }} className="rounded-md border px-2 py-1.5 text-left text-[12px] transition-colors">{suggestion}</button>)}</div></div><div className="relative"><textarea ref={questionRef} id="question-input" rows="2" value={question} maxLength="140" onChange={(event) => { setQuestion(event.target.value); setFieldErrors((errors) => ({ ...errors, question: undefined })); }} aria-invalid={Boolean(fieldErrors.question)} aria-describedby={fieldErrors.question ? 'question-error' : undefined} placeholder="예: 오늘 이 룩, 저와 잘 어울리나요?" className="w-full resize-none rounded-md border border-surface-container-high bg-white p-2.5 pr-32 text-sm text-white placeholder:text-slate-500 focus:border-cyan-glow focus:outline-none" />{question && <button type="button" onClick={clearQuestion} className="absolute right-2 top-2 rounded-full px-2 py-1 text-[12px] text-slate-500 transition-colors hover:bg-[#f5f3ee] hover:text-[#1b1c19]">지우고 다시 작성</button>}</div>{fieldErrors.question && <p id="question-error" role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.question}</p>}</div>
@@ -153,8 +165,33 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
 }
 
 /** 정의: File 객체를 화면 미리보기·정렬에 필요한 표준 미디어 항목으로 변환한다. */
-function makeItem(file, url, type, duration = 0) { return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` }; }
+function makeItem(file, url, type, duration = 0) {
+  return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url, type, duration, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB` };
+}
+function detectMediaType(file) {
+  const mime = (file.type ?? '').toLowerCase();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  const extension = (file.name ?? '').toLowerCase().split('.').pop();
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(extension)) return 'image';
+  if (['mp4', 'webm', 'mov', 'quicktime'].includes(extension)) return 'video';
+  return null;
+}
+/** 정의: 모바일 파일 제공자에서도 안정적으로 표시되도록 이미지 미리보기를 data URL로 읽는다. */
+function getImagePreviewUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
-function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) { return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>{item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} />}<span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">{item.type === 'video' ? `VIDEO ${item.duration.toFixed(1)}s` : `IMAGE ${index + 1}`}</span><div className="absolute left-1 top-1 flex gap-0.5"><button type="button" disabled={!canMovePrevious} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_right</span></button></div><button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white"><span className="material-symbols-outlined text-[13px]">close</span></button></div>; }
+function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) {
+  const [previewError, setPreviewError] = useState(false);
+  return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>
+    {previewError ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline onError={() => setPreviewError(true)} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} onError={() => setPreviewError(true)} />}
+    <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">{item.type === 'video' ? `VIDEO ${item.duration.toFixed(1)}s` : `IMAGE ${index + 1}`}</span><div className="absolute left-1 top-1 flex gap-0.5"><button type="button" disabled={!canMovePrevious} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white disabled:opacity-25"><span className="material-symbols-outlined text-[13px]">chevron_right</span></button></div><button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white"><span className="material-symbols-outlined text-[13px]">close</span></button></div>;
+}
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */
 function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); video.preload = 'metadata'; video.onloadedmetadata = () => resolve(video.duration); video.onerror = () => resolve(Number.NaN); video.src = url; }); }

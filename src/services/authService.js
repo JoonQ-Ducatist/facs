@@ -8,6 +8,7 @@ export const AUTH_ACTION_ERROR = Object.freeze({
   REQUEST_FAILED: 'AUTH_REQUEST_FAILED',
   LINK_FAILED: 'AUTH_LINK_FAILED',
   EMAIL_RATE_LIMITED: 'AUTH_EMAIL_RATE_LIMITED',
+  EMAIL_CODE_INVALID: 'AUTH_EMAIL_CODE_INVALID',
   EMAIL_REDIRECT_REJECTED: 'AUTH_EMAIL_REDIRECT_REJECTED',
   SIGN_OUT_FAILED: 'AUTH_SIGN_OUT_FAILED',
 });
@@ -30,7 +31,7 @@ export function getOAuthRedirectUrl(data) {
   }
 }
 
-/** Starts a Magic Link with the environment-pinned callback URL. */
+/** Sends a one-time email code. The member enters it in the tab where sign-in began. */
 export async function requestEmailMagicLink(email, config, remember = true) {
   if (!config?.ok || !supabase) return unavailable(config);
   setAuthPersistence(remember);
@@ -46,6 +47,16 @@ export async function requestEmailMagicLink(email, config, remember = true) {
     return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_REDIRECT_REJECTED };
   }
   return { ok: false, code: AUTH_ACTION_ERROR.REQUEST_FAILED };
+}
+
+/** Verifies a short-lived email code without navigating away from the sign-in tab. */
+export async function verifyEmailCode(email, token, config, remember = true) {
+  if (!config?.ok || !supabase) return unavailable(config);
+  setAuthPersistence(remember);
+  const { error } = await supabase.auth.verifyOtp({ email, token: token.trim(), type: 'email' });
+  if (!error) return { ok: true };
+  if (error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
+  return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_CODE_INVALID };
 }
 
 /** Starts an OAuth sign-in. Provider credentials live only in the Supabase project. */
