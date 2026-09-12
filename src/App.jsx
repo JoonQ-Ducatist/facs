@@ -18,6 +18,7 @@ import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePub
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
+import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
@@ -56,6 +57,7 @@ export default function App() {
   const [votedIds, setVotedIds] = useState(() => new Set());
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [followingIds, setFollowingIds] = useState(() => new Set());
+  const [blockedMembers, setBlockedMembers] = useState([]);
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -68,11 +70,11 @@ export default function App() {
   const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const followingIdsKey = [...followingIds].sort().join('|');
-  const orderedCards = useMemo(() => [...cards].sort((left, right) => {
+  const orderedCards = useMemo(() => cards.filter((card) => !blockedMembers.some((member) => member.id === (card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`))).sort((left, right) => {
     const leftFollowed = followingIds.has(getFollowTargetKey(left.authorId, left.author));
     const rightFollowed = followingIds.has(getFollowTargetKey(right.authorId, right.author));
     return Number(rightFollowed) - Number(leftFollowed);
-  }), [cards, followingIdsKey]);
+  }), [cards, followingIdsKey, blockedMembers]);
   const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
@@ -201,6 +203,14 @@ export default function App() {
     getMyScrapPostIds().then((result) => {
       if (active && result.data) setSavedPostIds(result.data);
     });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
+  /** Restores only the signed-in member's own block list for immediate feed filtering. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setBlockedMembers([]); return undefined; }
+    getMyBlockedMembers().then((result) => { if (active && result.data) setBlockedMembers(result.data); });
     return () => { active = false; };
   }, [authUser?.id]);
 
@@ -493,6 +503,7 @@ export default function App() {
       category: card.category,
       evaluationType: card.evaluationType,
       question: card.question,
+      visibility: card.visibility,
       ageMin: card.ageMin ?? null,
       ageMax: card.ageMax ?? null,
       media: card.media,
@@ -669,6 +680,24 @@ export default function App() {
     return { ok: true, following: result.data.following };
   }
 
+  /** Blocks a visible author, removes their cards immediately, and never exposes vote identities. */
+  async function blockAuthor(authorId, author) {
+    if (!authUser) { setIsGuest(true); setToast(locale === 'en' ? 'Sign in to block this member.' : '차단하려면 로그인해 주세요.'); return { ok: false }; }
+    const result = await blockMember(authorId, author);
+    if (result.error) { setToast(locale === 'en' ? 'This member could not be blocked. Please try again.' : '이 계정을 차단하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    setBlockedMembers((items) => [...items.filter((item) => item.id !== authorId), result.data]);
+    setFollowingIds((ids) => { const next = new Set(ids); next.delete(authorId); return next; });
+    setToast(locale === 'en' ? 'Blocked. Their posts are now hidden.' : '차단했어요. 이 계정의 게시물은 더 이상 보이지 않아요.');
+    return { ok: true };
+  }
+
+  async function unblockAuthor(authorId) {
+    const result = await unblockMember(authorId);
+    if (result.error) { setToast(locale === 'en' ? 'This member could not be unblocked. Please try again.' : '차단을 해제하지 못했어요. 다시 시도해 주세요.'); return; }
+    setBlockedMembers((items) => items.filter((item) => item.id !== authorId));
+    setToast(locale === 'en' ? 'Block removed.' : '차단을 해제했어요.');
+  }
+
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
     if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, [role="dialog"], .media-carousel')) return;
@@ -723,10 +752,10 @@ export default function App() {
 
     <main key={activeTab} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
       </>}
     </main>
 
