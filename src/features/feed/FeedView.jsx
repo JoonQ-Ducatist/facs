@@ -107,7 +107,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   function endCategoryDrag() { categoryDrag.current = null; }
 
   return <section className="editorial-feed relative flex h-full w-full min-h-0 flex-col items-center">
-    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 pb-1 no-scrollbar touch-pan-x active:cursor-grabbing">
+    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
