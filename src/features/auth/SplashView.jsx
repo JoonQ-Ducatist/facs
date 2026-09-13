@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import logoUrl from '../../assets/facs-snake-logo.png';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
+import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
 
 /** 정의: 방문마다 무작위로 보여 주는 한·영 가입 유도 문구 목록이다. */
 const splashCopies = [
@@ -13,7 +14,7 @@ const splashCopies = [
 ];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 전체 화면 스플래시다. */
-export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode }) {
+export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, localQaEnabled = false, onQaAccountSelect }) {
   const popularCards = useMemo(
     () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
     [cards],
@@ -114,6 +115,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
       </div>
 
       <div className="relative z-10 flex h-full flex-col px-5 pb-6 pt-10">
+        <LocalQaAccountSwitcher enabled={localQaEnabled} placement="splash" onSelect={onQaAccountSelect} />
         <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한글'}</button>
         <header className="flex flex-col items-center text-center">
           <button type="button" onClick={onPreview} className="group flex flex-col items-center rounded-xl px-3 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>

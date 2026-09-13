@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { API_ERROR, SAMPLE_STATUS, getSampleStatus, submitVote, toAggregate } from './mockApi.js';
 
-test('sample thresholds preserve the published Result contract', () => {
+test('the first rating starts results while Boost eligibility starts at ten ratings', () => {
   assert.equal(getSampleStatus(0), SAMPLE_STATUS.INSUFFICIENT);
+  assert.equal(getSampleStatus(1), SAMPLE_STATUS.INSUFFICIENT);
+  assert.equal(getSampleStatus(9), SAMPLE_STATUS.INSUFFICIENT);
   assert.equal(getSampleStatus(10), SAMPLE_STATUS.EARLY_SIGNAL);
   assert.equal(getSampleStatus(30), SAMPLE_STATUS.BASE_RESULT);
   assert.equal(getSampleStatus(100), SAMPLE_STATUS.EXPANDED_SAMPLE);

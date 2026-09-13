@@ -30,3 +30,9 @@ test('live reaction updates only result aggregates on the presentation card', ()
   const reaction = toLiveReaction({ id: 2, post_id: 'post-1', reaction: 'no', yes_count: 12, no_count: 4, average_age: null, total_votes: 16 });
   assert.deepEqual(applyLiveReactionToCard({ id: 'post-1', evaluationType: 'BINARY', yesVotes: 11, noVotes: 3 }, reaction), { id: 'post-1', evaluationType: 'BINARY', yesVotes: 12, noVotes: 4 });
 });
+
+test('an older replay event never moves a visible result backwards', () => {
+  const older = toLiveReaction({ id: 3, post_id: 'post-1', reaction: 'yes', yes_count: 2, no_count: 1, average_age: null, total_votes: 3 });
+  const visible = { id: 'post-1', evaluationType: 'BINARY', yesVotes: 4, noVotes: 2 };
+  assert.deepEqual(applyLiveReactionToCard(visible, older), visible);
+});
