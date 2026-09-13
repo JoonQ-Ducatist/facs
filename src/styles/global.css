@@ -4,8 +4,9 @@
 
 /* 정의: FACt.Smack 전 화면이 공유하는 표면·텍스트·강조 색상 토큰이다. */
 :root {
-  /* Fallback keeps older iPhone/Android browsers full-height; modern mobile
-     browsers replace it with their live visual viewport below. */
+  /* The application shell must not shrink with a software keyboard. A dynamic
+     viewport makes iOS/Android move the dock upward and leaves the abandoned
+     lower canvas blank, so use the stable browser viewport for the shell. */
   --xc-app-height: 100vh;
   --xc-surface: #f9f7f2;
   --xc-surface-low: #f5f3ee;
@@ -19,8 +20,8 @@
   --xc-brand-red: #ff315f;
 }
 
-@supports (height: 100dvh) {
-  :root { --xc-app-height: 100dvh; }
+@supports (height: 100svh) {
+  :root { --xc-app-height: 100svh; }
 }
 
 html { background: var(--xc-surface); }
