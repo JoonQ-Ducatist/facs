@@ -115,7 +115,9 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; }
   .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
   .editorial-main--feed { display: flex !important; overflow: hidden; padding-top: 0 !important; padding-bottom: 0 !important; }
-  .editorial-main--feed > .editorial-feed { height: 100%; min-height: 0; }
+  .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+  .editorial-main--feed .media-carousel { height: 100%; min-height: 0; }
+  .editorial-main--feed .media-carousel > article { height: 100%; min-height: 0; }
   .editorial-app > nav { position: static !important; grid-row: 3; z-index: 1 !important; pointer-events: auto; touch-action: manipulation; }
   .editorial-app > nav button { pointer-events: auto; touch-action: manipulation; }
 }
