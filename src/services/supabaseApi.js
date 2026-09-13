@@ -107,7 +107,7 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
  * the post only after every object is present in Storage. The browser never
  * chooses an account-identifying storage path or writes a ready asset state.
  */
-export async function createSupabasePublishedPost({ category, evaluationType, question, ageMin = null, ageMax = null, media }) {
+export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media }) {
   const identity = await requireUser();
   if (identity.error) return identity.error;
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
@@ -117,13 +117,14 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     byteSize: item.file?.size,
     durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
   }));
-  const { data: prepared, error: prepareError } = await supabase.rpc('create_post_upload', {
+  const { data: prepared, error: prepareError } = await supabase.rpc('create_post_upload_with_visibility', {
     input_category: toDatabaseCategory(category),
     input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
     input_question: question,
     input_age_min: evaluationType === 'NUMERIC_AGE' ? ageMin : null,
     input_age_max: evaluationType === 'NUMERIC_AGE' ? ageMax : null,
     input_media: inputMedia,
+    input_visibility: visibility,
   });
   if (prepareError || !prepared?.length) return normalizeSupabaseError(prepareError, '업로드를 준비하지 못했어요.');
 
@@ -146,6 +147,15 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
   }));
   if (urlResults.some((item) => !item)) return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드는 완료됐지만 사진 주소를 만들지 못했어요.');
   return apiSuccess({ post, media: urlResults });
+}
+
+/** Hides only the signed-in member's post while retaining its protected records. */
+export async function hideMySupabasePost(postId) {
+  const identity = await requireUser();
+  if (identity.error) return identity.error;
+  const { data, error } = await supabase.rpc('hide_my_post', { target_post_id: postId });
+  if (error || !data) return normalizeSupabaseError(error, '게시물을 숨기지 못했어요. 잠시 후 다시 시도해 주세요.');
+  return apiSuccess({ id: postId });
 }
 
 /** Maps UI category IDs to the database enum-compatible category values. */

@@ -8,19 +8,22 @@ import SplashView from './features/auth/SplashView.jsx';
 import logoUrl from './assets/facs-snake-logo.png';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
+import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
 import { isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
+import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
+import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
@@ -29,6 +32,25 @@ const tabs = [
   ['ranking', 'emoji_events', 'Ranking', '#18B9B5'],
   ['profile', 'account_circle', 'Profile', '#EAAF2D'],
 ];
+
+const LIVE_REACTION_ANIMATION_MS = 2_450;
+const LIVE_REACTION_STAGGER_MS = 180;
+const LIVE_REACTION_PAIR_THRESHOLD = 8;
+
+function liveReactionCheckpointKey(memberId, postId) { return `facs_live_reaction_seen_v1:${memberId}:${postId}`; }
+function getLiveReactionCheckpoint(memberId, postId) {
+  try { return window.localStorage.getItem(liveReactionCheckpointKey(memberId, postId)); } catch { return null; }
+}
+function markLiveReactionSeen(memberId, reaction) {
+  if (!memberId || !reaction?.postId || !reaction.createdAt) return;
+  const nextTimestamp = Date.parse(reaction.createdAt);
+  if (!Number.isFinite(nextTimestamp)) return;
+  try {
+    const key = liveReactionCheckpointKey(memberId, reaction.postId);
+    const previousTimestamp = Date.parse(window.localStorage.getItem(key) ?? '');
+    if (!Number.isFinite(previousTimestamp) || nextTimestamp > previousTimestamp) window.localStorage.setItem(key, reaction.createdAt);
+  } catch { /* Browser storage can be unavailable in private contexts. */ }
+}
 
 /** 정의: 모바일은 전체 폭, PC·태블릿은 중앙 SNS 콘텐츠 컬럼으로 렌더링하는 반응형 프레임이다. */
 function CanvasStage({ children }) { return <div className="app-stage"><div className="app-canvas">{children}</div></div>; }
@@ -39,6 +61,7 @@ export default function App() {
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
+  const localQaEnabled = isLocalQaAccountMode();
   // 정의: 명시적 preview URL만 세션 유무와 관계없이 스플래시부터 시작한다.
   // 로컬 개발은 실제 Mailpit 인증 흐름을 검증할 수 있도록 세션을 그대로 반영한다.
   const previewMode = authPreview || new URLSearchParams(window.location.search).has('preview');
@@ -56,6 +79,7 @@ export default function App() {
   const [votedIds, setVotedIds] = useState(() => new Set());
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [followingIds, setFollowingIds] = useState(() => new Set());
+  const [blockedMembers, setBlockedMembers] = useState([]);
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -68,11 +92,11 @@ export default function App() {
   const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const followingIdsKey = [...followingIds].sort().join('|');
-  const orderedCards = useMemo(() => [...cards].sort((left, right) => {
+  const orderedCards = useMemo(() => cards.filter((card) => !blockedMembers.some((member) => member.id === (card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`))).sort((left, right) => {
     const leftFollowed = followingIds.has(getFollowTargetKey(left.authorId, left.author));
     const rightFollowed = followingIds.has(getFollowTargetKey(right.authorId, right.author));
     return Number(rightFollowed) - Number(leftFollowed);
-  }), [cards, followingIdsKey]);
+  }), [cards, followingIdsKey, blockedMembers]);
   const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
@@ -80,6 +104,7 @@ export default function App() {
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
   const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
   const currentCard = visibleCards[safeIndex];
+  const isCurrentUserPost = Boolean(currentCard && (currentCard.authorId === authUser?.id || (currentCard.isMyUpload && !currentCard.authorId)));
 
   /** 정의: 언어만 전환하고 인증·탭·피드 상태는 현재 화면에 그대로 유지한다. */
   function switchLocale(nextLocale) {
@@ -204,6 +229,14 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id]);
 
+  /** Restores only the signed-in member's own block list for immediate feed filtering. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setBlockedMembers([]); return undefined; }
+    getMyBlockedMembers().then((result) => { if (active && result.data) setBlockedMembers(result.data); });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
   /** Loads only this member's explicit follow targets; other members' social graphs stay private. */
   useEffect(() => {
     let active = true;
@@ -286,19 +319,20 @@ export default function App() {
     if (!authUser) return undefined;
     const eligibleCards = cards.filter((card) => isLiveReactionWindow(card.publishedAt) && (card.authorId === authUser.id || votedIds.has(card.id)));
     let active = true;
-    const showReaction = (reaction) => {
+    const showReaction = (reaction, animationDelayMs = 0) => {
       if (!reaction || receivedLiveReactionIds.current.has(reaction.id)) return;
       receivedLiveReactionIds.current.add(reaction.id);
+      const receivedAt = Date.now();
+      markLiveReactionSeen(authUser.id, reaction);
       setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
-      setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt: Date.now() }].slice(-18));
+      setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt, animationDelayMs, expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS + animationDelayMs }]);
     };
     const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, showReaction));
     eligibleCards.forEach((card) => {
-      void getRecentPostLiveReactions(card.id).then((reactions) => {
+      void getRecentPostLiveReactions(card.id, getLiveReactionCheckpoint(authUser.id, card.id)).then((reactions) => {
         if (!active) return;
-        reactions
-          .filter((reaction) => reaction.createdAt && Date.now() - Date.parse(reaction.createdAt) < 12_000)
-          .forEach(showReaction);
+        const batchSize = reactions.length > LIVE_REACTION_PAIR_THRESHOLD ? 2 : 1;
+        reactions.forEach((reaction, index) => showReaction(reaction, Math.floor(index / batchSize) * LIVE_REACTION_STAGGER_MS));
       });
     });
     return () => { active = false; unsubscribe.forEach((close) => close()); };
@@ -306,7 +340,8 @@ export default function App() {
 
   useEffect(() => {
     if (!liveReactions.length) return undefined;
-    const timer = window.setTimeout(() => setLiveReactions((items) => items.filter((item) => Date.now() - item.receivedAt < 2500)), 2550);
+    const nextExpiry = Math.min(...liveReactions.map((reaction) => reaction.expiresAt ?? reaction.receivedAt + LIVE_REACTION_ANIMATION_MS));
+    const timer = window.setTimeout(() => setLiveReactions((items) => items.filter((reaction) => (reaction.expiresAt ?? reaction.receivedAt + LIVE_REACTION_ANIMATION_MS) > Date.now())), Math.max(25, nextExpiry - Date.now() + 25));
     return () => window.clearTimeout(timer);
   }, [liveReactions]);
 
@@ -424,6 +459,10 @@ export default function App() {
 
   /** 정의: 카테고리 평가 유형에 맞춰 BINARY 또는 NUMERIC_AGE 투표를 기록하고 카드 집계를 동기화한다. @param {boolean|number} value YES/NO 또는 예상 나이 */
   async function vote(value) {
+    if (isCurrentUserPost) {
+      setToast(locale === 'en' ? 'Your own post is not included in its result. Watch other members’ first impressions here.' : '내 게시물은 결과에 포함되지 않아요. 다른 사람의 첫인상을 여기에서 확인해 주세요.');
+      return;
+    }
     const payload = currentCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
     // 정의: 지원 기기에서 YES는 잔잔한 단일 진동, NO는 분명한 이중 진동을 제공하며 비지원 브라우저는 조용히 통과한다.
     if (currentCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
@@ -446,14 +485,17 @@ export default function App() {
     }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
     const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
+    const receivedAt = Date.now();
     setLiveReactions((items) => [...items, {
       id: `local-${currentCard.id}-${Date.now()}`,
       postId: currentCard.id,
       kind,
       value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
       aggregate: result.data.aggregate,
-      receivedAt: Date.now(),
-    }].slice(-18));
+      receivedAt,
+      animationDelayMs: 0,
+      expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS,
+    }]);
     setVotedIds((ids) => {
       const next = new Set([...ids, currentCard.id]);
       if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
@@ -493,6 +535,7 @@ export default function App() {
       category: card.category,
       evaluationType: card.evaluationType,
       question: card.question,
+      visibility: card.visibility,
       ageMin: card.ageMin ?? null,
       ageMax: card.ageMax ?? null,
       media: card.media,
@@ -505,6 +548,8 @@ export default function App() {
     const publishedCard = {
       ...card,
       id: result.data.post.id,
+      // Keep the just-created card connected to the uploader before the feed refreshes from Supabase.
+      authorId: authUser?.id,
       author: profile.handle,
       imageUrl: serverMedia[0].url,
       mediaType: serverMedia[0].type,
@@ -613,6 +658,17 @@ export default function App() {
     };
   }
 
+  async function switchLocalQaAccount(accountId) {
+    const result = await signInWithLocalQaAccount(accountId);
+    if (result.ok) {
+      setIsSharedGuest(false);
+      setIsGuest(false);
+      setActiveTab('feed');
+      setToast(`${result.account.displayName} QA 계정으로 전환했어요.`);
+    }
+    return result;
+  }
+
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
   function openRankingCard(target) {
     setActiveCategory('ALL');
@@ -620,8 +676,31 @@ export default function App() {
     setActiveTab('feed');
   }
 
-  /** 정의: 목업 프로필에서 카드 노출을 제거하고 완료 안내를 표시한다. @param {string} id 카드 ID */
-  function deleteCard(id) { setCards((items) => items.filter((item) => item.id !== id)); setToast(locale === 'en' ? 'Post deleted.' : '게시물을 삭제했습니다.'); }
+  /** Hides only the current member's post after the server confirms ownership. */
+  async function deleteCard(id) {
+    const target = cards.find((item) => item.id === id);
+    const isOwner = Boolean(target && (target.authorId === authUser?.id || (target.isMyUpload && !target.authorId)));
+    if (!isOwner) {
+      setToast(locale === 'en' ? 'Only the person who posted this can delete it.' : '게시물을 올린 본인만 삭제할 수 있어요.');
+      return { ok: false };
+    }
+    if (isSupabasePost(target)) {
+      const result = await hideMySupabasePost(id);
+      if (result.error) {
+        setToast(locale === 'en' ? 'We could not hide this post. Please try again.' : '게시물을 숨기지 못했어요. 다시 시도해 주세요.');
+        return { ok: false };
+      }
+    }
+    setCards((items) => items.filter((item) => item.id !== id));
+    setSavedPostIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setLiveReactions((items) => items.filter((reaction) => reaction.postId !== id));
+    setToast(locale === 'en' ? 'Post removed from FACS.' : '게시물을 서비스에서 숨겼습니다.');
+    return { ok: true };
+  }
 
   /** Sends guests to the existing sign-in screen; signed-in users persist a private Scrap. */
   async function toggleSavedPost(postId) {
@@ -669,6 +748,24 @@ export default function App() {
     return { ok: true, following: result.data.following };
   }
 
+  /** Blocks a visible author, removes their cards immediately, and never exposes vote identities. */
+  async function blockAuthor(authorId, author) {
+    if (!authUser) { setIsGuest(true); setToast(locale === 'en' ? 'Sign in to block this member.' : '차단하려면 로그인해 주세요.'); return { ok: false }; }
+    const result = await blockMember(authorId, author);
+    if (result.error) { setToast(locale === 'en' ? 'This member could not be blocked. Please try again.' : '이 계정을 차단하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    setBlockedMembers((items) => [...items.filter((item) => item.id !== authorId), result.data]);
+    setFollowingIds((ids) => { const next = new Set(ids); next.delete(authorId); return next; });
+    setToast(locale === 'en' ? 'Blocked. Their posts are now hidden.' : '차단했어요. 이 계정의 게시물은 더 이상 보이지 않아요.');
+    return { ok: true };
+  }
+
+  async function unblockAuthor(authorId) {
+    const result = await unblockMember(authorId);
+    if (result.error) { setToast(locale === 'en' ? 'This member could not be unblocked. Please try again.' : '차단을 해제하지 못했어요. 다시 시도해 주세요.'); return; }
+    setBlockedMembers((items) => items.filter((item) => item.id !== authorId));
+    setToast(locale === 'en' ? 'Block removed.' : '차단을 해제했어요.');
+  }
+
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
     if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, [role="dialog"], .media-carousel')) return;
@@ -689,7 +786,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>
@@ -705,6 +802,7 @@ export default function App() {
           <span lang="en" className="hidden whitespace-nowrap font-mono text-[8px] leading-none tracking-wide text-[#735c00] lg:inline">MORE VIEWS, MORE YOU</span>
         </button>
         <div className="flex shrink-0 items-center gap-1.5">
+          <LocalQaAccountSwitcher enabled={localQaEnabled} currentUserEmail={authUser?.email} onSelect={switchLocalQaAccount} />
           <button
             type="button"
             className="flex h-6 min-w-0 items-center justify-center rounded-md border border-[#c5a059]/55 bg-[#fbf9f4] px-1.5 font-latin text-[9px] font-semibold tracking-tight text-[#735c00]/85 hover:bg-surface-container"
@@ -723,10 +821,10 @@ export default function App() {
 
     <main key={activeTab} ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} canViewLiveReactions={Boolean(currentCard && (currentCard.authorId === authUser?.id || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
       </>}
     </main>
 
@@ -819,7 +917,7 @@ function useEnglishUi(locale) {
     const replacements = {
       '셔플': 'Shuffle', '몇 살로 보여?': 'How Old Do I Look?', '오늘의 룩': "Today's Look", '데이트': 'Date', '운동': 'Fitness', '출근': 'Work', 'SNS 프로필': 'Profile',
       '더 보기': 'More', '다음 사진': 'Next photo', '이전 사진': 'Previous photo', '이전 카드': 'Previous post', '다음 카드': 'Next post', '사진 탐색': 'Photo navigation', '등록된 사진': 'Photos', '유효 평가': 'Valid ratings', '명': '', '평균 예상': 'Average perceived', '평균 예상 나이': 'Average perceived age', '평균 호감도': 'Average approval', '호감도': 'Approval', '호감': 'YES', '비호감': 'NO', '세': ' years', '주관적 첫인상': 'Subjective first impression', '참여자의 주관적': 'Participants’ subjective', '첫인상이에요': 'first impression', '몇 살로 보이나요?': 'How old do I look?', '선택': 'Select',
-      '초기 경향': 'Early signal', '현재 결과': 'Current result', '확장 표본': 'Expanded sample', '표본 수집 중': 'Collecting ratings', '100명까지 Boost · ₩1,000': 'Boost to 100 · $1', '나도 평가받기': 'Get feedback too', '아직 충분한 첫인상이 모이지 않았어요. 10명의 반응이 모이면 첫 경향을 알려드릴게요.': 'Not enough first impressions yet. We’ll show an early signal after 10 ratings.',
+      '초기 경향': 'Early signal', '현재 결과': 'Current result', '확장 표본': 'Expanded sample', '표본 수집 중': 'Collecting ratings', '100명까지 Boost · ₩1,000': 'Boost to 100 · $1', '나도 평가받기': 'Get feedback too', '아직 평가에 참여한 사람이 없어요. 평가가 시작되면 결과를 알려드릴게요.': 'No one has rated this yet. We’ll show the result when ratings begin.',
       '회원님을 위한 추천': 'Suggested for you', '모두 보기': 'See all', '팔로우': 'Follow', '전환': 'Switch', '나의 Look Book': 'My Look Book', '소개 · 도움말 · 안전 · 개인정보처리방침 · 약관 · 위치 · 언어': 'About · Help · Safety · Privacy · Terms · Location · Language',
       '오늘의 룩과 일상의 순간을 기록하고 있어요.': 'Documenting today’s looks and everyday moments.', '내 업로드': 'My uploads', '받은 투표': 'Ratings received', '내가 업로드한 사진 분석': 'My uploaded photo insights', '새로 업로드': 'New upload', '삭제': 'Delete',
       '가장 많은 공감을 받은 오늘의 룩을 살펴보세요.': 'Explore today’s most appreciated looks.', '전체 TOP': 'Top picks', '이전 10위': 'Previous 10', '다음 10위': 'Next 10', '랭킹 페이지': 'Ranking pages',

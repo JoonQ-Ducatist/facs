@@ -28,15 +28,15 @@ export function toLiveReaction(payload) {
   };
 }
 
-/** Reads the latest anonymous event that the author or evaluator may already view. */
-export async function getRecentPostLiveReactions(postId, client = supabase) {
+/** Reads every anonymous reaction missed since an eligible viewer last saw this post. */
+export async function getRecentPostLiveReactions(postId, since = null, client = supabase) {
   if (!client || !postId) return [];
-  const { data, error } = await client
+  let query = client
     .from('post_live_reaction_events')
     .select('id, post_id, reaction, perceived_age, yes_count, no_count, average_age, total_votes, created_at')
-    .eq('post_id', postId)
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .eq('post_id', postId);
+  if (since) query = query.gt('created_at', since);
+  const { data, error } = await query.order('created_at', { ascending: true });
   if (error) return [];
   return (data ?? []).map(toLiveReaction).filter(Boolean);
 }
@@ -44,7 +44,11 @@ export async function getRecentPostLiveReactions(postId, client = supabase) {
 /** Applies only aggregate fields; the browser never receives a voter identity. */
 export function applyLiveReactionToCard(card, reaction) {
   if (!card || !reaction?.aggregate) return card;
-  if (card.evaluationType === 'NUMERIC_AGE') return { ...card, ageEstimate: reaction.aggregate.averageAge, ageVoteCount: reaction.aggregate.totalVotes };
+  if (card.evaluationType === 'NUMERIC_AGE') {
+    if (reaction.aggregate.totalVotes < (card.ageVoteCount ?? 0)) return card;
+    return { ...card, ageEstimate: reaction.aggregate.averageAge, ageVoteCount: reaction.aggregate.totalVotes };
+  }
+  if (reaction.aggregate.totalVotes < (card.yesVotes ?? 0) + (card.noVotes ?? 0)) return card;
   return { ...card, yesVotes: reaction.aggregate.yesCount, noVotes: reaction.aggregate.noCount };
 }
 
