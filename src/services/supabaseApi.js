@@ -149,6 +149,15 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
   return apiSuccess({ post, media: urlResults });
 }
 
+/** Hides only the signed-in member's post while retaining its protected records. */
+export async function hideMySupabasePost(postId) {
+  const identity = await requireUser();
+  if (identity.error) return identity.error;
+  const { data, error } = await supabase.rpc('hide_my_post', { target_post_id: postId });
+  if (error || !data) return normalizeSupabaseError(error, '게시물을 숨기지 못했어요. 잠시 후 다시 시도해 주세요.');
+  return apiSuccess({ id: postId });
+}
+
 /** Maps UI category IDs to the database enum-compatible category values. */
 export function toDatabaseCategory(category) {
   return {

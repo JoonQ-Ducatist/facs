@@ -14,7 +14,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -638,8 +638,31 @@ export default function App() {
     setActiveTab('feed');
   }
 
-  /** 정의: 목업 프로필에서 카드 노출을 제거하고 완료 안내를 표시한다. @param {string} id 카드 ID */
-  function deleteCard(id) { setCards((items) => items.filter((item) => item.id !== id)); setToast(locale === 'en' ? 'Post deleted.' : '게시물을 삭제했습니다.'); }
+  /** Hides only the current member's post after the server confirms ownership. */
+  async function deleteCard(id) {
+    const target = cards.find((item) => item.id === id);
+    const isOwner = Boolean(target && (target.authorId === authUser?.id || (target.isMyUpload && !target.authorId)));
+    if (!isOwner) {
+      setToast(locale === 'en' ? 'Only the person who posted this can delete it.' : '게시물을 올린 본인만 삭제할 수 있어요.');
+      return { ok: false };
+    }
+    if (isSupabasePost(target)) {
+      const result = await hideMySupabasePost(id);
+      if (result.error) {
+        setToast(locale === 'en' ? 'We could not hide this post. Please try again.' : '게시물을 숨기지 못했어요. 다시 시도해 주세요.');
+        return { ok: false };
+      }
+    }
+    setCards((items) => items.filter((item) => item.id !== id));
+    setSavedPostIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setLiveReactions((items) => items.filter((reaction) => reaction.postId !== id));
+    setToast(locale === 'en' ? 'Post removed from FACS.' : '게시물을 서비스에서 숨겼습니다.');
+    return { ok: true };
+  }
 
   /** Sends guests to the existing sign-in screen; signed-in users persist a private Scrap. */
   async function toggleSavedPost(postId) {
