@@ -98,12 +98,16 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   }
 
   /** 정의: PC에서도 스크롤바 없이 카테고리 탭 띠를 잡아 좌우로 탐색한다. */
-  function startCategoryDrag(event) { categoryDrag.current = { x: event.clientX, scrollLeft: categoryRailRef.current?.scrollLeft ?? 0 }; }
+  function startCategoryDrag(event) {
+    // A tap on a category button must remain a click; only the empty rail is draggable.
+    if (event.target.closest('button')) { categoryDrag.current = null; return; }
+    categoryDrag.current = { x: event.clientX, scrollLeft: categoryRailRef.current?.scrollLeft ?? 0 };
+  }
   function moveCategoryDrag(event) { if (!categoryDrag.current || !categoryRailRef.current) return; categoryRailRef.current.scrollLeft = categoryDrag.current.scrollLeft - (event.clientX - categoryDrag.current.x); }
   function endCategoryDrag() { categoryDrag.current = null; }
 
   return <section className="editorial-feed relative flex h-full w-full min-h-0 flex-col items-center">
-    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 pb-1 no-scrollbar active:cursor-grabbing">
+    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto border-0 bg-[#fbf9f4] px-4 pb-1 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
