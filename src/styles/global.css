@@ -20,8 +20,8 @@
   --xc-brand-red: #ff315f;
 }
 
-@supports (height: 100svh) {
-  :root { --xc-app-height: 100svh; }
+@supports (height: 100lvh) {
+  :root { --xc-app-height: 100lvh; }
 }
 
 html { background: var(--xc-surface); }
@@ -113,7 +113,10 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    헤더가 사라지거나 카드 아래에 빈 공간을 만들 수 있으므로, 각 영역의 높이를 독립시킨다. */
 @media (max-width: 1023px) {
   .editorial-app { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; }
-  .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; }
+  /* Keep the brand bar visible even when Safari retains a transient document
+     scroll offset after the software keyboard closes. The grid still reserves
+     its 44px row for Feed and Upload content. */
+  .editorial-app > header { position: fixed !important; top: 0; right: 0; left: 0; grid-row: 1; inset-block-end: auto; z-index: 100 !important; }
   .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
   .editorial-main--feed { display: flex !important; overflow: hidden; padding-top: 0 !important; padding-bottom: 0 !important; }
   .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
