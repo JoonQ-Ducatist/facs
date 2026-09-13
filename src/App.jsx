@@ -632,7 +632,6 @@ export default function App() {
       return;
     }
     setActiveTab('upload');
-    setToast(locale === 'en' ? 'Let people see your first impression too.' : '내 사진도 첫인상을 받아보세요.');
   }
 
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */
