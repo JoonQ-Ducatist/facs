@@ -58,18 +58,6 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .app-stage { display: flex; height: var(--xc-app-height); min-height: 0; width: 100%; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
 .app-canvas { position: relative; width: 100%; height: var(--xc-app-height); overflow: hidden; background: var(--xc-surface); }
 
-@media (max-width: 1023px) {
-  /* The mobile dock is an independent control plane, never part of the
-     scrollable upload layer. */
-  .editorial-app > header { position: fixed !important; inset: 0 0 auto; z-index: 100 !important; }
-  .editorial-app > nav { position: fixed !important; z-index: 100 !important; pointer-events: auto; touch-action: manipulation; }
-  .editorial-app > nav button { pointer-events: auto; touch-action: manipulation; }
-  /* Feed is the sole child of its main area. Let it fill the space between
-     the fixed header and dock instead of shrinking after an upload transition. */
-  .editorial-main--feed { display: block !important; padding-top: 52px !important; padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; }
-  .editorial-main--feed > .editorial-feed { height: 100%; min-height: 0; }
-}
-
 /* 정의: 좁은 모바일 가로 화면에서도 헤더·하단 메뉴 사이에 사진 중심 Feed를 유지한다. */
 @media (max-width: 599px) and (orientation: landscape) {
   .editorial-main--feed { padding-top: 44px !important; padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; }
@@ -118,6 +106,19 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-main .bg-cyan-glow { background-color: var(--xc-accent-soft) !important; }
 .editorial-main .border-cyan-glow { border-color: var(--xc-accent-soft) !important; }
 .editorial-main .ui-primary-action { color: #fff !important; }
+
+/* 정의: 세로형 모바일은 헤더·본문·하단 메뉴를 하나의 격자로 배치한다. fixed 레이어와
+   100% 본문을 겹치면 iOS/Android가 키보드·파일 선택 후 이전 visual viewport를 보존해
+   헤더가 사라지거나 카드 아래에 빈 공간을 만들 수 있으므로, 각 영역의 높이를 독립시킨다. */
+@media (max-width: 1023px) {
+  .editorial-app { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; }
+  .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; }
+  .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
+  .editorial-main--feed { display: flex !important; overflow: hidden; padding-top: 0 !important; padding-bottom: 0 !important; }
+  .editorial-main--feed > .editorial-feed { height: 100%; min-height: 0; }
+  .editorial-app > nav { position: static !important; grid-row: 3; z-index: 1 !important; pointer-events: auto; touch-action: manipulation; }
+  .editorial-app > nav button { pointer-events: auto; touch-action: manipulation; }
+}
 
 /* 정의: 이미지 전체 위에 피드 정보·투표·첫 댓글을 겹쳐 카드가 사진 중심으로 유지되게 한다. */
 .editorial-feed .text-white { color: #fff !important; }
@@ -193,7 +194,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 
 /* 정의: 모바일·태블릿 피드는 카드가 화면 가장자리와 하단 메뉴에 맞닿아 콘텐츠 면적을 최대로 쓴다. */
 @media (max-width: 1023px) {
-  .editorial-main--feed { padding-right: 0 !important; padding-bottom: calc(48px + env(safe-area-inset-bottom)) !important; padding-left: 0 !important; }
+  .editorial-main--feed { padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
   .editorial-feed article { border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
 }
 
@@ -312,11 +313,11 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 /* 정의: 휴대폰을 가로로 돌리면 하단 독을 유지하지 않고, 남는 폭을 사진과 본문에 돌려주는
    축소형 PC 탐색 레일로 바꾼다. 화면 폭이 넓은 태블릿 가로 모드는 데스크톱 규칙을 그대로 쓴다. */
 @media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
-  .editorial-app { --landscape-nav-width: 58px; display: grid; grid-template-columns: var(--landscape-nav-width) minmax(0, 1fr); transition: grid-template-columns .2s ease; }
+  .editorial-app { --landscape-nav-width: 58px; display: grid; grid-template-columns: var(--landscape-nav-width) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); transition: grid-template-columns .2s ease; }
   .editorial-app--landscape-nav-open { --landscape-nav-width: 196px; }
   .editorial-app > header { display: none; }
   .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: 12px !important; padding-bottom: 8px !important; padding-left: 12px !important; }
-  .editorial-main--feed { overflow: hidden; }
+  .editorial-main--feed { overflow: hidden; padding-top: 8px !important; padding-bottom: 8px !important; }
   .editorial-main--scroll { overflow-y: auto; }
   .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: var(--landscape-nav-width); height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px; box-shadow: none; transition: width .2s ease, box-shadow .2s ease; }
   .desktop-nav-brand { display: flex; align-items: center; width: 50px; height: 38px; margin: 0 0 8px; padding: 0 10px; overflow: hidden; color: var(--xc-text); text-align: left; white-space: nowrap; transition: width .2s ease, padding .2s ease; }
