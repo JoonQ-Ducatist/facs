@@ -61,6 +61,10 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   async function submitEmail(event) {
     event.preventDefault();
     if (isEmailSending || emailSent) return;
+    // Start the code step from a stable full viewport rather than preserving
+    // the email field's keyboard-reduced geometry.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setKeyboardOffset(0);
     setIsEmailSending(true);
     setEmailNotice('');
     const result = await onEmailAuth(email.trim(), rememberMe);
@@ -77,6 +81,8 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   async function submitCode(event) {
     event.preventDefault();
     if (isCodeVerifying || !isCompleteEmailOtp(verificationCode)) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setKeyboardOffset(0);
     setIsCodeVerifying(true);
     setEmailNotice('');
     const result = await onEmailCode(email.trim(), verificationCode.trim(), rememberMe);

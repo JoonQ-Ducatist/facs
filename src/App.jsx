@@ -135,6 +135,11 @@ export default function App() {
 
     const finishAuthenticatedEntry = (session) => {
       if (!session || previewMode) return;
+      // The OTP field can remain focused while Supabase updates the session.
+      // Dismiss its software keyboard before replacing Splash with Feed so an
+      // old visual viewport is never carried into the authenticated canvas.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      document.documentElement.style.removeProperty('--xc-app-height');
       setAuthUser(session.user ?? null);
       setIsGuest(false);
 
@@ -365,80 +370,36 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.VISITOR_OPENED, { locale, source: sharedPostId ? 'shared_post' : 'direct' });
   }, [locale, sharedPostId]);
 
-  /** 정의: iOS Safari·모바일 브라우저의 탭/세션 복원 뒤에도 헤더와 본문 시작 좌표를 재계산한다. 복귀 시 고정 레이어를 다시 마운트해 이전 합성 레이어가 남는 현상을 막는다. */
+  /** Uses native dynamic viewport units. Persisting a pixel height from a keyboard-open viewport leaves an empty mobile canvas after auth or resume. */
   useEffect(() => {
-    let delayedReset;
-    const isTextEntryFocused = () => {
-      const focused = document.activeElement;
-      return focused instanceof HTMLElement && focused.matches('input, textarea, select, [contenteditable="true"]');
-    };
-    const hasVirtualKeyboard = () => {
-      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
-      return window.innerHeight - visualHeight > 120;
-    };
-    const resetDocumentViewport = ({ resetScroll = true } = {}) => {
-      const reset = () => {
-        const visualHeight = window.visualViewport?.height ?? window.innerHeight;
-        // iPhone Chrome keeps a focused input after its keyboard is dismissed.
-        // A small browser-chrome difference is normal; a large one means the
-        // keyboard is still open and must not shrink the app canvas.
-        const keyboardIsOpen = window.innerHeight - visualHeight > 120;
-        if (!keyboardIsOpen) document.documentElement.style.setProperty('--xc-app-height', `${Math.round(visualHeight)}px`);
-        // iPhone Chrome fires visualViewport events while a person types. Do
-        // not steal the form scroll then: it hides the focused input and can
-        // turn the first upload tap into a scroll-to-top action.
-        if (!resetScroll || keyboardIsOpen || isTextEntryFocused()) return;
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-        mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      };
-      reset();
-      window.requestAnimationFrame(() => {
-        reset();
-        window.requestAnimationFrame(reset);
-      });
-      window.clearTimeout(delayedReset);
-      delayedReset = window.setTimeout(reset, 120);
-    };
-    const onResume = () => {
-      if (hasVirtualKeyboard() || isTextEntryFocused()) return;
-      resetDocumentViewport();
-    };
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
-    // Keyboard-driven viewport changes preserve the focused field and form
-    // scroll. A genuine tab resume still restores the full canvas above.
-    const onVisualViewportResize = () => {
-      if (hasVirtualKeyboard() || isTextEntryFocused()) return;
-      resetDocumentViewport({ resetScroll: false });
-    };
-    window.addEventListener('pageshow', onResume);
-    window.addEventListener('focus', onResume);
-    window.addEventListener('resize', onVisualViewportResize);
-    window.visualViewport?.addEventListener('resize', onVisualViewportResize);
-    window.visualViewport?.addEventListener('scroll', onVisualViewportResize);
+    const useNativeViewport = () => document.documentElement.style.removeProperty('--xc-app-height');
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') useNativeViewport(); };
+    useNativeViewport();
+    window.addEventListener('pageshow', useNativeViewport);
+    window.addEventListener('focus', useNativeViewport);
     document.addEventListener('visibilitychange', onVisibilityChange);
-    resetDocumentViewport();
     return () => {
-      window.removeEventListener('pageshow', onResume);
-      window.removeEventListener('focus', onResume);
-      window.removeEventListener('resize', onVisualViewportResize);
-      window.visualViewport?.removeEventListener('resize', onVisualViewportResize);
-      window.visualViewport?.removeEventListener('scroll', onVisualViewportResize);
+      window.removeEventListener('pageshow', useNativeViewport);
+      window.removeEventListener('focus', useNativeViewport);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.clearTimeout(delayedReset);
     };
   }, []);
 
   useEnglishUi(locale);
   useEffect(() => { applySeoMetadata(locale); }, [locale]);
 
-  /** 정의: 메뉴 전환마다 이전 화면의 스크롤 위치를 0으로 초기화해 상단 헤더·본문이 잘린 채 렌더링되는 것을 막는다. */
+  /** Resets a newly mounted screen once, never in response to keyboard viewport events. */
   useLayoutEffect(() => {
-    const main = mainRef.current;
-    if (main) main.scrollTop = 0;
-    window.scrollTo(0, 0);
-  }, [activeTab]);
+    document.documentElement.style.removeProperty('--xc-app-height');
+    if (isGuest) return undefined;
+    const resetScreenStart = () => {
+      window.scrollTo(0, 0);
+      mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    };
+    resetScreenStart();
+    const frame = window.requestAnimationFrame(resetScreenStart);
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, isGuest]);
 
   /** 정의: 피드 카테고리를 변경하고 새 목록의 첫 카드로 이동한다. @param {string} category 카테고리 식별자 */
   function changeCategory(category) {
