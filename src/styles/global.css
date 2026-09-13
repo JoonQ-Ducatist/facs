@@ -4,7 +4,9 @@
 
 /* 정의: FACt.Smack 전 화면이 공유하는 표면·텍스트·강조 색상 토큰이다. */
 :root {
-  --xc-app-height: 100dvh;
+  /* Fallback keeps older iPhone/Android browsers full-height; modern mobile
+     browsers replace it with their live visual viewport below. */
+  --xc-app-height: 100vh;
   --xc-surface: #f9f7f2;
   --xc-surface-low: #f5f3ee;
   --xc-surface-card: #ffffff;
@@ -15,6 +17,10 @@
   --xc-accent-soft: #c5a059;
   --xc-primary: #0e1c2d;
   --xc-brand-red: #ff315f;
+}
+
+@supports (height: 100dvh) {
+  :root { --xc-app-height: 100dvh; }
 }
 
 html { background: var(--xc-surface); }
@@ -51,6 +57,14 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
 .app-stage { display: flex; height: var(--xc-app-height); min-height: 0; width: 100%; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
 .app-canvas { position: relative; width: 100%; height: var(--xc-app-height); overflow: hidden; background: var(--xc-surface); }
+
+/* A mobile auth/Feed transition must remain attached to the visible browser
+   canvas even if a browser briefly reports an older small viewport after its
+   keyboard closes. The inner canvas retains the established scroll layout. */
+@media (max-width: 1023px) {
+  .app-stage { position: fixed; inset: 0; height: auto; min-height: 100%; }
+  .app-canvas { height: 100%; min-height: 100%; }
+}
 
 /* 정의: 좁은 모바일 가로 화면에서도 헤더·하단 메뉴 사이에 사진 중심 Feed를 유지한다. */
 @media (max-width: 599px) and (orientation: landscape) {
@@ -218,7 +232,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 }
 
 /* 정의: 데스크톱 스플래시는 모바일과 같은 집중형 캔버스를 유지해 배경 사진 확대를 막는다. */
-.splash-screen { width: 100%; height: var(--xc-app-height); min-height: 100svh; }
+.splash-screen { width: 100%; height: 100%; min-height: 0; }
 @media (min-width: 600px) {
   .app-stage:has(.splash-screen) { background: #051424; }
   /* 스플래시는 모바일 폭을 유지하되, 넓은 캔버스의 기본 표면이 드러나지 않게 한다. */
