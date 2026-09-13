@@ -111,7 +111,6 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    100% 본문을 겹치면 iOS/Android가 키보드·파일 선택 후 이전 visual viewport를 보존해
    헤더가 사라지거나 카드 아래에 빈 공간을 만들 수 있으므로, 각 영역의 높이를 독립시킨다. */
 @media (max-width: 1023px) {
-  .editorial-main--feed .media-carousel > article { border-top: 0; }
   .editorial-app { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; }
   .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; }
   .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
