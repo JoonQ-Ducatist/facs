@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import logoUrl from '../../assets/facs-snake-logo.png';
+import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
 
@@ -164,7 +165,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
             {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
           </p>
           <div className="relative flex flex-col gap-2">
-            <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={isGoogleSigningIn ? (locale === 'en' ? 'Opening Google...' : 'Google 로그인으로 이동 중...') : (locale === 'en' ? 'Continue with Google' : 'Google로 계속하기')} icon="G" onClick={startGoogleSignIn} disabled={isGoogleSigningIn} />
+            <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={isGoogleSigningIn ? (locale === 'en' ? 'Opening Google...' : 'Google 로그인으로 이동 중...') : (locale === 'en' ? 'Continue with Google' : 'Google로 계속하기')} icon={<img src={googleLogoUrl} alt="" aria-hidden="true" className={compactIconClass(selectedProvider !== 'google')} />} onClick={startGoogleSignIn} disabled={isGoogleSigningIn} />
             <ProviderButton compact={selectedProvider !== 'kakao'} selected={selectedProvider === 'kakao'} label={locale === 'en' ? 'Continue with Kakao' : '카카오로 계속하기'} icon="chat_bubble" onClick={() => selectProvider('kakao')} />
             {selectedProvider === 'email' && emailOpen ? (
               <div className="relative mx-auto w-full rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-3 shadow-inner">
@@ -206,8 +207,10 @@ function participationCount(card) { return card.evaluationType === 'NUMERIC_AGE'
 function ProviderButton({ label, icon, onClick, compact = false, selected = false, disabled = false }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={`mx-auto flex w-[92%] items-center justify-center gap-2 rounded-full border px-4 font-bold text-white shadow-sm backdrop-blur-[1px] transition-all duration-200 disabled:cursor-wait disabled:opacity-75 ${selected ? 'h-11 border-[#ecd8a8]/70 bg-white/[0.14] text-sm' : compact ? 'h-7 border-white/10 bg-white/[0.025] text-[10px] text-white/65 hover:bg-white/[0.08]' : 'h-10 border-white/15 bg-white/[0.055] text-sm hover:bg-white/[0.14]'}`}>
-      <span className={`material-symbols-outlined text-[#ecd8a8] ${compact ? 'text-[13px]' : 'text-[17px]'}`}>{icon}</span>
+      {typeof icon === 'string' ? <span className={`material-symbols-outlined text-[#ecd8a8] ${compact ? 'text-[13px]' : 'text-[17px]'}`}>{icon}</span> : icon}
       {label}
     </button>
   );
 }
+
+function compactIconClass(compact) { return `shrink-0 object-contain ${compact ? 'h-[13px] w-[13px]' : 'h-[17px] w-[17px]'}`; }
