@@ -20,10 +20,6 @@
   --xc-brand-red: #ff315f;
 }
 
-@supports (height: 100lvh) {
-  :root { --xc-app-height: 100lvh; }
-}
-
 html { background: var(--xc-surface); }
 html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 html, body { scrollbar-width: none; }
@@ -56,8 +52,11 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
-.app-stage { display: flex; height: var(--xc-app-height); min-height: 0; width: 100%; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
-.app-canvas { position: relative; width: 100%; height: var(--xc-app-height); overflow: hidden; background: var(--xc-surface); }
+/* The shell is pinned to the browser viewport. Document scrolling must never
+   move one chrome bar while leaving another behind after keyboard/file-picker
+   transitions; Upload owns the only scrollable region inside this boundary. */
+.app-stage { position: fixed; inset: 0 auto auto 0; display: flex; width: 100%; height: var(--xc-app-height); min-height: 0; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
+.app-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--xc-surface); }
 
 /* 정의: 좁은 모바일 가로 화면에서도 헤더·하단 메뉴 사이에 사진 중심 Feed를 유지한다. */
 @media (max-width: 599px) and (orientation: landscape) {
@@ -113,10 +112,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    헤더가 사라지거나 카드 아래에 빈 공간을 만들 수 있으므로, 각 영역의 높이를 독립시킨다. */
 @media (max-width: 1023px) {
   .editorial-app { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; }
-  /* Keep the brand bar visible even when Safari retains a transient document
-     scroll offset after the software keyboard closes. The grid still reserves
-     its 44px row for Feed and Upload content. */
-  .editorial-app > header { position: fixed !important; top: 0; right: 0; left: 0; grid-row: 1; inset-block-end: auto; z-index: 100 !important; }
+  .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; }
   .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
   .editorial-main--feed { display: flex !important; overflow: hidden; padding-top: 0 !important; padding-bottom: 0 !important; }
   .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
@@ -255,7 +251,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 /* 정의: PC에서는 일반 SNS처럼 좌측 탐색과 스크롤 가능한 중앙 피드 컬럼을 사용한다. */
 @media (min-width: 1024px) {
   .app-stage { align-items: stretch; padding: 0; }
-  .app-canvas { width: 100%; height: 100dvh; border: 0; box-shadow: none; }
+  .app-canvas { width: 100%; height: 100%; border: 0; box-shadow: none; }
   .editorial-app { --desktop-nav-width: 76px; display: grid; grid-template-columns: var(--desktop-nav-width) minmax(0, 1fr); transition: grid-template-columns .2s ease; }
   .editorial-app:has(> nav:hover), .editorial-app:has(> nav:focus-within) { --desktop-nav-width: 216px; }
   .editorial-app > header { display: none; }

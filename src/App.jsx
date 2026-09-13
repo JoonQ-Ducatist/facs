@@ -37,6 +37,30 @@ const tabs = [
 const LIVE_REACTION_ANIMATION_MS = 2_450;
 const LIVE_REACTION_STAGGER_MS = 180;
 const LIVE_REACTION_PAIR_THRESHOLD = 8;
+let appCanvasSyncBlockedUntil = 0;
+
+function hasFocusedTextEditor() {
+  const active = document.activeElement;
+  return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement || Boolean(active?.isContentEditable);
+}
+
+/** Keeps the app shell at the last non-keyboard visual viewport height. */
+function syncAppCanvasHeight() {
+  if (Date.now() < appCanvasSyncBlockedUntil) return;
+  if (hasFocusedTextEditor()) return;
+  const visualHeight = Math.round(window.visualViewport?.height ?? 0);
+  const layoutHeight = Math.round(window.innerHeight);
+  // iOS keeps innerHeight at its non-keyboard value while visualViewport is
+  // reduced. Never store that temporary keyboard height as the app shell.
+  if (visualHeight && layoutHeight && visualHeight < layoutHeight - 120) return;
+  const height = Math.max(visualHeight, layoutHeight);
+  if (height > 0) document.documentElement.style.setProperty('--xc-app-height', `${height}px`);
+}
+
+function settleAppCanvasAfterKeyboardDismissal() {
+  appCanvasSyncBlockedUntil = Date.now() + 520;
+  window.setTimeout(syncAppCanvasHeight, 540);
+}
 
 function liveReactionCheckpointKey(memberId, postId) { return `facs_live_reaction_seen_v1:${memberId}:${postId}`; }
 function getLiveReactionCheckpoint(memberId, postId) {
@@ -139,7 +163,7 @@ export default function App() {
       // Dismiss its software keyboard before replacing Splash with Feed so an
       // old visual viewport is never carried into the authenticated canvas.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      document.documentElement.style.removeProperty('--xc-app-height');
+      settleAppCanvasAfterKeyboardDismissal();
       setAuthUser(session.user ?? null);
       setIsGuest(false);
 
@@ -370,17 +394,27 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.VISITOR_OPENED, { locale, source: sharedPostId ? 'shared_post' : 'direct' });
   }, [locale, sharedPostId]);
 
-  /** Uses native dynamic viewport units. Persisting a pixel height from a keyboard-open viewport leaves an empty mobile canvas after auth or resume. */
+  /** Stores only a non-keyboard viewport height; input focus keeps the shell stable while Upload scrolls its own content. */
   useEffect(() => {
-    const useNativeViewport = () => document.documentElement.style.removeProperty('--xc-app-height');
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') useNativeViewport(); };
-    useNativeViewport();
-    window.addEventListener('pageshow', useNativeViewport);
-    window.addEventListener('focus', useNativeViewport);
+    let settleTimer;
+    const scheduleSync = () => {
+      syncAppCanvasHeight();
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(syncAppCanvasHeight, 180);
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') scheduleSync(); };
+    scheduleSync();
+    window.visualViewport?.addEventListener('resize', scheduleSync);
+    window.visualViewport?.addEventListener('scroll', scheduleSync);
+    window.addEventListener('pageshow', scheduleSync);
+    window.addEventListener('focus', scheduleSync);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      window.removeEventListener('pageshow', useNativeViewport);
-      window.removeEventListener('focus', useNativeViewport);
+      window.clearTimeout(settleTimer);
+      window.visualViewport?.removeEventListener('resize', scheduleSync);
+      window.visualViewport?.removeEventListener('scroll', scheduleSync);
+      window.removeEventListener('pageshow', scheduleSync);
+      window.removeEventListener('focus', scheduleSync);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
@@ -390,7 +424,6 @@ export default function App() {
 
   /** Resets a newly mounted screen once, never in response to keyboard viewport events. */
   useLayoutEffect(() => {
-    document.documentElement.style.removeProperty('--xc-app-height');
     if (isGuest) return undefined;
     const resetScreenStart = () => {
       window.scrollTo(0, 0);
@@ -524,6 +557,7 @@ export default function App() {
     // replaces Upload; otherwise Safari may size the new card from the old,
     // keyboard-reduced viewport.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    settleAppCanvasAfterKeyboardDismissal();
     window.scrollTo(0, 0);
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const result = await createSupabasePublishedPost({
