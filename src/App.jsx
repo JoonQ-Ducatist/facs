@@ -368,7 +368,15 @@ export default function App() {
   /** 정의: iOS Safari·모바일 브라우저의 탭/세션 복원 뒤에도 헤더와 본문 시작 좌표를 재계산한다. 복귀 시 고정 레이어를 다시 마운트해 이전 합성 레이어가 남는 현상을 막는다. */
   useEffect(() => {
     let delayedReset;
-    const resetDocumentViewport = () => {
+    const isTextEntryFocused = () => {
+      const focused = document.activeElement;
+      return focused instanceof HTMLElement && focused.matches('input, textarea, select, [contenteditable="true"]');
+    };
+    const hasVirtualKeyboard = () => {
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+      return window.innerHeight - visualHeight > 120;
+    };
+    const resetDocumentViewport = ({ resetScroll = true } = {}) => {
       const reset = () => {
         const visualHeight = window.visualViewport?.height ?? window.innerHeight;
         // iPhone Chrome keeps a focused input after its keyboard is dismissed.
@@ -376,6 +384,10 @@ export default function App() {
         // keyboard is still open and must not shrink the app canvas.
         const keyboardIsOpen = window.innerHeight - visualHeight > 120;
         if (!keyboardIsOpen) document.documentElement.style.setProperty('--xc-app-height', `${Math.round(visualHeight)}px`);
+        // iPhone Chrome fires visualViewport events while a person types. Do
+        // not steal the form scroll then: it hides the focused input and can
+        // turn the first upload tap into a scroll-to-top action.
+        if (!resetScroll || keyboardIsOpen || isTextEntryFocused()) return;
         window.scrollTo(0, 0);
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
@@ -389,13 +401,16 @@ export default function App() {
       window.clearTimeout(delayedReset);
       delayedReset = window.setTimeout(reset, 120);
     };
-    const onResume = () => { resetDocumentViewport(); };
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
-    // iOS Chrome reports a transient visual viewport while its keyboard opens.
-    // Keep the canvas stable then, but immediately restore its full height when
-    // that viewport returns after the keyboard closes.
-    const onVisualViewportResize = () => {
+    const onResume = () => {
+      if (hasVirtualKeyboard() || isTextEntryFocused()) return;
       resetDocumentViewport();
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') onResume(); };
+    // Keyboard-driven viewport changes preserve the focused field and form
+    // scroll. A genuine tab resume still restores the full canvas above.
+    const onVisualViewportResize = () => {
+      if (hasVirtualKeyboard() || isTextEntryFocused()) return;
+      resetDocumentViewport({ resetScroll: false });
     };
     window.addEventListener('pageshow', onResume);
     window.addEventListener('focus', onResume);
@@ -441,8 +456,14 @@ export default function App() {
 
   /** 정의: 모든 카테고리에서 임의의 카드를 선택하고 안내 토스트를 표시한다. */
   function shuffle() {
-    setFeaturedPostId(null);
     setActiveCategory('ALL');
+    // After publishing, the first Shuffle visit must show the uploader's new
+    // card. Category/card browsing deliberately clears this focus elsewhere.
+    if (featuredPostId) {
+      setCurrentIndex(0);
+      setToast(locale === 'en' ? 'Your new post is first in the feed.' : '방금 올린 사진을 피드 첫 카드에 보여드릴게요.');
+      return;
+    }
     setCurrentIndex(Math.floor(Math.random() * cards.length));
     setToast(locale === 'en' ? 'Here is a fresh photo.' : '새로운 사진을 보여드릴게요');
   }
