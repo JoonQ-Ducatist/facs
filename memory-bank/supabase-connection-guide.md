@@ -22,3 +22,13 @@
 2. Codex가 Supabase SDK·연결 검증·마이그레이션·RLS를 추가한다.
 3. 실제 Auth부터 연결하고, Post·Vote·Media·Moderation을 순서대로 서버화한다.
 4. 실제 계정·사진을 쓰기 전에 RLS·감사 로그·삭제·동의 흐름을 함께 검증한다.
+
+## 로컬 전용 격리 Staging 전환
+
+RLS·Auth·팔로우·공개범위 권한 QA는 운영 프로젝트에 연결하지 않고
+[Supabase 인증 환경 가이드](../supabase/auth-environments.md)의 **RLS QA:
+isolated remote staging project** 절차를 따른다. Staging URL과 Publishable
+Key는 Git에 기록하지 않는 `.env.local`에만 넣고, 테스트가 끝나면 원래 로컬
+환경 파일을 복원한다. 별도 프로젝트 생성, Auth 계정 초대, SQL 마이그레이션,
+프로젝트 일시정지·삭제는 비용과 권한 변경이 있으므로 프로젝트 소유자의
+명시적 승인 없이는 수행하지 않는다.
