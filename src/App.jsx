@@ -24,6 +24,7 @@ import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPre
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
+import { resolveFeedCardIndex } from './services/feedSelection.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
@@ -77,6 +78,7 @@ export default function App() {
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
+  const [featuredPostId, setFeaturedPostId] = useState(null);
   const [votedIds, setVotedIds] = useState(() => new Set());
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [followingIds, setFollowingIds] = useState(() => new Set());
@@ -103,7 +105,7 @@ export default function App() {
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
   const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
-  const safeIndex = visibleCards.length ? currentIndex % visibleCards.length : 0;
+  const safeIndex = resolveFeedCardIndex(visibleCards, currentIndex, activeCategory, featuredPostId);
   const currentCard = visibleCards[safeIndex];
   const isCurrentUserPost = Boolean(currentCard && (currentCard.authorId === authUser?.id || (currentCard.isMyUpload && !currentCard.authorId)));
 
@@ -425,6 +427,7 @@ export default function App() {
 
   /** 정의: 피드 카테고리를 변경하고 새 목록의 첫 카드로 이동한다. @param {string} category 카테고리 식별자 */
   function changeCategory(category) {
+    setFeaturedPostId(null);
     setActiveCategory(category);
     setCurrentIndex(0);
   }
@@ -432,11 +435,13 @@ export default function App() {
   /** 정의: 현재 필터 결과 안에서 이전 또는 다음 카드를 순환 이동한다. @param {number} direction -1 또는 1 */
   function moveCard(direction) {
     if (!visibleCards.length) return;
+    setFeaturedPostId(null);
     setCurrentIndex((index) => (index + direction + visibleCards.length) % visibleCards.length);
   }
 
   /** 정의: 모든 카테고리에서 임의의 카드를 선택하고 안내 토스트를 표시한다. */
   function shuffle() {
+    setFeaturedPostId(null);
     setActiveCategory('ALL');
     setCurrentIndex(Math.floor(Math.random() * cards.length));
     setToast(locale === 'en' ? 'Here is a fresh photo.' : '새로운 사진을 보여드릴게요');
@@ -558,6 +563,7 @@ export default function App() {
       publishedAt: result.data.post.published_at,
     };
     setCards((items) => [publishedCard, ...items]);
+    setFeaturedPostId(publishedCard.id);
     setActiveCategory('ALL');
     setCurrentIndex(0);
     setActiveTab('feed');

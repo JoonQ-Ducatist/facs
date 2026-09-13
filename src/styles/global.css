@@ -198,6 +198,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-profile article,
 .editorial-upload [class*="bg-surface-container"] { box-shadow: 0 4px 20px rgba(0,0,0,.03); }
 .editorial-upload :where(h1, h2, p, label, legend) { overflow-wrap: break-word; }
+.upload-question-input { scroll-margin-block: 34vh; }
 .upload-category-grid > button { line-height: 1.2; text-align: center; text-wrap: balance; word-break: keep-all; }
 
 /* 정의: 가장 좁은 스마트폰에서는 영문 카테고리와 Boost 제어를 두 열 규칙으로 재배치해 의미 단위가 깨지지 않게 한다. */
