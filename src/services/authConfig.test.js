@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AUTH_CONFIG_ERROR, AUTH_PROVIDER, getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './authConfig.js';
+import { AUTH_CONFIG_ERROR, AUTH_PROVIDER, getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './authConfig.js';
 
 const baseEnvironment = {
   VITE_SUPABASE_URL: 'https://staging-ref.supabase.co',
@@ -24,6 +24,13 @@ test('the known FACS Vercel Preview returns to the exact deployment that request
 test('an unrelated Vercel host cannot replace the configured callback', () => {
   const config = getPublicAuthConfig(baseEnvironment, 'https://untrusted-preview.vercel.app');
   assert.equal(config.redirectTo, 'https://facs-preview.example/auth/callback');
+});
+
+test('logo preview bypass is restricted to localhost development and approved FACS preview hosts', () => {
+  assert.equal(isPreviewBypassAllowed({ DEV: true }, 'http://127.0.0.1:5173'), true);
+  assert.equal(isPreviewBypassAllowed({ DEV: false }, 'http://127.0.0.1:5173'), false);
+  assert.equal(isPreviewBypassAllowed({ DEV: false }, 'https://product-test-1c1d5yxnt-joonq-ducatist.vercel.app'), true);
+  assert.equal(isPreviewBypassAllowed({ DEV: true }, 'https://www.factsmack.com'), false);
 });
 
 test('public Auth config allows the temporary anon-key alias during migration', () => {

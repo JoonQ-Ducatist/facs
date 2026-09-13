@@ -20,7 +20,7 @@ import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWind
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
-import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
+import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
@@ -59,6 +59,7 @@ function CanvasStage({ children }) { return <div className="app-stage"><div clas
 export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
+  const previewBypassAllowed = useMemo(() => isPreviewBypassAllowed(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   const localQaEnabled = isLocalQaAccountMode();
@@ -801,7 +802,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>

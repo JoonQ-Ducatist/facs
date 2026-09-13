@@ -20,6 +20,14 @@ function safeUrl(value) {
 
 const FACS_PREVIEW_HOST = /^product-test-[a-z0-9-]+-joonq-ducatist\.vercel\.app$/;
 
+/** Preview-only utilities must never become active on the public site. */
+export function isPreviewBypassAllowed(environment = {}, currentOrigin = typeof window === 'undefined' ? '' : window.location.origin) {
+  const origin = safeUrl(currentOrigin);
+  if (!origin) return false;
+  if (FACS_PREVIEW_HOST.test(origin.hostname)) return true;
+  return Boolean(environment.DEV) && ['localhost', '127.0.0.1'].includes(origin.hostname);
+}
+
 function previewCallback(currentOrigin) {
   const origin = safeUrl(currentOrigin);
   if (!origin || !FACS_PREVIEW_HOST.test(origin.hostname)) return null;

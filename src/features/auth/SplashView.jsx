@@ -14,7 +14,7 @@ const splashCopies = [
 ];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 전체 화면 스플래시다. */
-export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, localQaEnabled = false, onQaAccountSelect }) {
+export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const popularCards = useMemo(
     () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
     [cards],
@@ -131,10 +131,13 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
         <LocalQaAccountSwitcher enabled={localQaEnabled} placement="splash" onSelect={onQaAccountSelect} />
         <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한글'}</button>
         <header className="flex flex-col items-center text-center">
-          <button type="button" onClick={onPreview} className="group flex flex-col items-center rounded-xl px-3 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>
+          {allowPreviewBypass ? <button type="button" onClick={onPreview} className="group flex flex-col items-center rounded-xl px-3 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>
             <img src={logoUrl} width="96" height="64" className="h-16 w-24 object-contain drop-shadow-[0_3px_12px_rgba(0,0,0,0.5)] transition-transform duration-200 group-hover:scale-105" alt="FACt.Smack 뱀 로고" />
             <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
-          </button>
+          </button> : <div className="flex flex-col items-center px-3 py-1">
+            <img src={logoUrl} width="96" height="64" className="h-16 w-24 object-contain drop-shadow-[0_3px_12px_rgba(0,0,0,0.5)]" alt="FACt.Smack 뱀 로고" />
+            <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
+          </div>}
           <div className="mt-2 flex items-center gap-2">
             <span className="h-px w-5 bg-[#c5a059]/70" />
             <p lang="en" className="font-mono text-[9px] font-bold tracking-[0.22em] text-[#ecd8a8]">MORE VIEWS, MORE YOU</p>
