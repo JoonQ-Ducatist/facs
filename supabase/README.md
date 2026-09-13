@@ -36,6 +36,16 @@ Before any SQL is applied, create a staging Supabase project and configure only 
 
 `VITE_AUTH_REDIRECT_URL` must be a fixed HTTPS callback on the same origin as `VITE_APP_ORIGIN`. Register that exact callback in Supabase Auth for the staging Preview deployment; do not derive redirects from `window.location.origin`, use a wildcard, or add OAuth client secrets to Vercel/browser variables. Configure Google and Kakao client credentials only in the Supabase dashboard after the fixed Preview callback is approved. Apple sign-in stays disabled and hidden until the Apple Developer enrollment is active.
 
+### Google sign-in configuration
+
+The browser starts Google OAuth through Supabase. Keep the Google client secret in Google Cloud and Supabase only; it must never be added to Vercel variables, `.env` files committed to git, or application code.
+
+1. In Google Cloud, create a **Web application** OAuth client. Add the FACS web origins you intend to use, including the production origin and any approved Preview origin.
+2. In that client, add the exact callback URL shown by **Supabase Dashboard → Authentication → Sign In / Providers → Google**. It has the form `https://<project-ref>.supabase.co/auth/v1/callback` and is not the FACS website callback URL.
+3. In **Supabase Dashboard → Authentication → Sign In / Providers → Google**, enable Google and paste the Google Client ID and Client Secret. Save there.
+4. In **Supabase Dashboard → Authentication → URL Configuration**, ensure each FACS callback used by `VITE_AUTH_REDIRECT_URL` is in Redirect URLs and the production site is the Site URL.
+5. Test on an approved Preview URL first, then test production with a second user-owned Google account. Confirm that the browser returns to the same FACS tab and lands on Feed.
+
 The migration keeps `facs-media` private and grants no direct browser object policies. The next server step is an authenticated Edge Function that creates a pending `media_assets` row, validates ownership and limits, and returns a short-lived signed upload URL for a non-identifying `uploads/YYYY/MM/DD/...` path. A worker promotes an asset to `ready` only after media validation.
 
 ### Required staging verification before the media milestone

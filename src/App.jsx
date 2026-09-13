@@ -21,7 +21,7 @@ import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
-import { AUTH_ACTION_ERROR, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
+import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 
@@ -658,6 +658,21 @@ export default function App() {
     };
   }
 
+  /** Starts Google in the current tab after Supabase returns its HTTPS handoff URL. */
+  async function startGoogleAuth(remember) {
+    const result = await beginOAuthSignIn('google', authConfig, remember);
+    if (!result.ok) {
+      return {
+        ...result,
+        message: locale === 'en'
+          ? 'Google sign-in is being set up. Please use email for now.'
+          : 'Google 로그인을 설정하고 있어요. 지금은 이메일로 계속해 주세요.',
+      };
+    }
+    window.location.assign(result.url);
+    return result;
+  }
+
   async function switchLocalQaAccount(accountId) {
     const result = await signInWithLocalQaAccount(accountId);
     if (result.ok) {
@@ -786,7 +801,7 @@ export default function App() {
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} onPreview={() => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); }} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>

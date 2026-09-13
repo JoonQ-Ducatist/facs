@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, toDatabaseCategory } from './supabaseApi.js';
+import { fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -86,4 +86,11 @@ test('upload categories map to the database contract without exposing display la
   assert.equal(toDatabaseCategory('Outfit'), 'outfit');
   assert.equal(fromDatabaseCategory('perceived_age'), 'PerceivedAge');
   assert.equal(fromDatabaseCategory('profile'), 'SocialProfile');
+});
+
+test('mobile uploads retain a safe MIME type even when the file provider omits it', () => {
+  assert.equal(resolveUploadMimeType({ name: 'IMG_001.HEIC', type: '' }, 'image'), 'image/heic');
+  assert.equal(resolveUploadMimeType({ name: 'saved-animation.gif', type: '' }, 'image'), 'image/gif');
+  assert.equal(resolveUploadMimeType({ name: 'clip.mov', type: '' }, 'video'), 'video/quicktime');
+  assert.equal(resolveUploadMimeType({ name: 'photo.jpg', type: 'image/jpeg' }, 'image'), 'image/jpeg');
 });

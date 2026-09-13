@@ -10,6 +10,18 @@ export function normalizeSupabaseError(error, fallback = '요청을 처리하지
   return apiFailure(API_ERROR.INTERNAL_ERROR, fallback);
 }
 
+/** Preserves the actual selected format when a mobile file provider omits MIME metadata. */
+export function resolveUploadMimeType(file, mediaType) {
+  const supplied = String(file?.type ?? '').trim().toLowerCase();
+  if (supplied) return supplied;
+  const extension = String(file?.name ?? '').trim().toLowerCase().split('.').pop();
+  const byExtension = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+    heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', quicktime: 'video/quicktime',
+  };
+  return byExtension[extension] ?? (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
+}
+
 /** Returns an authenticated user without ever accepting a caller-supplied user id. */
 async function requireUser() {
   if (!supabase) return { error: apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.') };
@@ -113,7 +125,7 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
   const inputMedia = media.map((item) => ({
     type: item.type,
-    mimeType: item.file?.type,
+    mimeType: resolveUploadMimeType(item.file, item.type),
     byteSize: item.file?.size,
     durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
   }));
@@ -133,7 +145,7 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     const source = media[index]?.file;
     if (!source) return apiFailure(API_ERROR.VALIDATION_FAILED, '선택한 파일 정보를 찾지 못했어요.');
     const { error } = await supabase.storage.from('facs-media').upload(target.storage_path, source, {
-      contentType: source.type,
+      contentType: resolveUploadMimeType(source, media[index]?.type),
       upsert: false,
     });
     if (error) return normalizeSupabaseError(error, '사진을 안전하게 저장하지 못했어요.');
