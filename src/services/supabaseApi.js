@@ -77,6 +77,43 @@ export async function getSupabaseMyVotedPostIds(postIds, client = supabase) {
   return apiSuccess(new Set((data ?? []).map((vote) => vote.post_id).filter(Boolean)));
 }
 
+/**
+ * Requests the server-side exposure Boost for the signed-in member's post.
+ * Payment capture is intentionally not part of this call; the migration only
+ * validates the one-hour/zero-rating eligibility boundary and creates the
+ * exposure request consumed by the personalized feed RPC.
+ */
+export async function requestSupabasePostBoost(postId, client = supabase) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  if (!postId) return apiFailure(API_ERROR.VALIDATION_FAILED, 'Boost할 게시물을 찾을 수 없어요.');
+  const { data, error } = await client.rpc('request_post_boost', { target_post_id: postId });
+  if (error) {
+    if (error.code === '23505') return apiFailure(API_ERROR.ALREADY_VOTED, '이 게시물은 이미 Boost가 요청됐어요.');
+    if (error.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '현재는 이 게시물을 Boost할 수 없어요.');
+    if (error.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '이 게시물을 Boost할 권한이 없어요.');
+    return apiFailure(API_ERROR.INTERNAL_ERROR, 'Boost 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.');
+  }
+  const request = Array.isArray(data) ? data[0] : data;
+  return request ? apiSuccess(request) : apiFailure(API_ERROR.INTERNAL_ERROR, 'Boost 요청 결과를 확인하지 못했어요.');
+}
+
+/** Reads only the current member's server-validated Boost candidates. */
+export async function listSupabaseBoostCandidates({ limit = 20, client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const pageSize = Math.min(Math.max(limit, 1), 50);
+  const { data, error } = await client.rpc('get_my_boost_candidates', { page_size: pageSize });
+  if (error) return apiSuccess([], { source: 'degraded' });
+  return apiSuccess((data ?? []).filter((candidate) => candidate?.post_id).map((candidate) => ({
+    postId: candidate.post_id,
+    category: fromDatabaseCategory(candidate.category),
+    publishedAt: candidate.published_at,
+    otherVoteCount: Number(candidate.other_vote_count ?? 0),
+    targetVotes: Number(candidate.target_votes ?? 100),
+  })), { source: 'supabase' });
+}
+
 /** Writes a single immutable vote, then returns the server aggregate. */
 export async function submitSupabaseVote({ postId, evaluationType, value }) {
   const identity = await requireUser();

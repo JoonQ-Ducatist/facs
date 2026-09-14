@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -84,6 +84,43 @@ test('my vote state reads only the current member\'s completed post IDs', async 
   });
   assert.deepEqual(calls, [{ name: 'get_my_voted_post_ids', args: { target_post_ids: ['post-a', 'post-b'] } }]);
   assert.deepEqual([...result.data], ['post-b']);
+});
+
+test('Boost requests use the authenticated RPC boundary and return the exposure request', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-a', requester_id: 'member-a', target_votes: 100, status: 'active' }], error: null };
+    },
+  };
+  const result = await requestSupabasePostBoost('post-a', client);
+  assert.deepEqual(calls, [{ name: 'request_post_boost', args: { target_post_id: 'post-a' } }]);
+  assert.equal(result.data.status, 'active');
+});
+
+test('Boost eligibility errors stay distinct from duplicate-vote errors', async () => {
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => ({ data: null, error: { code: '22023' } }),
+  };
+  const result = await requestSupabasePostBoost('post-a', client);
+  assert.equal(result.error.code, 'VALIDATION_FAILED');
+});
+
+test('Boost candidates use the private server-clock RPC and map only safe fields', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-a', category: 'perceived_age', published_at: '2026-09-15T00:00:00Z', other_vote_count: '0', target_votes: 100 }], error: null };
+    },
+  };
+  const result = await listSupabaseBoostCandidates({ client });
+  assert.deepEqual(calls, [{ name: 'get_my_boost_candidates', args: { page_size: 20 } }]);
+  assert.deepEqual(result.data[0], { postId: 'post-a', category: 'PerceivedAge', publishedAt: '2026-09-15T00:00:00Z', otherVoteCount: 0, targetVotes: 100 });
 });
 
 test('upload categories map to the database contract without exposing display labels', () => {

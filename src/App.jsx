@@ -15,7 +15,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -107,6 +107,7 @@ export default function App() {
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [blockedMembers, setBlockedMembers] = useState([]);
+  const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -266,6 +267,16 @@ export default function App() {
     let active = true;
     if (!authUser) { setBlockedMembers([]); return undefined; }
     getMyBlockedMembers().then((result) => { if (active && result.data) setBlockedMembers(result.data); });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
+  /** Keeps Boost CTA eligibility aligned with the server-clock candidate RPC. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setBoostCandidateIds(new Set()); return undefined; }
+    listSupabaseBoostCandidates().then((result) => {
+      if (active && result.data) setBoostCandidateIds(new Set(result.data.map((candidate) => candidate.postId)));
+    });
     return () => { active = false; };
   }, [authUser?.id]);
 
@@ -595,7 +606,9 @@ export default function App() {
     };
     setCards((items) => [publishedCard, ...items]);
     setFeaturedPostId(publishedCard.id);
-    setActiveCategory('ALL');
+    // Keep the uploaded category selected after returning to Feed so the
+    // category rail reflects the card the member just published.
+    setActiveCategory(publishedCard.category);
     setCurrentIndex(0);
     setActiveTab('feed');
     window.requestAnimationFrame(() => {
@@ -604,6 +617,30 @@ export default function App() {
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
+  }
+
+  /** Requests the server-validated exposure Boost for the current member's post. */
+  async function requestBoostForCurrentCard() {
+    if (!currentCard || !isCurrentUserPost) {
+      setToast(locale === 'en' ? 'Boost is available for your own post.' : 'Boost는 내가 올린 게시물에만 요청할 수 있어요.');
+      return;
+    }
+    if (!isSupabasePost(currentCard)) {
+      setToast(locale === 'en' ? 'Boost is available after this post is published.' : '게시가 완료된 후 Boost를 요청할 수 있어요.');
+      return;
+    }
+    const result = await requestSupabasePostBoost(currentCard.id);
+    if (result.error) {
+      setToast(result.error.message);
+      return;
+    }
+    setBoostCandidateIds((ids) => {
+      const next = new Set(ids);
+      next.delete(currentCard.id);
+      return next;
+    });
+    setCards((items) => items.map((item) => item.id === currentCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
+    setToast(locale === 'en' ? 'Boost requested. It increases reach and sample size only.' : 'Boost를 요청했어요. 노출과 표본만 늘어납니다.');
   }
 
   const saveHandle = useCallback(async (handle) => {
@@ -878,7 +915,7 @@ export default function App() {
 
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
