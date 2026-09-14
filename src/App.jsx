@@ -22,7 +22,7 @@ import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './service
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
-import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
+import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
@@ -600,11 +600,12 @@ export default function App() {
 
   const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
-    if (!result.ok) return { ok: false, message: result.error?.message ?? '아이디를 저장하지 못했어요.' };
-    setProfile(result.data);
+    const saved = mapHandleSaveResult(result);
+    if (!saved.ok) return saved;
+    setProfile(saved.data);
     setProfileNotice('');
     setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
-    return { ok: true };
+    return saved;
   }, [locale]);
 
   const checkHandle = useCallback(async (handle) => {

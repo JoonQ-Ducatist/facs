@@ -25,6 +25,13 @@ export function canSubmitHandle({ handle, saving = false, checking = false, avai
   return !saving && !checking && available !== false && isConfiguredHandle(normalizeHandle(handle));
 }
 
+/** Adapts the shared API envelope to the ProfileView action contract. */
+export function mapHandleSaveResult(result) {
+  if (result?.error) return { ok: false, message: result.error.message ?? '아이디를 저장하지 못했어요.' };
+  if (result?.data?.id && isConfiguredHandle(result.data.handle)) return { ok: true, data: result.data };
+  return { ok: false, message: '프로필 저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.' };
+}
+
 /** Makes stable, non-identifying starter IDs so a new member need not invent one. */
 export function getHandleSuggestions(seed = '') {
   const value = [...seed].reduce((total, character) => ((total * 31) + character.charCodeAt(0)) >>> 0, 17);

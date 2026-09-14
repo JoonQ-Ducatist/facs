@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canSubmitHandle, getHandleSuggestions, getPublicHandle, isConfiguredHandle, normalizeHandle } from './profileService.js';
+import { canSubmitHandle, getHandleSuggestions, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, normalizeHandle } from './profileService.js';
 
 test('a public handle is normalized without carrying an @ prefix', () => {
   assert.equal(normalizeHandle(' @My_Look '), 'my_look');
@@ -20,6 +20,12 @@ test('valid handle can be submitted when availability is unknown, but invalid or
   assert.equal(canSubmitHandle({ handle: 'user_b', available: false }), false);
   assert.equal(canSubmitHandle({ handle: 'ab', available: null }), false);
   assert.equal(canSubmitHandle({ handle: 'user_b', checking: true, available: null }), false);
+});
+
+test('profile save adapts the shared API envelope for success, duplicate, and permission failures', () => {
+  assert.deepEqual(mapHandleSaveResult({ data: { id: 'a', handle: 'user_a' } }), { ok: true, data: { id: 'a', handle: 'user_a' } });
+  assert.deepEqual(mapHandleSaveResult({ error: { code: 'VALIDATION_FAILED', message: 'duplicate' } }), { ok: false, message: 'duplicate' });
+  assert.equal(mapHandleSaveResult({ data: { id: 'a', handle: 'member_placeholder' } }).ok, false);
 });
 
 test('generated member handles never unlock public posting', () => {
