@@ -17,6 +17,14 @@ test('profile visibility policy cannot expose blocked members', async () => {
   assert.match(sql, /id = auth\.uid\(\) or not public\.members_are_blocked\(id, auth\.uid\(\)\)/i);
 });
 
+test('authenticated profile reads have both table privilege and RLS coverage', async () => {
+  const sql = await migration('202609140001_profile_read_grant.sql');
+  assert.match(sql, /grant select on table public\.profiles to authenticated/i);
+  assert.match(sql, /create or replace function public\.can_read_profile\(target_profile uuid\)/i);
+  assert.match(sql, /grant execute on function public\.can_read_profile\(uuid\) to authenticated/i);
+  assert.match(sql, /using \(public\.can_read_profile\(id\)\)/i);
+});
+
 test('post access is centralized through the block-aware visibility helper', async () => {
   const sql = await migration('202609110005_follows_and_personalized_feed.sql');
   assert.match(sql, /create or replace function public\.current_member_can_view_post/i);

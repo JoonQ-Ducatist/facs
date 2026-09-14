@@ -312,7 +312,13 @@ export default function App() {
     setProfileLoading(true);
     getMyProfile().then((result) => {
       if (!active) return;
-      setProfile(result.data ?? null);
+      if (result.error) {
+        setProfile(null);
+        setProfileNotice(result.error.message);
+      } else {
+        setProfile(result.data);
+        setProfileNotice('');
+      }
       setProfileLoading(false);
     });
     return () => { active = false; };

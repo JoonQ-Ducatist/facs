@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canSubmitHandle, getHandleSuggestions, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, normalizeHandle } from './profileService.js';
+import { canSubmitHandle, getHandleSuggestions, getMyProfile, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, normalizeHandle, updateMyHandle } from './profileService.js';
 
 test('a public handle is normalized without carrying an @ prefix', () => {
   assert.equal(normalizeHandle(' @My_Look '), 'my_look');
@@ -39,4 +39,51 @@ test('starter handle suggestions are stable and use valid public-handle syntax',
   assert.deepEqual(suggestions, getHandleSuggestions('member_27cf48e1'));
   assert.equal(suggestions.every((handle) => isConfiguredHandle(handle)), true);
   assert.equal(new Set(suggestions).size, 3);
+});
+
+function profileClient({ id, handle, profileReadable = true }) {
+  const profile = { id, handle, display_name: null };
+  return {
+    auth: { getUser: async () => ({ data: { user: { id } }, error: null }) },
+    rpc: async () => ({ data: { ...profile }, error: null }),
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: profileReadable ? { ...profile } : null, error: null }),
+        }),
+      }),
+    }),
+    setHandle(nextHandle) { profile.handle = nextHandle; },
+  };
+}
+
+test('a saved public handle is confirmed by a server read and survives reload hydration', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'member_placeholder' });
+  client.rpc = async (_name, args) => {
+    client.setHandle(args.input_handle);
+    return { data: { id: 'member-a', handle: args.input_handle }, error: null };
+  };
+  const saved = await updateMyHandle('reload_probe_a', { client });
+  assert.equal(saved.data.handle, 'reload_probe_a');
+  const afterReload = await getMyProfile({ client });
+  assert.equal(afterReload.data.handle, 'reload_probe_a');
+});
+
+test('profile sessions remain isolated when handles are saved independently', async () => {
+  const accountA = profileClient({ id: 'member-a', handle: 'account_a' });
+  const accountB = profileClient({ id: 'member-b', handle: 'account_b' });
+  accountA.rpc = async (_name, args) => {
+    accountA.setHandle(args.input_handle);
+    return { data: { id: 'member-a', handle: args.input_handle }, error: null };
+  };
+  const saved = await updateMyHandle('account_a_new', { client: accountA });
+  assert.equal(saved.data.id, 'member-a');
+  assert.equal((await getMyProfile({ client: accountA })).data.handle, 'account_a_new');
+  assert.equal((await getMyProfile({ client: accountB })).data.handle, 'account_b');
+});
+
+test('a write is not reported as successful when the saved profile cannot be read back', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'member_placeholder', profileReadable: false });
+  const result = await updateMyHandle('missing_profile', { client });
+  assert.equal(result.error.code, 'NOT_FOUND');
 });
