@@ -40,8 +40,10 @@
 | 18 | `202609120003_author_post_deletion.sql` | 76 |
 | 19 | `202609120004_soft_hide_author_posts.sql` | 2,053 |
 | 20 | `202609130001_allow_supported_mobile_image_types.sql` | 398 |
+| 21 | `202609140001_profile_read_grant.sql` | 1,262 |
+| 22 | `202609150001_post_boosts.sql` | 7,831 |
 
-표의 실제 파일 수는 20개이며, 저장소의 전체 SQL 용량은 약 74,070 bytes다. 실행 전 `ls -1 supabase/migrations` 결과와 표가 일치하는지 확인한다.
+표의 실제 파일 수는 22개이며, 저장소의 전체 SQL 용량은 약 83,163 bytes다. 실행 전 `ls -1 supabase/migrations` 결과와 표가 일치하는지 확인한다.
 
 ## 2. SQL Editor에서 실행하는 최소 단계
 
@@ -50,7 +52,7 @@
 3. 위 표의 파일을 로컬에서 열고, 한 파일 전체를 SQL Editor의 새 query에 붙여넣는다.
 4. **Run**을 누르고 성공 메시지를 확인한 뒤 다음 파일로 이동한다.
 5. 실패하면 다음 파일로 넘어가지 않는다. 실패한 파일명과 오류 문구를 기록하고, 부분 적용 상태에서 무작정 재실행하지 않는다. 재시도는 새 테스트 프로젝트에서 처음부터 실행하는 것이 안전하다.
-6. Full 세트는 1번부터 20번까지 순서대로 실행한다. 파일명 순서를 바꾸면 함수·테이블 의존성 때문에 실패할 수 있다.
+6. Full 세트는 1번부터 22번까지 순서대로 실행한다. 파일명 순서를 바꾸면 함수·테이블 의존성 때문에 실패할 수 있다.
 
 현재 Supabase SQL Editor에는 로컬 `.sql` 파일을 직접 import하는 버튼이 없으므로, 기본 방법은 파일별 분할 붙여넣기다. SQL Editor 입력 한도를 넘는 경우에도 파일 하나를 여러 조각으로 붙여넣되, **Run은 파일 전체가 들어온 뒤 한 번만** 실행한다.
 
@@ -110,6 +112,24 @@ order by schemaname, tablename, policyname;
 ```
 
 기대 결과: follows·blocks·reports·live reaction 테이블과 개인화 피드·업로드·숨김 RPC가 존재하고, 관련 RLS 정책이 조회된다.
+
+### Boost 완료 확인
+
+```sql
+select to_regclass('public.post_boosts') as post_boosts;
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in ('get_my_boost_candidates', 'request_post_boost', 'get_personalized_feed_post_ids')
+order by routine_name;
+
+select policyname, roles, cmd
+from pg_policies
+where schemaname = 'public' and tablename = 'post_boosts';
+```
+
+기대 결과: `post_boosts`와 세 RPC가 존재하고, Boost 행은 요청자 본인만 읽을 수 있다. 후보 RPC는 DB 시계 기준 게시 후 1시간 이내·다른 사용자 평가 0건·기존 Boost 없음인 본인 게시물만 반환한다. 피드 RPC는 활성 Boost를 `boosted` source로 우선 반환하되 업로더 자신에게는 Boost 우선순위를 적용하지 않는다.
 
 ## 4. 적용 후 브라우저 RLS 검증 순서
 
