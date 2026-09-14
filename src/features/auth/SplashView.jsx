@@ -31,6 +31,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const [emailNoticeTone, setEmailNoticeTone] = useState('success');
   const [verificationCode, setVerificationCode] = useState('');
   const [isCodeVerifying, setIsCodeVerifying] = useState(false);
+  const [verificationCompleted, setVerificationCompleted] = useState(false);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [providerNotice, setProviderNotice] = useState('');
@@ -81,14 +82,22 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
 
   async function submitCode(event) {
     event.preventDefault();
-    if (isCodeVerifying || !isCompleteEmailOtp(verificationCode)) return;
+    if (isCodeVerifying || verificationCompleted || !isCompleteEmailOtp(verificationCode)) return;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     setKeyboardOffset(0);
     setIsCodeVerifying(true);
     setEmailNotice('');
     const result = await onEmailCode(email.trim(), verificationCode.trim(), rememberMe);
     setIsCodeVerifying(false);
-    if (result?.ok) return;
+    if (result?.ok) {
+      // Supabase consumes an OTP immediately. Keep this step locked while the
+      // auth-state listener moves the app from Splash to Feed; a second click
+      // would otherwise submit the already-consumed token and show "invalid".
+      setVerificationCompleted(true);
+      setEmailNoticeTone('success');
+      setEmailNotice(locale === 'en' ? 'Verified. Opening your feed…' : '인증됐어요. 피드를 여는 중이에요…');
+      return;
+    }
     setEmailNoticeTone('error');
     setEmailNotice(result?.message ?? (locale === 'en' ? 'That code is not valid. Request a new one.' : '인증 코드가 맞지 않아요. 새 코드를 요청해 주세요.'));
   }
@@ -174,9 +183,9 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
                     <p className="w-full text-center text-[10px] leading-relaxed text-white/75">
                       {locale === 'en' ? `Enter the ${EMAIL_OTP_LENGTH}-digit code sent to ${email}.` : `${email}로 보낸 ${EMAIL_OTP_LENGTH}자리 인증 코드를 입력해 주세요.`}
                     </p>
-                    <input required inputMode="numeric" autoComplete="one-time-code" maxLength={EMAIL_OTP_LENGTH} value={verificationCode} onChange={(event) => setVerificationCode(sanitizeEmailOtp(event.target.value))} placeholder={locale === 'en' ? `${EMAIL_OTP_LENGTH}-digit code` : `${EMAIL_OTP_LENGTH}자리 인증 코드`} className="h-11 w-full rounded-full border border-[#ecd8a8]/85 bg-black/15 px-4 text-center text-sm tracking-[0.2em] text-white placeholder:tracking-normal placeholder:text-white/45 outline-none focus:border-[#de3c65]" />
-                    <button type="submit" disabled={isCodeVerifying || !isCompleteEmailOtp(verificationCode)} className="flex h-11 w-full items-center justify-center rounded-full bg-[#c52a52] px-4 text-[13px] font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 disabled:cursor-not-allowed disabled:opacity-55">{isCodeVerifying ? (locale === 'en' ? 'Checking...' : '확인 중...') : (locale === 'en' ? 'Verify code' : '인증 코드 확인')}</button>
-                    <button type="button" onClick={() => { setEmailSent(false); setVerificationCode(''); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>
+                    <input required disabled={verificationCompleted} inputMode="numeric" autoComplete="one-time-code" maxLength={EMAIL_OTP_LENGTH} value={verificationCode} onChange={(event) => setVerificationCode(sanitizeEmailOtp(event.target.value))} placeholder={locale === 'en' ? `${EMAIL_OTP_LENGTH}-digit code` : `${EMAIL_OTP_LENGTH}자리 인증 코드`} className="h-11 w-full rounded-full border border-[#ecd8a8]/85 bg-black/15 px-4 text-center text-sm tracking-[0.2em] text-white placeholder:tracking-normal placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" />
+                    <button type="submit" disabled={isCodeVerifying || verificationCompleted || !isCompleteEmailOtp(verificationCode)} className="flex h-11 w-full items-center justify-center rounded-full bg-[#c52a52] px-4 text-[13px] font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 disabled:cursor-not-allowed disabled:opacity-55">{isCodeVerifying ? (locale === 'en' ? 'Checking...' : '확인 중...') : verificationCompleted ? (locale === 'en' ? 'Verified' : '인증 완료') : (locale === 'en' ? 'Verify code' : '인증 코드 확인')}</button>
+                    <button type="button" disabled={verificationCompleted} onClick={() => { setEmailSent(false); setVerificationCode(''); setVerificationCompleted(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2 disabled:pointer-events-none disabled:opacity-45">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>
                   </form>
                 ) : (
                   <form className="flex flex-col gap-2" onSubmit={submitEmail} aria-busy={isEmailSending}>

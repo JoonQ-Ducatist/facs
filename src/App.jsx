@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { categories, initialCards } from './data/cards.js';
 import FeedView from './features/feed/FeedView.jsx';
 import UploadView from './features/upload/UploadView.jsx';
@@ -22,7 +22,7 @@ import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './service
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
-import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, updateMyHandle } from './services/profileService.js';
+import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
@@ -312,7 +312,13 @@ export default function App() {
     setProfileLoading(true);
     getMyProfile().then((result) => {
       if (!active) return;
-      setProfile(result.data ?? null);
+      if (result.error) {
+        setProfile(null);
+        setProfileNotice(result.error.message);
+      } else {
+        setProfile(result.data);
+        setProfileNotice('');
+      }
       setProfileLoading(false);
     });
     return () => { active = false; };
@@ -553,13 +559,11 @@ export default function App() {
       return;
     }
     // An iPhone can keep the question field's software keyboard open while the
-    // upload request is in flight. Close that transient viewport before Feed
-    // replaces Upload; otherwise Safari may size the new card from the old,
-    // keyboard-reduced viewport.
+    // upload request is in flight. Close that transient viewport before the
+    // request; only successful publication should reset the scroll position.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     settleAppCanvasAfterKeyboardDismissal();
-    window.scrollTo(0, 0);
-    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    const previousScrollTop = mainRef.current?.scrollTop ?? window.scrollY;
     const result = await createSupabasePublishedPost({
       category: card.category,
       evaluationType: card.evaluationType,
@@ -571,6 +575,10 @@ export default function App() {
     });
     if (result.error) {
       setToast(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, previousScrollTop);
+        mainRef.current?.scrollTo({ top: previousScrollTop, left: 0, behavior: 'instant' });
+      });
       return;
     }
     const serverMedia = result.data.media;
@@ -598,24 +606,25 @@ export default function App() {
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
   }
 
-  async function saveHandle(handle) {
+  const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
-    if (!result.ok) return { ok: false, message: result.error?.message ?? '아이디를 저장하지 못했어요.' };
-    setProfile(result.data);
+    const saved = mapHandleSaveResult(result);
+    if (!saved.ok) return saved;
+    setProfile(saved.data);
     setProfileNotice('');
     setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
-    return { ok: true };
-  }
+    return saved;
+  }, [locale]);
 
-  async function checkHandle(handle) {
+  const checkHandle = useCallback(async (handle) => {
     const result = await checkHandleAvailability(handle);
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
-  }
+  }, []);
 
-  async function loadHandleSuggestions(profileId) {
+  const loadHandleSuggestions = useCallback(async (profileId) => {
     const result = await getHandleSuggestionsWithAvailability(profileId);
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
-  }
+  }, []);
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
@@ -870,7 +879,7 @@ export default function App() {
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
-        {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} />}
+        {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
       </>}
