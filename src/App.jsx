@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { categories, initialCards } from './data/cards.js';
 import FeedView from './features/feed/FeedView.jsx';
 import UploadView from './features/upload/UploadView.jsx';
@@ -598,24 +598,24 @@ export default function App() {
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
   }
 
-  async function saveHandle(handle) {
+  const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
     if (!result.ok) return { ok: false, message: result.error?.message ?? '아이디를 저장하지 못했어요.' };
     setProfile(result.data);
     setProfileNotice('');
     setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
     return { ok: true };
-  }
+  }, [locale]);
 
-  async function checkHandle(handle) {
+  const checkHandle = useCallback(async (handle) => {
     const result = await checkHandleAvailability(handle);
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
-  }
+  }, []);
 
-  async function loadHandleSuggestions(profileId) {
+  const loadHandleSuggestions = useCallback(async (profileId) => {
     const result = await getHandleSuggestionsWithAvailability(profileId);
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
-  }
+  }, []);
 
   function openUpload() {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }

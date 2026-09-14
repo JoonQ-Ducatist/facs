@@ -14,6 +14,12 @@ export function isConfiguredHandle(handle) {
   return HANDLE_PATTERN.test(handle ?? '') && !handle.startsWith('member_');
 }
 
+/** Returns the persisted public handle only; generated placeholders never render as a member ID. */
+export function getPublicHandle(profile) {
+  const handle = normalizeHandle(profile?.handle ?? '');
+  return isConfiguredHandle(handle) ? handle : null;
+}
+
 /** Makes stable, non-identifying starter IDs so a new member need not invent one. */
 export function getHandleSuggestions(seed = '') {
   const value = [...seed].reduce((total, character) => ((total * 31) + character.charCodeAt(0)) >>> 0, 17);

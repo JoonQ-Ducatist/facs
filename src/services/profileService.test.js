@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getHandleSuggestions, isConfiguredHandle, normalizeHandle } from './profileService.js';
+import { getHandleSuggestions, getPublicHandle, isConfiguredHandle, normalizeHandle } from './profileService.js';
 
 test('a public handle is normalized without carrying an @ prefix', () => {
   assert.equal(normalizeHandle(' @My_Look '), 'my_look');
+  assert.equal(normalizeHandle('@user_b'), 'user_b');
+});
+
+test('profile header uses each persisted account handle as its single source of truth', () => {
+  assert.equal(getPublicHandle({ handle: '@user_b' }), 'user_b');
+  assert.equal(getPublicHandle({ handle: 'account_a' }), 'account_a');
+  assert.notEqual(getPublicHandle({ handle: 'account_a' }), getPublicHandle({ handle: 'account_b' }));
+  assert.equal(getPublicHandle({ handle: 'member_abc123' }), null);
 });
 
 test('generated member handles never unlock public posting', () => {
