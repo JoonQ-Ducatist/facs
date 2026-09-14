@@ -20,6 +20,11 @@ export function getPublicHandle(profile) {
   return isConfiguredHandle(handle) ? handle : null;
 }
 
+/** The client can submit a syntactically valid handle while availability is unknown; the RPC remains final authority. */
+export function canSubmitHandle({ handle, saving = false, checking = false, available = null } = {}) {
+  return !saving && !checking && available !== false && isConfiguredHandle(normalizeHandle(handle));
+}
+
 /** Makes stable, non-identifying starter IDs so a new member need not invent one. */
 export function getHandleSuggestions(seed = '') {
   const value = [...seed].reduce((total, character) => ((total * 31) + character.charCodeAt(0)) >>> 0, 17);

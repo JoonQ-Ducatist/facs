@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getHandleSuggestions, getPublicHandle, isConfiguredHandle, normalizeHandle } from './profileService.js';
+import { canSubmitHandle, getHandleSuggestions, getPublicHandle, isConfiguredHandle, normalizeHandle } from './profileService.js';
 
 test('a public handle is normalized without carrying an @ prefix', () => {
   assert.equal(normalizeHandle(' @My_Look '), 'my_look');
@@ -12,6 +12,14 @@ test('profile header uses each persisted account handle as its single source of 
   assert.equal(getPublicHandle({ handle: 'account_a' }), 'account_a');
   assert.notEqual(getPublicHandle({ handle: 'account_a' }), getPublicHandle({ handle: 'account_b' }));
   assert.equal(getPublicHandle({ handle: 'member_abc123' }), null);
+});
+
+test('valid handle can be submitted when availability is unknown, but invalid or occupied values stay blocked', () => {
+  assert.equal(canSubmitHandle({ handle: '@user_b', available: null }), true);
+  assert.equal(canSubmitHandle({ handle: 'user_b', available: true }), true);
+  assert.equal(canSubmitHandle({ handle: 'user_b', available: false }), false);
+  assert.equal(canSubmitHandle({ handle: 'ab', available: null }), false);
+  assert.equal(canSubmitHandle({ handle: 'user_b', checking: true, available: null }), false);
 });
 
 test('generated member handles never unlock public posting', () => {
