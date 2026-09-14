@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -12,6 +12,12 @@ test('Supabase authorization errors never expose database detail', () => {
   const result = normalizeSupabaseError({ code: '42501' });
   assert.equal(result.error.code, 'FORBIDDEN');
   assert.equal(result.error.message, '이 작업을 수행할 권한이 없어요.');
+});
+
+test('missing upload RPCs surface a safe staging configuration message', () => {
+  const result = normalizeSupabaseError({ code: 'PGRST202' });
+  assert.equal(result.error.code, 'INTERNAL_ERROR');
+  assert.equal(result.error.message, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
 });
 
 test('server feed maps only the reduced public post contract', () => {
@@ -93,4 +99,25 @@ test('mobile uploads retain a safe MIME type even when the file provider omits i
   assert.equal(resolveUploadMimeType({ name: 'saved-animation.gif', type: '' }, 'image'), 'image/gif');
   assert.equal(resolveUploadMimeType({ name: 'clip.mov', type: '' }, 'video'), 'video/quicktime');
   assert.equal(resolveUploadMimeType({ name: 'photo.jpg', type: 'image/jpeg' }, 'image'), 'image/jpeg');
+});
+
+test('published upload performs prepare, storage upload, publish, and signed reads in order', async () => {
+  const calls = [];
+  const file = { name: 'look.jpg', type: 'image/jpeg', size: 12 };
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      if (name === 'create_post_upload_with_visibility') return { data: [{ post_id: 'post-a', asset_id: 'asset-a', storage_path: 'uploads/a', media_position: 0 }], error: null };
+      return { data: { id: 'post-a', published_at: '2026-09-14T00:00:00Z' }, error: null };
+    },
+    storage: { from: () => ({
+      upload: async (path, source, options) => { calls.push({ name: 'storage.upload', path, source, options }); return { error: null }; },
+      createSignedUrl: async (path, expiry) => { calls.push({ name: 'storage.signedUrl', path, expiry }); return { data: { signedUrl: 'https://signed.example/look.jpg' }, error: null }; },
+    }) },
+  };
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file, duration: 0 }], client });
+  assert.equal(result.data.post.id, 'post-a');
+  assert.equal(result.data.media[0].url, 'https://signed.example/look.jpg');
+  assert.deepEqual(calls.map((item) => item.name), ['create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload', 'storage.signedUrl']);
 });

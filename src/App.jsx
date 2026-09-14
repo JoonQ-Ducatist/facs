@@ -553,13 +553,11 @@ export default function App() {
       return;
     }
     // An iPhone can keep the question field's software keyboard open while the
-    // upload request is in flight. Close that transient viewport before Feed
-    // replaces Upload; otherwise Safari may size the new card from the old,
-    // keyboard-reduced viewport.
+    // upload request is in flight. Close that transient viewport before the
+    // request; only successful publication should reset the scroll position.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     settleAppCanvasAfterKeyboardDismissal();
-    window.scrollTo(0, 0);
-    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    const previousScrollTop = mainRef.current?.scrollTop ?? window.scrollY;
     const result = await createSupabasePublishedPost({
       category: card.category,
       evaluationType: card.evaluationType,
@@ -571,6 +569,10 @@ export default function App() {
     });
     if (result.error) {
       setToast(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, previousScrollTop);
+        mainRef.current?.scrollTo({ top: previousScrollTop, left: 0, behavior: 'instant' });
+      });
       return;
     }
     const serverMedia = result.data.media;

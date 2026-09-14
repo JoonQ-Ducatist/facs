@@ -7,6 +7,7 @@ export function normalizeSupabaseError(error, fallback = '요청을 처리하지
   if (error.code === '23505') return apiFailure(API_ERROR.ALREADY_VOTED, '이미 의견을 남긴 게시물이에요.');
   if (error.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '이 작업을 수행할 권한이 없어요.');
   if (error.code === 'PGRST116') return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
+  if (error.code === 'PGRST202' || error.code === '42883') return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
   return apiFailure(API_ERROR.INTERNAL_ERROR, fallback);
 }
 
@@ -23,9 +24,9 @@ export function resolveUploadMimeType(file, mediaType) {
 }
 
 /** Returns an authenticated user without ever accepting a caller-supplied user id. */
-async function requireUser() {
-  if (!supabase) return { error: apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.') };
-  const { data, error } = await supabase.auth.getUser();
+async function requireUser(client = supabase) {
+  if (!client) return { error: apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.') };
+  const { data, error } = await client.auth.getUser();
   if (error || !data.user) return { error: apiFailure(API_ERROR.AUTH_REQUIRED, '로그인 후 이용할 수 있어요.') };
   return { user: data.user };
 }
@@ -119,8 +120,8 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
  * the post only after every object is present in Storage. The browser never
  * chooses an account-identifying storage path or writes a ready asset state.
  */
-export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media }) {
-  const identity = await requireUser();
+export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media, client = supabase }) {
+  const identity = await requireUser(client);
   if (identity.error) return identity.error;
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
   const inputMedia = media.map((item) => ({
@@ -129,7 +130,7 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     byteSize: item.file?.size,
     durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
   }));
-  const { data: prepared, error: prepareError } = await supabase.rpc('create_post_upload_with_visibility', {
+  const { data: prepared, error: prepareError } = await client.rpc('create_post_upload_with_visibility', {
     input_category: toDatabaseCategory(category),
     input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
     input_question: question,
@@ -144,17 +145,17 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
   for (const [index, target] of uploads.entries()) {
     const source = media[index]?.file;
     if (!source) return apiFailure(API_ERROR.VALIDATION_FAILED, '선택한 파일 정보를 찾지 못했어요.');
-    const { error } = await supabase.storage.from('facs-media').upload(target.storage_path, source, {
+    const { error } = await client.storage.from('facs-media').upload(target.storage_path, source, {
       contentType: resolveUploadMimeType(source, media[index]?.type),
       upsert: false,
     });
     if (error) return normalizeSupabaseError(error, '사진을 안전하게 저장하지 못했어요.');
   }
 
-  const { data: post, error: publishError } = await supabase.rpc('publish_post_upload', { target_post_id: uploads[0].post_id });
+  const { data: post, error: publishError } = await client.rpc('publish_post_upload', { target_post_id: uploads[0].post_id });
   if (publishError || !post) return normalizeSupabaseError(publishError, '게시물을 공개하지 못했어요.');
   const urlResults = await Promise.all(uploads.map(async (target) => {
-    const { data, error } = await supabase.storage.from('facs-media').createSignedUrl(target.storage_path, 60 * 60);
+    const { data, error } = await client.storage.from('facs-media').createSignedUrl(target.storage_path, 60 * 60);
     return error ? null : { id: target.asset_id, url: data.signedUrl, storagePath: target.storage_path, type: media[target.media_position]?.type };
   }));
   if (urlResults.some((item) => !item)) return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드는 완료됐지만 사진 주소를 만들지 못했어요.');
