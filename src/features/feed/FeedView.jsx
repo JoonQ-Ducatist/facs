@@ -29,6 +29,13 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const noPercent = 100 - yesPercent;
   const isSaved = savedPostIds?.has(card.id) ?? false;
 
+  /** Prevent browser image-save affordances while leaving explicit controls usable. */
+  function protectMediaEvent(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('button, input, textarea, select, a, [role="dialog"]')) return;
+    event.preventDefault();
+  }
+
   async function toggleSavedCard() {
     const result = await onToggleSave(card.id);
     if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨'));
@@ -113,7 +120,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </div>
 
     <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={() => { gestureStart.current = null; setIsDraggingMedia(false); setDragOffset(0); }} onWheel={moveCardByWheel} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${feedMotion}`}>
+    <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={() => { gestureStart.current = null; setIsDraggingMedia(false); setDragOffset(0); }} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${feedMotion}`}>
       {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left" aria-hidden="true"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></div>}
       {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--right" aria-hidden="true"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></div>}
       <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translateX(${dragOffset}px)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" /></div>

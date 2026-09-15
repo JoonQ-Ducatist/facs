@@ -6,11 +6,14 @@ import { fileURLToPath } from 'node:url';
 
 const featureRoot = dirname(fileURLToPath(import.meta.url));
 
-test('preview authentication keeps the splash until an explicit sign-in event', async () => {
+test('preview authentication resumes an existing session unless authPreview explicitly forces the splash', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(source, /finishAuthenticatedEntry = \(session, \{ allowPreviewTransition = false \} = \{\}\)/);
-  assert.match(source, /previewMode && !allowPreviewTransition/);
+  assert.match(source, /const previewMode = new URLSearchParams\(window\.location\.search\)\.has\('preview'\)/);
+  assert.match(source, /const forceAuthPreview = authPreview/);
+  assert.match(source, /forceAuthPreview \|\| previewMode \|\| !sharedPostId/);
+  assert.match(source, /forceAuthPreview && !allowPreviewTransition/);
   assert.match(source, /finishAuthenticatedEntry\(session, \{ allowPreviewTransition: event === 'SIGNED_IN' \}\)/);
+  assert.match(source, /restoreOriginalTab\(!forceAuthPreview\)/);
 });
 
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {

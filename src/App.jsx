@@ -88,10 +88,11 @@ export default function App() {
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   const localQaEnabled = isLocalQaAccountMode();
-  // 정의: 명시적 preview URL만 세션 유무와 관계없이 스플래시부터 시작한다.
-  // 로컬 개발은 실제 Mailpit 인증 흐름을 검증할 수 있도록 세션을 그대로 반영한다.
-  const previewMode = authPreview || new URLSearchParams(window.location.search).has('preview');
-  const [isGuest, setIsGuest] = useState(() => previewMode || !sharedPostId);
+  const previewMode = new URLSearchParams(window.location.search).has('preview');
+  // 정의: preview=1은 실제 Supabase 세션을 복구해 피드 점검을 이어가고,
+  // authPreview=1일 때만 인증 화면을 강제로 유지한다.
+  const forceAuthPreview = authPreview;
+  const [isGuest, setIsGuest] = useState(() => forceAuthPreview || previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
   const [authUser, setAuthUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -159,10 +160,10 @@ export default function App() {
     const callbackCode = getAuthCallbackCode(window.location.search);
 
     const finishAuthenticatedEntry = (session, { allowPreviewTransition = false } = {}) => {
-      // Preview URLs intentionally begin at Splash even when a session already
-      // exists. A fresh SIGNED_IN event (or the cross-tab completion signal)
-      // is the explicit unlock that may move the preview tab to Feed.
-      if (!session || (previewMode && !allowPreviewTransition)) return;
+      // `preview=1` is a QA entry point that should resume an existing session
+      // after refresh. Only the explicit `authPreview=1` flag keeps the splash
+      // locked until a fresh sign-in event (or cross-tab completion signal).
+      if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
       // The OTP field can remain focused while Supabase updates the session.
       // Dismiss its software keyboard before replacing Splash with Feed so an
       // old visual viewport is never carried into the authenticated canvas.
@@ -220,12 +221,12 @@ export default function App() {
 
     const onStorage = (event) => {
       if (event.key === 'facs_auth_completed_at') void restoreOriginalTab(true);
-      else if (event.key?.startsWith('sb-')) void restoreOriginalTab(!previewMode);
+      else if (event.key?.startsWith('sb-')) void restoreOriginalTab(!forceAuthPreview);
     };
     const onMessage = (event) => {
       if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab(true);
     };
-    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(!previewMode); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(!forceAuthPreview); };
     window.addEventListener('storage', onStorage);
     window.addEventListener('message', onMessage);
     window.addEventListener('focus', onVisible);
@@ -262,7 +263,7 @@ export default function App() {
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [previewMode]);
+  }, [forceAuthPreview]);
 
   /** Loads private Scraps only after a real authenticated session exists. */
   useEffect(() => {
