@@ -157,4 +157,63 @@ test('published upload performs prepare, storage upload, publish, and signed rea
   assert.equal(result.data.post.id, 'post-a');
   assert.equal(result.data.media[0].url, 'https://signed.example/look.jpg');
   assert.deepEqual(calls.map((item) => item.name), ['create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload', 'storage.signedUrl']);
+  assert.deepEqual(calls[0].args, {
+    input_category: 'outfit',
+    input_evaluation: 'binary',
+    input_question: '괜찮아 보여요?',
+    input_age_min: null,
+    input_age_max: null,
+    input_media: [{ type: 'image', mimeType: 'image/jpeg', byteSize: 12, durationMs: null }],
+    input_visibility: 'public',
+  });
+});
+
+test('missing upload preparation RPC stops before Storage and keeps a safe configuration error', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name) => {
+      calls.push(name);
+      return { data: null, error: { code: 'PGRST202' } };
+    },
+    storage: { from: () => ({ upload: async () => { throw new Error('Storage must not be called'); } }) },
+  };
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file: { name: 'look.jpg', type: 'image/jpeg', size: 12 }, duration: 0 }], client });
+  assert.equal(result.error.code, 'INTERNAL_ERROR');
+  assert.equal(result.error.message, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
+  assert.deepEqual(calls, ['create_post_upload_with_visibility']);
+});
+
+test('Storage failure stops publish and a retry starts a fresh prepare cycle', async () => {
+  const calls = [];
+  let attempt = 0;
+  const file = { name: 'look.jpg', type: 'image/jpeg', size: 12 };
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      if (name === 'create_post_upload_with_visibility') {
+        attempt += 1;
+        return { data: [{ post_id: `post-${attempt}`, asset_id: `asset-${attempt}`, storage_path: `uploads/${attempt}`, media_position: 0 }], error: null };
+      }
+      return { data: { id: 'post-2', published_at: '2026-09-15T00:00:00Z' }, error: null };
+    },
+    storage: { from: () => ({
+      upload: async (path) => {
+        calls.push({ name: 'storage.upload', path });
+        return attempt === 1 ? { error: { statusCode: 409 } } : { error: null };
+      },
+      createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/look.jpg' }, error: null }),
+    }) },
+  };
+  const payload = { category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file, duration: 0 }], client };
+  const first = await createSupabasePublishedPost(payload);
+  assert.equal(first.error.message, '사진을 안전하게 저장하지 못했어요.');
+  const second = await createSupabasePublishedPost(payload);
+  assert.equal(second.data.post.id, 'post-2');
+  assert.deepEqual(calls.map((item) => item.name), [
+    'create_post_upload_with_visibility', 'storage.upload',
+    'create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload',
+  ]);
+  assert.deepEqual(calls.filter((item) => item.name === 'storage.upload').map((item) => item.path), ['uploads/1', 'uploads/2']);
 });
