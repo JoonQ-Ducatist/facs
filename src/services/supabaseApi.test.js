@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -86,6 +86,43 @@ test('my vote state reads only the current member\'s completed post IDs', async 
   assert.deepEqual([...result.data], ['post-b']);
 });
 
+test('Boost requests use the authenticated RPC boundary and return the exposure request', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-a', requester_id: 'member-a', target_votes: 100, status: 'active' }], error: null };
+    },
+  };
+  const result = await requestSupabasePostBoost('post-a', client);
+  assert.deepEqual(calls, [{ name: 'request_post_boost', args: { target_post_id: 'post-a' } }]);
+  assert.equal(result.data.status, 'active');
+});
+
+test('Boost eligibility errors stay distinct from duplicate-vote errors', async () => {
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => ({ data: null, error: { code: '22023' } }),
+  };
+  const result = await requestSupabasePostBoost('post-a', client);
+  assert.equal(result.error.code, 'VALIDATION_FAILED');
+});
+
+test('Boost candidates use the private server-clock RPC and map only safe fields', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ post_id: 'post-a', category: 'perceived_age', published_at: '2026-09-15T00:00:00Z', other_vote_count: '0', target_votes: 100 }], error: null };
+    },
+  };
+  const result = await listSupabaseBoostCandidates({ client });
+  assert.deepEqual(calls, [{ name: 'get_my_boost_candidates', args: { page_size: 20 } }]);
+  assert.deepEqual(result.data[0], { postId: 'post-a', category: 'PerceivedAge', publishedAt: '2026-09-15T00:00:00Z', otherVoteCount: 0, targetVotes: 100 });
+});
+
 test('upload categories map to the database contract without exposing display labels', () => {
   assert.equal(toDatabaseCategory('PerceivedAge'), 'perceived_age');
   assert.equal(toDatabaseCategory('SocialProfile'), 'profile');
@@ -120,4 +157,63 @@ test('published upload performs prepare, storage upload, publish, and signed rea
   assert.equal(result.data.post.id, 'post-a');
   assert.equal(result.data.media[0].url, 'https://signed.example/look.jpg');
   assert.deepEqual(calls.map((item) => item.name), ['create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload', 'storage.signedUrl']);
+  assert.deepEqual(calls[0].args, {
+    input_category: 'outfit',
+    input_evaluation: 'binary',
+    input_question: '괜찮아 보여요?',
+    input_age_min: null,
+    input_age_max: null,
+    input_media: [{ type: 'image', mimeType: 'image/jpeg', byteSize: 12, durationMs: null }],
+    input_visibility: 'public',
+  });
+});
+
+test('missing upload preparation RPC stops before Storage and keeps a safe configuration error', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name) => {
+      calls.push(name);
+      return { data: null, error: { code: 'PGRST202' } };
+    },
+    storage: { from: () => ({ upload: async () => { throw new Error('Storage must not be called'); } }) },
+  };
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file: { name: 'look.jpg', type: 'image/jpeg', size: 12 }, duration: 0 }], client });
+  assert.equal(result.error.code, 'INTERNAL_ERROR');
+  assert.equal(result.error.message, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
+  assert.deepEqual(calls, ['create_post_upload_with_visibility']);
+});
+
+test('Storage failure stops publish and a retry starts a fresh prepare cycle', async () => {
+  const calls = [];
+  let attempt = 0;
+  const file = { name: 'look.jpg', type: 'image/jpeg', size: 12 };
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      if (name === 'create_post_upload_with_visibility') {
+        attempt += 1;
+        return { data: [{ post_id: `post-${attempt}`, asset_id: `asset-${attempt}`, storage_path: `uploads/${attempt}`, media_position: 0 }], error: null };
+      }
+      return { data: { id: 'post-2', published_at: '2026-09-15T00:00:00Z' }, error: null };
+    },
+    storage: { from: () => ({
+      upload: async (path) => {
+        calls.push({ name: 'storage.upload', path });
+        return attempt === 1 ? { error: { statusCode: 409 } } : { error: null };
+      },
+      createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/look.jpg' }, error: null }),
+    }) },
+  };
+  const payload = { category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file, duration: 0 }], client };
+  const first = await createSupabasePublishedPost(payload);
+  assert.equal(first.error.message, '사진을 안전하게 저장하지 못했어요.');
+  const second = await createSupabasePublishedPost(payload);
+  assert.equal(second.data.post.id, 'post-2');
+  assert.deepEqual(calls.map((item) => item.name), [
+    'create_post_upload_with_visibility', 'storage.upload',
+    'create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload',
+  ]);
+  assert.deepEqual(calls.filter((item) => item.name === 'storage.upload').map((item) => item.path), ['uploads/1', 'uploads/2']);
 });

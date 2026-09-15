@@ -15,7 +15,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabasePublishedFeedCards } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -88,10 +88,11 @@ export default function App() {
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   const localQaEnabled = isLocalQaAccountMode();
-  // 정의: 명시적 preview URL만 세션 유무와 관계없이 스플래시부터 시작한다.
-  // 로컬 개발은 실제 Mailpit 인증 흐름을 검증할 수 있도록 세션을 그대로 반영한다.
-  const previewMode = authPreview || new URLSearchParams(window.location.search).has('preview');
-  const [isGuest, setIsGuest] = useState(() => previewMode || !sharedPostId);
+  const previewMode = new URLSearchParams(window.location.search).has('preview');
+  // 정의: preview=1은 실제 Supabase 세션을 복구해 피드 점검을 이어가고,
+  // authPreview=1일 때만 인증 화면을 강제로 유지한다.
+  const forceAuthPreview = authPreview;
+  const [isGuest, setIsGuest] = useState(() => forceAuthPreview || previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
   const [authUser, setAuthUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -107,6 +108,7 @@ export default function App() {
   const [savedPostIds, setSavedPostIds] = useState(() => new Set());
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [blockedMembers, setBlockedMembers] = useState([]);
+  const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -157,8 +159,11 @@ export default function App() {
     let active = true;
     const callbackCode = getAuthCallbackCode(window.location.search);
 
-    const finishAuthenticatedEntry = (session) => {
-      if (!session || previewMode) return;
+    const finishAuthenticatedEntry = (session, { allowPreviewTransition = false } = {}) => {
+      // `preview=1` is a QA entry point that should resume an existing session
+      // after refresh. Only the explicit `authPreview=1` flag keeps the splash
+      // locked until a fresh sign-in event (or cross-tab completion signal).
+      if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
       // The OTP field can remain focused while Supabase updates the session.
       // Dismiss its software keyboard before replacing Splash with Feed so an
       // old visual viewport is never carried into the authenticated canvas.
@@ -166,6 +171,14 @@ export default function App() {
       settleAppCanvasAfterKeyboardDismissal();
       setAuthUser(session.user ?? null);
       setIsGuest(false);
+
+      // A direct OTP verification does not carry a callback URL. Treat the
+      // explicit unlock event as a complete sign-in so the user always lands
+      // on Feed, even when they started from another tab or a preview splash.
+      if (allowPreviewTransition) {
+        setIsSharedGuest(false);
+        setActiveTab('feed');
+      }
 
       // Magic-link tokens belong only in the one-time callback URL. Once
       // Supabase has persisted the session, remove them and land on the feed.
@@ -193,24 +206,28 @@ export default function App() {
       }
     };
 
-    const restoreOriginalTab = async () => {
+    const restoreOriginalTab = async (allowPreviewTransition = false) => {
       const { data } = await supabase.auth.getSession();
-      if (data.session) finishAuthenticatedEntry(data.session);
+      if (data.session) finishAuthenticatedEntry(data.session, { allowPreviewTransition });
     };
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         setAuthUser(null);
         return;
       }
-      finishAuthenticatedEntry(session);
+      finishAuthenticatedEntry(session, { allowPreviewTransition: event === 'SIGNED_IN' });
     });
 
     const onStorage = (event) => {
-      if (event.key === 'facs_auth_completed_at' || event.key?.startsWith('sb-')) void restoreOriginalTab();
+      if (event.key === 'facs_auth_completed_at') void restoreOriginalTab(true);
+      // Supabase refreshes its browser storage when a native file/camera picker
+      // returns. That restores the session only; it must not treat the return
+      // as a completed sign-in and replace the current Upload view with Feed.
+      else if (event.key?.startsWith('sb-')) void restoreOriginalTab();
     };
     const onMessage = (event) => {
-      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab();
+      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab(true);
     };
     const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(); };
     window.addEventListener('storage', onStorage);
@@ -249,7 +266,7 @@ export default function App() {
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [previewMode]);
+  }, [forceAuthPreview]);
 
   /** Loads private Scraps only after a real authenticated session exists. */
   useEffect(() => {
@@ -266,6 +283,16 @@ export default function App() {
     let active = true;
     if (!authUser) { setBlockedMembers([]); return undefined; }
     getMyBlockedMembers().then((result) => { if (active && result.data) setBlockedMembers(result.data); });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
+  /** Keeps Boost CTA eligibility aligned with the server-clock candidate RPC. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) { setBoostCandidateIds(new Set()); return undefined; }
+    listSupabaseBoostCandidates().then((result) => {
+      if (active && result.data) setBoostCandidateIds(new Set(result.data.map((candidate) => candidate.postId)));
+    });
     return () => { active = false; };
   }, [authUser?.id]);
 
@@ -555,8 +582,9 @@ export default function App() {
   async function addCard(card) {
     if (!isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
-      setToast(locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.');
-      return;
+      const message = locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.';
+      setToast(message);
+      return { ok: false, message };
     }
     // An iPhone can keep the question field's software keyboard open while the
     // upload request is in flight. Close that transient viewport before the
@@ -574,12 +602,13 @@ export default function App() {
       media: card.media,
     });
     if (result.error) {
-      setToast(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
+      const message = locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.';
+      setToast(message);
       window.requestAnimationFrame(() => {
         window.scrollTo(0, previousScrollTop);
         mainRef.current?.scrollTo({ top: previousScrollTop, left: 0, behavior: 'instant' });
       });
-      return;
+      return { ok: false, message };
     }
     const serverMedia = result.data.media;
     const publishedCard = {
@@ -595,7 +624,9 @@ export default function App() {
     };
     setCards((items) => [publishedCard, ...items]);
     setFeaturedPostId(publishedCard.id);
-    setActiveCategory('ALL');
+    // Keep the uploaded category selected after returning to Feed so the
+    // category rail reflects the card the member just published.
+    setActiveCategory(publishedCard.category);
     setCurrentIndex(0);
     setActiveTab('feed');
     window.requestAnimationFrame(() => {
@@ -604,6 +635,31 @@ export default function App() {
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
+    return { ok: true, data: publishedCard };
+  }
+
+  /** Requests the server-validated exposure Boost for the current member's post. */
+  async function requestBoostForCurrentCard() {
+    if (!currentCard || !isCurrentUserPost) {
+      setToast(locale === 'en' ? 'Boost is available for your own post.' : 'Boost는 내가 올린 게시물에만 요청할 수 있어요.');
+      return;
+    }
+    if (!isSupabasePost(currentCard)) {
+      setToast(locale === 'en' ? 'Boost is available after this post is published.' : '게시가 완료된 후 Boost를 요청할 수 있어요.');
+      return;
+    }
+    const result = await requestSupabasePostBoost(currentCard.id);
+    if (result.error) {
+      setToast(result.error.message);
+      return;
+    }
+    setBoostCandidateIds((ids) => {
+      const next = new Set(ids);
+      next.delete(currentCard.id);
+      return next;
+    });
+    setCards((items) => items.map((item) => item.id === currentCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
+    setToast(locale === 'en' ? 'Boost requested. It increases reach and sample size only.' : 'Boost를 요청했어요. 노출과 표본만 늘어납니다.');
   }
 
   const saveHandle = useCallback(async (handle) => {
@@ -825,7 +881,10 @@ export default function App() {
 
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
-    if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, [role="dialog"], .media-carousel')) return;
+    // Native file pickers can resume with a pointer-up far from the original
+    // touch target. Keep every form control (including the upload drop zone)
+    // outside tab-swipe tracking so choosing media never changes the view.
+    if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, label, form, a, [role="button"], [role="dialog"], .media-carousel')) return;
     tabGestureStart.current = { x: event.clientX, y: event.clientY };
   }
 
@@ -878,7 +937,7 @@ export default function App() {
 
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={() => setToast(locale === 'en' ? 'Boost never changes the result; it only increases reach and sample size.' : 'Boost는 결과를 바꾸지 않고 추가 노출과 표본만 늘립니다. 결제 연결은 다음 단계에서 적용합니다.')} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}

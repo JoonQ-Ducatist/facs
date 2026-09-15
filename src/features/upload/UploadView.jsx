@@ -163,7 +163,13 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     const actualAgeProvided = shareActualAge && Number.isInteger(Number(actualAge));
     setIsPublishing(true);
     try {
-      await onSubmit({ author: publicHandle, category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', visibility, question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '첫인상에서 호감과 신뢰감이 느껴지나요?'), subtext: isAgeEvaluation ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
+      const result = await onSubmit({ author: publicHandle, category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', visibility, question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '첫인상에서 호감과 신뢰감이 느껴지나요?'), subtext: isAgeEvaluation ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
+      if (!result?.ok) {
+        setError(result?.message ?? (locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.'));
+        return;
+      }
+    } catch {
+      setError(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
     } finally {
       setIsPublishing(false);
     }
