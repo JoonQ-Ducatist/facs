@@ -16,7 +16,7 @@
 
 ### Full: 현재 저장소 전체 검증
 
-아래 21개 파일을 파일명 순서대로 모두 실행한다. 각 파일을 별도 query로 붙여넣고 실행하는 방식이 실패 지점을 가장 쉽게 찾을 수 있다.
+아래 24개 파일을 파일명 순서대로 모두 실행한다. 각 파일을 별도 query로 붙여넣고 실행하는 방식이 실패 지점을 가장 쉽게 찾을 수 있다.
 
 | 순서 | 파일 | 크기 |
 | ---: | --- | ---: |
@@ -42,8 +42,10 @@
 | 20 | `202609130001_allow_supported_mobile_image_types.sql` | 398 |
 | 21 | `202609140001_profile_read_grant.sql` | 1,262 |
 | 22 | `202609150001_post_boosts.sql` | 7,831 |
+| 23 | `202609150002_authenticated_upload_policy_grants.sql` | 648 |
+| 24 | `202609160001_profile_library_contracts.sql` | 4,954 |
 
-표의 실제 파일 수는 22개이며, 저장소의 전체 SQL 용량은 약 83,163 bytes다. 실행 전 `ls -1 supabase/migrations` 결과와 표가 일치하는지 확인한다.
+표의 실제 파일 수는 24개다. 특히 `202609150002_authenticated_upload_policy_grants.sql`은 브라우저 역할의 posts/media SELECT·votes INSERT 권한을 보정하므로 생략하면 안 된다. 실행 전 `ls -1 supabase/migrations` 결과와 표가 일치하는지 확인한다.
 
 ## 2. SQL Editor에서 실행하는 최소 단계
 
@@ -52,7 +54,7 @@
 3. 위 표의 파일을 로컬에서 열고, 한 파일 전체를 SQL Editor의 새 query에 붙여넣는다.
 4. **Run**을 누르고 성공 메시지를 확인한 뒤 다음 파일로 이동한다.
 5. 실패하면 다음 파일로 넘어가지 않는다. 실패한 파일명과 오류 문구를 기록하고, 부분 적용 상태에서 무작정 재실행하지 않는다. 재시도는 새 테스트 프로젝트에서 처음부터 실행하는 것이 안전하다.
-6. Full 세트는 1번부터 22번까지 순서대로 실행한다. 파일명 순서를 바꾸면 함수·테이블 의존성 때문에 실패할 수 있다.
+6. Full 세트는 1번부터 24번까지 순서대로 실행한다. 파일명 순서를 바꾸면 함수·테이블 의존성 때문에 실패할 수 있다.
 
 현재 Supabase SQL Editor에는 로컬 `.sql` 파일을 직접 import하는 버튼이 없으므로, 기본 방법은 파일별 분할 붙여넣기다. SQL Editor 입력 한도를 넘는 경우에도 파일 하나를 여러 조각으로 붙여넣되, **Run은 파일 전체가 들어온 뒤 한 번만** 실행한다.
 
@@ -100,7 +102,9 @@ where routine_schema = 'public'
     'get_published_post_aggregates',
     'get_my_voted_post_ids',
     'create_post_upload_with_visibility',
-    'hide_my_post'
+    'hide_my_post',
+    'get_my_published_profile_post_ids',
+    'get_my_scrap_post_ids'
   )
 order by routine_name;
 
@@ -112,6 +116,17 @@ order by schemaname, tablename, policyname;
 ```
 
 기대 결과: follows·blocks·reports·live reaction 테이블과 개인화 피드·업로드·숨김 RPC가 존재하고, 관련 RLS 정책이 조회된다.
+
+```sql
+select table_name, privilege_type
+from information_schema.role_table_grants
+where grantee = 'authenticated'
+  and table_schema = 'public'
+  and table_name in ('posts', 'media_assets', 'post_media', 'votes')
+order by table_name, privilege_type;
+```
+
+기대 결과: `posts`, `media_assets`, `post_media`에 SELECT와 `votes`에 INSERT가 포함된다. 이 권한은 23번 migration이 보정한다.
 
 ### Boost 완료 확인
 

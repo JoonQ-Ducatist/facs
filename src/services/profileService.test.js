@@ -28,6 +28,12 @@ test('profile save adapts the shared API envelope for success, duplicate, and pe
   assert.equal(mapHandleSaveResult({ data: { id: 'a', handle: 'member_placeholder' } }).ok, false);
 });
 
+test('profile save exposes a localized message for a future one-month handle lock', () => {
+  assert.deepEqual(mapHandleSaveResult({ error: { code: 'RATE_LIMITED' } }, 'en'), { ok: false, message: 'You can change your public ID again one month after the last change.' });
+  assert.deepEqual(mapHandleSaveResult({ error: { code: 'RATE_LIMITED', fieldErrors: { reason: 'public_handle_change_cooldown' } } }, 'en'), { ok: false, message: 'You can change your public ID again one month after the last change.' });
+  assert.deepEqual(mapHandleSaveResult({ error: { code: '22023', message: 'public_handle_change_cooldown' } }), { ok: false, message: '공개 아이디는 변경 후 1개월이 지나야 다시 변경할 수 있어요.' });
+});
+
 test('generated member handles never unlock public posting', () => {
   assert.equal(isConfiguredHandle('member_27cf48e1'), false);
   assert.equal(isConfiguredHandle('my_look_daily'), true);
@@ -86,4 +92,13 @@ test('a write is not reported as successful when the saved profile cannot be rea
   const client = profileClient({ id: 'member-a', handle: 'member_placeholder', profileReadable: false });
   const result = await updateMyHandle('missing_profile', { client });
   assert.equal(result.error.code, 'NOT_FOUND');
+});
+
+test('the server cooldown error remains distinct from handle syntax validation', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  client.rpc = async () => ({ data: null, error: { code: '22023', message: 'public_handle_change_cooldown' } });
+  const result = await updateMyHandle('account_b', { client });
+  assert.equal(result.error.code, 'RATE_LIMITED');
+  assert.equal(result.error.fieldErrors.reason, 'public_handle_change_cooldown');
+  assert.match(result.error.message, /1개월/);
 });
