@@ -221,12 +221,15 @@ export default function App() {
 
     const onStorage = (event) => {
       if (event.key === 'facs_auth_completed_at') void restoreOriginalTab(true);
-      else if (event.key?.startsWith('sb-')) void restoreOriginalTab(!forceAuthPreview);
+      // Supabase refreshes its browser storage when a native file/camera picker
+      // returns. That restores the session only; it must not treat the return
+      // as a completed sign-in and replace the current Upload view with Feed.
+      else if (event.key?.startsWith('sb-')) void restoreOriginalTab();
     };
     const onMessage = (event) => {
       if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab(true);
     };
-    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(!forceAuthPreview); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(); };
     window.addEventListener('storage', onStorage);
     window.addEventListener('message', onMessage);
     window.addEventListener('focus', onVisible);
@@ -579,8 +582,9 @@ export default function App() {
   async function addCard(card) {
     if (!isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
-      setToast(locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.');
-      return;
+      const message = locale === 'en' ? 'Set your public ID before publishing.' : '게시 전에 공개 아이디를 설정해 주세요.';
+      setToast(message);
+      return { ok: false, message };
     }
     // An iPhone can keep the question field's software keyboard open while the
     // upload request is in flight. Close that transient viewport before the
@@ -598,12 +602,13 @@ export default function App() {
       media: card.media,
     });
     if (result.error) {
-      setToast(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
+      const message = locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.';
+      setToast(message);
       window.requestAnimationFrame(() => {
         window.scrollTo(0, previousScrollTop);
         mainRef.current?.scrollTo({ top: previousScrollTop, left: 0, behavior: 'instant' });
       });
-      return;
+      return { ok: false, message };
     }
     const serverMedia = result.data.media;
     const publishedCard = {
@@ -630,6 +635,7 @@ export default function App() {
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
+    return { ok: true, data: publishedCard };
   }
 
   /** Requests the server-validated exposure Boost for the current member's post. */
@@ -875,7 +881,10 @@ export default function App() {
 
   /** 정의: 본문에서의 가로 터치를 기록하되 카드 앨범·입력·버튼과 같은 자체 제스처 영역은 탭 이동 대상에서 제외한다. @param {PointerEvent} event 포인터 시작 이벤트 */
   function startTabGesture(event) {
-    if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, a, [role="dialog"], .media-carousel')) return;
+    // Native file pickers can resume with a pointer-up far from the original
+    // touch target. Keep every form control (including the upload drop zone)
+    // outside tab-swipe tracking so choosing media never changes the view.
+    if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, label, form, a, [role="button"], [role="dialog"], .media-carousel')) return;
     tabGestureStart.current = { x: event.clientX, y: event.clientY };
   }
 

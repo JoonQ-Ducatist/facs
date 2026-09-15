@@ -13,7 +13,9 @@ test('preview authentication resumes an existing session unless authPreview expl
   assert.match(source, /forceAuthPreview \|\| previewMode \|\| !sharedPostId/);
   assert.match(source, /forceAuthPreview && !allowPreviewTransition/);
   assert.match(source, /finishAuthenticatedEntry\(session, \{ allowPreviewTransition: event === 'SIGNED_IN' \}\)/);
-  assert.match(source, /restoreOriginalTab\(!forceAuthPreview\)/);
+  assert.match(source, /event\.key === 'facs_auth_completed_at'.*restoreOriginalTab\(true\)/s);
+  assert.match(source, /event\.key\?\.startsWith\('sb-'\).*restoreOriginalTab\(\)/s);
+  assert.match(source, /const onVisible = \(\) => \{ if \(document\.visibilityState === 'visible'\) void restoreOriginalTab\(\); \}/);
 });
 
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
