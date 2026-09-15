@@ -158,8 +158,11 @@ export default function App() {
     let active = true;
     const callbackCode = getAuthCallbackCode(window.location.search);
 
-    const finishAuthenticatedEntry = (session) => {
-      if (!session || previewMode) return;
+    const finishAuthenticatedEntry = (session, { allowPreviewTransition = false } = {}) => {
+      // Preview URLs intentionally begin at Splash even when a session already
+      // exists. A fresh SIGNED_IN event (or the cross-tab completion signal)
+      // is the explicit unlock that may move the preview tab to Feed.
+      if (!session || (previewMode && !allowPreviewTransition)) return;
       // The OTP field can remain focused while Supabase updates the session.
       // Dismiss its software keyboard before replacing Splash with Feed so an
       // old visual viewport is never carried into the authenticated canvas.
@@ -167,6 +170,14 @@ export default function App() {
       settleAppCanvasAfterKeyboardDismissal();
       setAuthUser(session.user ?? null);
       setIsGuest(false);
+
+      // A direct OTP verification does not carry a callback URL. Treat the
+      // explicit unlock event as a complete sign-in so the user always lands
+      // on Feed, even when they started from another tab or a preview splash.
+      if (allowPreviewTransition) {
+        setIsSharedGuest(false);
+        setActiveTab('feed');
+      }
 
       // Magic-link tokens belong only in the one-time callback URL. Once
       // Supabase has persisted the session, remove them and land on the feed.
@@ -194,26 +205,27 @@ export default function App() {
       }
     };
 
-    const restoreOriginalTab = async () => {
+    const restoreOriginalTab = async (allowPreviewTransition = false) => {
       const { data } = await supabase.auth.getSession();
-      if (data.session) finishAuthenticatedEntry(data.session);
+      if (data.session) finishAuthenticatedEntry(data.session, { allowPreviewTransition });
     };
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         setAuthUser(null);
         return;
       }
-      finishAuthenticatedEntry(session);
+      finishAuthenticatedEntry(session, { allowPreviewTransition: event === 'SIGNED_IN' });
     });
 
     const onStorage = (event) => {
-      if (event.key === 'facs_auth_completed_at' || event.key?.startsWith('sb-')) void restoreOriginalTab();
+      if (event.key === 'facs_auth_completed_at') void restoreOriginalTab(true);
+      else if (event.key?.startsWith('sb-')) void restoreOriginalTab(!previewMode);
     };
     const onMessage = (event) => {
-      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab();
+      if (event.origin === window.location.origin && event.data?.type === 'facs-auth-complete') void restoreOriginalTab(true);
     };
-    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void restoreOriginalTab(!previewMode); };
     window.addEventListener('storage', onStorage);
     window.addEventListener('message', onMessage);
     window.addEventListener('focus', onVisible);
