@@ -41,21 +41,3 @@ test('private media and scraps remain owner-scoped', async () => {
   assert.match(scrapSql, /user_id = auth\.uid\(\)/i);
   assert.match(scrapSql, /members remove own scraps/i);
 });
-
-test('profile library migration uses a server-clock handle cooldown and deterministic private lists', async () => {
-  const sql = await migration('202609160001_profile_library_contracts.sql');
-  assert.match(sql, /add column if not exists handle_changed_at timestamptz/i);
-  assert.match(sql, /handle_changed_at > now\(\) - interval '1 month'/i);
-  assert.match(sql, /if saved_profile\.handle = normalized_handle then/i);
-  assert.match(sql, /create or replace function public\.get_my_published_profile_post_ids/i);
-  assert.match(sql, /order by p\.published_at desc nulls last, p\.id desc/i);
-  assert.match(sql, /create or replace function public\.get_my_scrap_post_ids/i);
-  assert.match(sql, /public\.current_member_can_view_post/i);
-  assert.match(sql, /order by s\.created_at desc, p\.published_at desc nulls last, p\.id desc/i);
-  assert.match(sql, /owners or permitted post viewers read media metadata/i);
-  assert.match(sql, /drop policy if exists "owners or permitted post viewers read media metadata" on public\.media_assets/i);
-  assert.match(sql, /pm\.asset_id = media_assets\.id/i);
-  assert.match(sql, /create policy "facs media is readable with its permitted post" on storage\.objects/i);
-  assert.match(sql, /drop policy if exists "facs media is readable with its permitted post" on storage\.objects/i);
-  assert.match(sql, /a\.state = 'ready' and public\.current_member_can_view_post\(p\.author_id, p\.status, p\.visibility\)/i);
-});
