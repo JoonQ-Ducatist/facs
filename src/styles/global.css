@@ -165,6 +165,13 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .media-protected { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
 .media-primary { transition: transform .24s cubic-bezier(.18,.72,.28,1); will-change: transform; }
 .media-primary--dragging { transition: none; }
+.upload-media-control { display: inline-flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.78); border-radius: 999px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px rgba(1,8,17,.16); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: transform .15s ease, filter .15s ease, opacity .15s ease; touch-action: manipulation; }
+.upload-media-control:hover { filter: brightness(1.12); transform: scale(1.04); }
+.upload-media-control:active { transform: scale(.94); }
+.upload-media-control:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.upload-media-control--move { background: rgba(16,34,55,.88); }
+.upload-media-control--remove { background: rgba(224,48,83,.94); }
+.upload-media-control:disabled { cursor: default; filter: saturate(.4); }
 .media-card-photo-nav { display: none; }
 .ranking-preview-card { width: min(100%, 620px); }
 .ranking-preview-carousel { width: 100%; }

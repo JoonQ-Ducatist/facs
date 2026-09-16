@@ -53,6 +53,21 @@ test('Upload controls isolate touch events from the root swipe gesture', async (
   assert.match(styles, /\.editorial-profile input \{ touch-action: manipulation; \}/);
 });
 
+test('media preview controls remain visible and touch-safe over dark images', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /function isolateMediaControlTouch\(event\)/);
+  assert.match(source, /upload-media-control upload-media-control--move/);
+  assert.match(source, /upload-media-control upload-media-control--remove/);
+  assert.match(source, /onPointerDown=\{isolateMediaControlTouch\} onPointerUp=\{isolateMediaControlTouch\} onPointerCancel=\{isolateMediaControlTouch\}/);
+  assert.match(source, /onClick=\{\(event\) => \{ event\.stopPropagation\(\); onMove\(-1\); \}\}/);
+  assert.match(source, /onClick=\{\(event\) => \{ event\.stopPropagation\(\); onRemove\(\); \}\}/);
+  assert.match(styles, /\.upload-media-control \{[\s\S]*?width: 32px; height: 32px;[\s\S]*?border: 1px solid rgba\(255,255,255,\.78\);[\s\S]*?backdrop-filter: blur\(8px\)/);
+  assert.match(styles, /\.upload-media-control--move \{ background: rgba\(16,34,55,\.88\); \}/);
+  assert.match(styles, /\.upload-media-control--remove \{ background: rgba\(224,48,83,\.94\); \}/);
+  assert.match(styles, /\.upload-media-control:focus-visible \{ outline: 2px solid #fff/);
+});
+
 test('a just-published card is retained and kept canonical during feed hydration', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const pendingPublishedCard = useRef\(null\)/);
