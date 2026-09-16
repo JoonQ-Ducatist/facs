@@ -4,6 +4,11 @@ import { supabase } from './supabaseClient.js';
 const HANDLE_PATTERN = /^[a-z0-9_]{3,30}$/;
 const HANDLE_PREFIXES = ['mood', 'daily', 'soft', 'bright', 'calm', 'fresh'];
 const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
+// Keep browser read-back compatible with the original profile schema. The
+// server-only handle cooldown column is not rendered by the client, and an
+// older deployed database must not turn a successful handle save into a
+// generic profile-read failure merely because that optional column is absent.
+const PROFILE_READ_COLUMNS = 'id,handle,display_name';
 export const HANDLE_CHANGE_COOLDOWN_REASON = 'public_handle_change_cooldown';
 export const HANDLE_CHANGE_LOCK_ERROR_CODES = Object.freeze([API_ERROR.RATE_LIMITED]);
 
@@ -69,7 +74,7 @@ async function requireUser(client = supabase) {
 export async function getMyProfile({ client = supabase } = {}) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
-  const { data, error } = await client.from('profiles').select('id,handle,display_name,handle_changed_at').eq('id', identity.user.id).maybeSingle();
+  const { data, error } = await client.from('profiles').select(PROFILE_READ_COLUMNS).eq('id', identity.user.id).maybeSingle();
   if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '프로필을 불러오지 못했어요.');
   if (!data) return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   return apiSuccess(data);

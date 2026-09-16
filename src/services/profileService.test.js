@@ -49,17 +49,22 @@ test('starter handle suggestions are stable and use valid public-handle syntax',
 
 function profileClient({ id, handle, profileReadable = true }) {
   const profile = { id, handle, display_name: null };
+  const selectedColumns = [];
   return {
     auth: { getUser: async () => ({ data: { user: { id } }, error: null }) },
     rpc: async () => ({ data: { ...profile }, error: null }),
     from: () => ({
-      select: () => ({
+      select: (columns) => {
+        selectedColumns.push(columns);
+        return ({
         eq: () => ({
           maybeSingle: async () => ({ data: profileReadable ? { ...profile } : null, error: null }),
         }),
-      }),
+        });
+      },
     }),
     setHandle(nextHandle) { profile.handle = nextHandle; },
+    selectedColumns,
   };
 }
 
@@ -73,6 +78,14 @@ test('a saved public handle is confirmed by a server read and survives reload hy
   assert.equal(saved.data.handle, 'reload_probe_a');
   const afterReload = await getMyProfile({ client });
   assert.equal(afterReload.data.handle, 'reload_probe_a');
+  assert.deepEqual(client.selectedColumns, ['id,handle,display_name', 'id,handle,display_name']);
+});
+
+test('profile read-back avoids optional server-only cooldown columns', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  await getMyProfile({ client });
+  assert.equal(client.selectedColumns[0], 'id,handle,display_name');
+  assert.doesNotMatch(client.selectedColumns[0], /handle_changed_at/);
 });
 
 test('profile sessions remain isolated when handles are saved independently', async () => {
