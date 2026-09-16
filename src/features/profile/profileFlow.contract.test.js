@@ -9,9 +9,20 @@ const featureRoot = dirname(fileURLToPath(import.meta.url));
 test('profile exposes an explicit change flow for an existing public ID', async () => {
   const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
   assert.match(source, /editingHandle/);
-  assert.match(source, /locale === 'en' \? 'Change' : '변경'/);
+  assert.match(source, /function beginHandleEditFromTouch\(event\)/);
+  assert.match(source, /onPointerUp=\{beginHandleEditFromTouch\}.*onClick=\{beginHandleEdit\}/s);
+  assert.match(source, /min-h-9 shrink-0 rounded-md/);
+  assert.match(source, /function beginHandleEdit\(event\)/);
   assert.match(source, /initialHandle=\{displayHandle \?\? ''\}/);
   assert.match(source, /onCancel=\{\(\) => setEditingHandle\(false\)\}/);
+});
+
+test('a server-rejected public-ID change remains actionable and surfaces its reason', async () => {
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const profileSource = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
+  assert.match(appSource, /if \(!saved\.ok\) \{[\s\S]*?setToast\(saved\.message\);[\s\S]*?return saved;/);
+  assert.match(profileSource, /autoFocus=\{isEditing\}/);
+  assert.match(profileSource, /if \(!result\?\.ok\) setNotice\(result\?\.message/);
 });
 
 test('upload posting ID links to profile instead of showing a dead hint', async () => {
@@ -42,7 +53,7 @@ test('saving the required public ID resumes the pending Upload flow only on succ
   assert.match(source, /const \[resumeUploadAfterHandle, setResumeUploadAfterHandle\] = useState\(false\)/);
   assert.match(source, /setResumeUploadAfterHandle\(true\);\s*setActiveTab\('profile'\)/s);
   assert.match(source, /if \(resumeUploadAfterHandle\) \{\s*setResumeUploadAfterHandle\(false\);\s*setActiveTab\('upload'\);/s);
-  assert.match(source, /if \(!saved\.ok\) return saved;/);
+  assert.match(source, /if \(!saved\.ok\) \{[\s\S]*?setToast\(saved\.message\);[\s\S]*?return saved;/);
 });
 
 test('profile orders own posts and exposes a keyboard-safe scrap open callback', async () => {

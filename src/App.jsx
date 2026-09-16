@@ -734,7 +734,12 @@ export default function App() {
   const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
     const saved = mapHandleSaveResult(result, locale);
-    if (!saved.ok) return saved;
+    if (!saved.ok) {
+      // The server is authoritative for the one-month handle lock. Surface
+      // that result immediately as a toast as well as in the edit form.
+      setToast(saved.message);
+      return saved;
+    }
     setProfile(saved.data);
     setProfileNotice('');
     if (resumeUploadAfterHandle) {
