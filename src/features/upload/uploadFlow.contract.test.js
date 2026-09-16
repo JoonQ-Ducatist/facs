@@ -68,6 +68,12 @@ test('media preview controls remain visible and touch-safe over dark images', as
   assert.match(styles, /\.upload-media-control:focus-visible \{ outline: 2px solid #fff/);
 });
 
+test('image previews keep the photo surface clean while video duration stays visible', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  assert.match(source, /\{item\.type === 'video' && <span[^>]*>VIDEO/);
+  assert.doesNotMatch(source, /`IMAGE \$\{index \+ 1\}`/);
+});
+
 test('a just-published card is retained and kept canonical during feed hydration', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const pendingPublishedCard = useRef\(null\)/);
