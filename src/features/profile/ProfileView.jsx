@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
 import { canSubmitHandle, getPublicHandle, normalizeHandle } from '../../services/profileService.js';
 import { sortPostsNewestFirst } from './profileOrdering.js';
@@ -31,6 +31,7 @@ export default function ProfileView({ locale = 'ko', cards, profileCards, scrapC
 
 /** Captures the one public identifier required before a member can publish. */
 function HandleSetup({ locale, profileId, initialHandle = '', isEditing = false, onCheck, onLoadSuggestions, onSave, onCancel }) {
+  const inputRef = useRef(null);
   const [handle, setHandle] = useState(initialHandle);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -56,6 +57,15 @@ function HandleSetup({ locale, profileId, initialHandle = '', isEditing = false,
   }, [handle, onCheck]);
 
   function chooseSuggestion(value) { setHandle(normalizeHandle(value)); setNotice(''); }
+  function isolateTouch(event) {
+    if (event.pointerType === 'touch') event.stopPropagation();
+  }
+  function focusHandleInput(event) {
+    isolateTouch(event);
+    // Explicitly focus after a mobile pointerdown so the root tab gesture can
+    // never leave a public-ID field visually tappable but keyboard-inactive.
+    window.requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+  }
   async function submit(event) {
     event.preventDefault();
     if (!canSubmitHandle({ handle, saving, checking, available })) {
@@ -63,11 +73,16 @@ function HandleSetup({ locale, profileId, initialHandle = '', isEditing = false,
       return;
     }
     setSaving(true);
-    const result = await onSave(handle);
-    setSaving(false);
-    if (!result.ok) setNotice(result.message);
+    try {
+      const result = await onSave(handle);
+      if (!result?.ok) setNotice(result?.message ?? (locale === 'en' ? 'Your public ID could not be saved. Please try again.' : '공개 아이디를 저장하지 못했어요. 다시 시도해 주세요.'));
+    } catch {
+      setNotice(locale === 'en' ? 'Your public ID could not be saved. Please try again.' : '공개 아이디를 저장하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      setSaving(false);
+    }
   }
-  return <SurfaceCard as="form" onSubmit={submit} className="mb-4 border-[#c52a52]/45 p-3.5"><div className="flex items-start justify-between gap-2"><div className="flex items-start gap-2"><span className="material-symbols-outlined mt-0.5 text-lg text-[#c52a52]">alternate_email</span><div><h2 className="font-headline text-sm font-bold text-white">{isEditing ? (locale === 'en' ? 'Change your public ID' : '공개 아이디 변경') : (locale === 'en' ? 'Set your public ID' : '공개 아이디를 설정해 주세요')}</h2><p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">{locale === 'en' ? 'Your email stays private. This ID is shown on your posts.' : '이메일은 공개되지 않으며, 이 아이디가 게시물에 표시됩니다.'}</p></div></div>{isEditing && <button type="button" onClick={onCancel} className="shrink-0 text-[10px] font-semibold text-slate-400 underline underline-offset-2">{locale === 'en' ? 'Cancel' : '취소'}</button>}</div>{suggestions.length > 0 && <div className="mt-3"><p className="mb-1.5 text-[10px] font-semibold text-slate-400">{locale === 'en' ? 'Pick a starter ID' : '추천 아이디에서 골라 보세요'}</p><div className="flex flex-wrap gap-1.5">{suggestions.map((item) => <button key={item.handle} type="button" onClick={() => chooseSuggestion(item.handle)} className={`rounded-full border px-2 py-1 font-mono text-[10px] transition-colors ${handle === item.handle ? 'border-[#c52a52] bg-[#c52a52]/15 text-[#f487a3]' : 'border-surface-container-high text-slate-300 hover:border-[#c52a52]/70'}`}>@{item.handle}</button>)}</div></div>}<div className="mt-3 flex gap-2"><label className={`flex min-w-0 flex-1 items-center rounded-md border bg-surface-container px-2.5 ${available === true ? 'border-[#4ca878]' : available === false ? 'border-[#e06b89]' : 'border-surface-container-high'}`}><span className="text-sm text-slate-500">@</span><input required value={handle} onChange={(event) => { setHandle(normalizeHandle(event.target.value)); setAvailable(null); setNotice(''); }} maxLength="30" placeholder="my_look" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" aria-describedby={notice ? 'handle-notice' : undefined} /></label><button type="submit" disabled={!canSubmitHandle({ handle, saving, checking, available })} className="shrink-0 rounded-md bg-[#c52a52] px-3 text-xs font-bold text-white disabled:opacity-55">{saving ? (locale === 'en' ? 'Saving...' : '저장 중...') : (locale === 'en' ? 'Save' : '저장')}</button></div><p className={`mt-1.5 text-[9px] ${available === true ? 'text-[#69c593]' : available === false ? 'text-[#e06b89]' : 'text-slate-500'}`}>{checking ? (locale === 'en' ? 'Checking availability...' : '사용 가능 여부 확인 중...') : available === true ? (locale === 'en' ? 'This ID is available.' : '사용 가능한 아이디예요.') : available === false ? (locale === 'en' ? 'This ID is unavailable or invalid.' : '이미 사용 중이거나 사용할 수 없는 아이디예요.') : (locale === 'en' ? '3–30 lower-case letters, numbers, or underscores.' : '영문 소문자·숫자·밑줄 3~30자')}</p>{notice && <p id="handle-notice" role="alert" className="mt-1.5 text-[10px] text-[#e06b89]">{notice}</p>}</SurfaceCard>;
+  return <SurfaceCard as="form" onSubmit={submit} onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch} className="mb-4 border-[#c52a52]/45 p-3.5"><div className="flex items-start justify-between gap-2"><div className="flex items-start gap-2"><span className="material-symbols-outlined mt-0.5 text-lg text-[#c52a52]">alternate_email</span><div><h2 className="font-headline text-sm font-bold text-white">{isEditing ? (locale === 'en' ? 'Change your public ID' : '공개 아이디 변경') : (locale === 'en' ? 'Set your public ID' : '공개 아이디를 설정해 주세요')}</h2><p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">{locale === 'en' ? 'Your email stays private. This ID is shown on your posts.' : '이메일은 공개되지 않으며, 이 아이디가 게시물에 표시됩니다.'}</p></div></div>{isEditing && <button type="button" onClick={onCancel} className="shrink-0 text-[10px] font-semibold text-slate-400 underline underline-offset-2">{locale === 'en' ? 'Cancel' : '취소'}</button>}</div>{suggestions.length > 0 && <div className="mt-3"><p className="mb-1.5 text-[10px] font-semibold text-slate-400">{locale === 'en' ? 'Pick a starter ID' : '추천 아이디에서 골라 보세요'}</p><div className="flex flex-wrap gap-1.5">{suggestions.map((item) => <button key={item.handle} type="button" onClick={() => chooseSuggestion(item.handle)} className={`rounded-full border px-2 py-1 font-mono text-[10px] transition-colors ${handle === item.handle ? 'border-[#c52a52] bg-[#c52a52]/15 text-[#f487a3]' : 'border-surface-container-high text-slate-300 hover:border-[#c52a52]/70'}`}>@{item.handle}</button>)}</div></div>}<div className="mt-3 flex gap-2"><label className={`flex min-w-0 flex-1 items-center rounded-md border bg-surface-container px-2.5 ${available === true ? 'border-[#4ca878]' : available === false ? 'border-[#e06b89]' : 'border-surface-container-high'}`}><span className="text-sm text-slate-500">@</span><input ref={inputRef} required value={handle} onPointerDown={focusHandleInput} onChange={(event) => { setHandle(normalizeHandle(event.target.value)); setAvailable(null); setNotice(''); }} maxLength="30" placeholder="my_look" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" aria-describedby={notice ? 'handle-notice' : undefined} /></label><button type="submit" disabled={!canSubmitHandle({ handle, saving, checking, available })} className="shrink-0 rounded-md bg-[#c52a52] px-3 text-xs font-bold text-white disabled:opacity-55">{saving ? (locale === 'en' ? 'Saving...' : '저장 중...') : (locale === 'en' ? 'Save' : '저장')}</button></div><p className={`mt-1.5 text-[9px] ${available === true ? 'text-[#69c593]' : available === false ? 'text-[#e06b89]' : 'text-slate-500'}`}>{checking ? (locale === 'en' ? 'Checking availability...' : '사용 가능 여부 확인 중...') : available === true ? (locale === 'en' ? 'This ID is available.' : '사용 가능한 아이디예요.') : available === false ? (locale === 'en' ? 'This ID is unavailable or invalid.' : '이미 사용 중이거나 사용할 수 없는 아이디예요.') : (locale === 'en' ? '3–30 lower-case letters, numbers, or underscores.' : '영문 소문자·숫자·밑줄 3~30자')}</p>{notice && <p id="handle-notice" role="alert" className="mt-1.5 text-[10px] text-[#e06b89]">{notice}</p>}</SurfaceCard>;
 }
 
 /** 정의: 프로필 요약에 표시되는 하나의 수치와 레이블 단위다. */

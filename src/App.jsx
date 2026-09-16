@@ -98,6 +98,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
+  const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
   const [profileCards, setProfileCards] = useState(null);
@@ -736,9 +737,15 @@ export default function App() {
     if (!saved.ok) return saved;
     setProfile(saved.data);
     setProfileNotice('');
-    setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
+    if (resumeUploadAfterHandle) {
+      setResumeUploadAfterHandle(false);
+      setActiveTab('upload');
+      setToast(locale === 'en' ? 'Your public ID is ready. Continue your upload.' : '공개 아이디를 저장했어요. 업로드를 계속해 주세요.');
+    } else {
+      setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
+    }
     return saved;
-  }, [locale]);
+  }, [locale, resumeUploadAfterHandle]);
 
   const checkHandle = useCallback(async (handle) => {
     const result = await checkHandleAvailability(handle);
@@ -757,10 +764,11 @@ export default function App() {
       return;
     }
     if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
+      setResumeUploadAfterHandle(true);
       setActiveTab('profile');
       setProfileNotice(locale === 'en'
-        ? 'You were sent to Profile because a public ID is required before you can upload. Save one below, then tap Upload again.'
-        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장한 뒤 업로드를 다시 눌러 주세요.');
+        ? 'A public ID is required before you can upload. Save one below to continue your upload.'
+        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장하면 업로드를 계속할 수 있어요.');
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
@@ -795,6 +803,7 @@ export default function App() {
     const landscapePhone = window.matchMedia?.('(orientation: landscape) and (max-height: 599px) and (max-width: 1023px)').matches;
     setIsLandscapeNavExpanded(Boolean(landscapePhone));
     if (id === 'upload') { openUpload(); return; }
+    if (id !== 'profile') setResumeUploadAfterHandle(false);
     if (id !== 'profile') setProfileNotice('');
     setActiveTab(id);
   }

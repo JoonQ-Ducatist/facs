@@ -49,7 +49,8 @@ test('Upload controls isolate touch events from the root swipe gesture', async (
   assert.match(source, /<form className="flex flex-col gap-3\.5" onSubmit=\{submit\} onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\}/);
   assert.match(source, /onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\} onClick=\{\(\) => setCategory\(id\)\}/);
   assert.match(source, /role="radio" aria-checked=\{selected\} onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\}/);
-  assert.match(styles, /\.editorial-upload form,[\s\S]*?\.editorial-upload select \{ touch-action: manipulation; \}/);
+  assert.match(styles, /\.editorial-upload form,[\s\S]*?\.editorial-upload select,/);
+  assert.match(styles, /\.editorial-profile input \{ touch-action: manipulation; \}/);
 });
 
 test('a just-published card is retained and kept canonical during feed hydration', async () => {

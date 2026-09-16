@@ -232,7 +232,10 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .editorial-upload button,
 .editorial-upload input,
 .editorial-upload textarea,
-.editorial-upload select { touch-action: manipulation; }
+.editorial-upload select,
+.editorial-profile form,
+.editorial-profile button,
+.editorial-profile input { touch-action: manipulation; }
 .upload-question-input { position: relative; z-index: 2; scroll-margin-block: 34vh; touch-action: manipulation; }
 .upload-question-suggestions { position: relative; z-index: 1; }
 .upload-category-grid > button { line-height: 1.2; text-align: center; text-wrap: balance; word-break: keep-all; }
