@@ -45,6 +45,13 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   /** 정의: 카드 표면의 시작 좌표를 기록해 가로 앨범·세로 피드 제스처를 구분한다. @param {PointerEvent} event 포인터 이벤트 */
   function startCardGesture(event) {
     if (event.target.closest('button, input, textarea')) return;
+    if (event.target instanceof HTMLVideoElement) {
+      const bounds = event.target.getBoundingClientRect();
+      // Native iOS video controls live along the bottom edge. Keep that strip
+      // dedicated to playhead/volume interactions while the rest of the video
+      // remains part of the card swipe surface.
+      if (event.clientY >= bounds.bottom - 58) return;
+    }
     gestureStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -173,7 +180,10 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
   const videoPoster = useVideoPoster(isVideo ? source.url : '');
   const videoRef = useRef(null);
   const protectMedia = (event) => event.preventDefault();
-  const isolateVideoTouch = (event) => event.stopPropagation();
+  const isolateVideoTouch = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientY >= bounds.bottom - 58) event.stopPropagation();
+  };
   const reportVideoEvent = (event) => {
     if (!import.meta.env.DEV) return;
     const video = event.currentTarget;
@@ -199,10 +209,14 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
       // iOS may reject fullscreen when the gesture is not considered user initiated.
     }
   };
+  const stopFullscreenGesture = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
   if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
   const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload="metadata" controls={!muted} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   if (!showFullscreen || muted) return video;
-  return <div className="feed-video-shell">{video}<button type="button" className="video-fullscreen-button" aria-label="동영상 전체 화면" title="전체 화면" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); enterFullscreen(); }}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>;
+  return <div className="feed-video-shell">{video}<button type="button" className="video-fullscreen-button" aria-label="동영상 전체 화면" title="전체 화면" onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={(event) => { stopFullscreenGesture(event); enterFullscreen(); }}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>;
 }
 function useVideoPoster(url) {
   const [poster, setPoster] = useState('');

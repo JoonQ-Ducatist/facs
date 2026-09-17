@@ -33,6 +33,10 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /onPointerMove=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
+  assert.match(source, /event\.clientY >= bounds\.bottom - 58/);
+  assert.match(source, /onPointerMove=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(source, /const stopFullscreenGesture = \(event\) =>/);
+  assert.match(source, /stopFullscreenGesture\(event\); enterFullscreen\(\)/);
   assert.match(source, /showFullscreen/);
   assert.match(source, /video-fullscreen-button/);
   assert.match(source, /requestFullscreen/);
@@ -55,7 +59,7 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
   assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
 });
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
