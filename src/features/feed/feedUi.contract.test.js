@@ -34,7 +34,13 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
   assert.match(source, /event\.clientY >= bounds\.bottom - 58/);
-  assert.doesNotMatch(source, /video-fullscreen-button|requestFullscreen|webkitEnterFullscreen/);
+  assert.match(source, /data-video-fullscreen-button/);
+  assert.match(source, /function enterFullscreen|const enterFullscreen/);
+  assert.match(source, /webkitEnterFullscreen/);
+  assert.match(source, /requestFullscreen/);
+  assert.match(source, /onPointerDown=\{stopFullscreenGesture\}/);
+  assert.match(source, /onClick=\{enterFullscreen\}/);
+  assert.doesNotMatch(source, /fullscreenActive|fullscreenSnapshotRef|fullscreenRequestRef|facs-video-fullscreen-active/);
   assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
   assert.match(source, /function useVideoPoster\(url\)/);
   assert.match(source, /function createRemoteVideoPoster\(url\)/);
@@ -53,7 +59,8 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
   assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
-  assert.doesNotMatch(styles, /video-fullscreen-button/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\)/);
 });
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
