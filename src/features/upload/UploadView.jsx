@@ -139,7 +139,8 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     });
   }
   function mediaTargetAtPoint(event) {
-    const element = document.elementFromPoint(event.clientX, event.clientY);
+    const point = event.touches?.[0] ?? event.changedTouches?.[0] ?? event;
+    const element = document.elementFromPoint(point.clientX, point.clientY);
     return element?.closest?.('[data-upload-media-id]')?.dataset.uploadMediaId ?? null;
   }
   function clearMediaTouchDrag() {
@@ -151,10 +152,14 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   }
   /** 정의: 모바일은 180ms 길게 누른 뒤에만 드래그를 시작해 일반적인 스크롤을 보존한다. */
   function beginMediaTouchDrag(id, event) {
-    if (event.pointerType !== 'touch' || mediaDragRef.current) return;
+    const isTouch = event.type === 'touchstart' || event.pointerType === 'touch';
+    if (!isTouch || mediaDragRef.current) return;
     event.stopPropagation();
+    event.preventDefault();
     const target = event.currentTarget;
-    const drag = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, target, active: false, timer: null };
+    const point = event.touches?.[0] ?? event;
+    const drag = { id, pointerId: event.pointerId, startX: point.clientX, startY: point.clientY, target, active: false, timer: null, pointerType: 'touch' };
+    try { if (event.pointerId != null) target.setPointerCapture?.(event.pointerId); } catch { /* iOS Chrome may reject capture after a native gesture starts. */ }
     drag.timer = window.setTimeout(() => {
       if (mediaDragRef.current !== drag) return;
       drag.active = true;
@@ -165,9 +170,10 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   }
   function moveMediaTouchDrag(event) {
     const drag = mediaDragRef.current;
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || (event.type.startsWith('touch') ? drag.pointerType !== 'touch' : event.pointerId !== drag.pointerId)) return;
     event.stopPropagation();
-    const movedDistance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    const point = event.touches?.[0] ?? event.changedTouches?.[0] ?? event;
+    const movedDistance = Math.hypot(point.clientX - drag.startX, point.clientY - drag.startY);
     if (!drag.active && movedDistance > 8) {
       clearMediaTouchDrag();
       return;
@@ -178,7 +184,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   }
   function endMediaTouchDrag(event) {
     const drag = mediaDragRef.current;
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || (event.type.startsWith('touch') ? drag.pointerType !== 'touch' : event.pointerId !== drag.pointerId)) return;
     event.stopPropagation();
     if (drag.active) {
       event.preventDefault();
@@ -339,10 +345,11 @@ function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, c
   function isolateMediaControlTouch(event) {
     if (event.pointerType === 'touch') event.stopPropagation();
   }
-  return <div data-upload-media-id={item.id} draggable onPointerDown={(event) => onTouchStart(item.id, event)} onPointerMove={onTouchMove} onPointerUp={onTouchEnd} onPointerCancel={onTouchCancel} onDragStart={(event) => onNativeDragStart(item.id, event)} onDragOver={(event) => onNativeDragOver(item.id, event)} onDrop={(event) => onNativeDrop(item.id, event)} onDragEnd={onNativeDragEnd} className={`media-preview relative aspect-square overflow-hidden rounded-xl border bg-black/30${isDragging ? ' media-preview--dragging' : ''}${isDragOver ? ' media-preview--drag-over' : ''}`} style={{ borderColor: `${color}66` }}>
+  return <div data-upload-media-id={item.id} draggable onPointerDown={(event) => onTouchStart(item.id, event)} onPointerMove={onTouchMove} onPointerUp={onTouchEnd} onPointerCancel={onTouchCancel} onTouchStart={(event) => onTouchStart(item.id, event)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel} onDragStart={(event) => onNativeDragStart(item.id, event)} onDragOver={(event) => onNativeDragOver(item.id, event)} onDrop={(event) => onNativeDrop(item.id, event)} onDragEnd={onNativeDragEnd} className={`media-preview relative aspect-square overflow-hidden rounded-xl border bg-black/30${isDragging ? ' media-preview--dragging' : ''}${isDragOver ? ' media-preview--drag-over' : ''}`} style={{ borderColor: `${color}66` }}>
     {previewError && item.type === 'image' ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} poster={videoPoster || undefined} muted playsInline preload="metadata" draggable="false" onError={() => {}} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} draggable="false" onError={() => setPreviewError(true)} />}
-    {item.type === 'video' && <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">VIDEO {item.duration.toFixed(1)}s</span>}<div className="absolute left-1 top-1 flex gap-1"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
+    {item.type === 'video' && <time dateTime={`PT${Math.max(0, Number(item.duration) || 0).toFixed(1)}S`} className="pointer-events-none absolute bottom-1 left-1 z-20 rounded bg-black/75 px-2 py-1 font-mono text-[10px] font-bold leading-none text-white shadow-md">{formatVideoDuration(item.duration)}</time>}<div className="absolute left-1 top-1 z-20 flex gap-1"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1 z-20"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
 }
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */
 function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); let settled = false; const finish = (duration) => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(duration); }; const timeout = window.setTimeout(() => finish(Number.NaN), 6000); video.preload = 'metadata'; video.onloadedmetadata = () => finish(Number.isFinite(video.duration) ? video.duration : Number.NaN); video.onerror = () => finish(Number.NaN); video.src = url; video.load(); }); }
 function createVideoPoster(url) { return new Promise((resolve) => { const video = document.createElement('video'); const canvas = document.createElement('canvas'); let settled = false; const finish = (poster = '') => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(poster); }; const capture = () => { try { if (!video.videoWidth || !video.videoHeight) return finish(''); canvas.width = video.videoWidth; canvas.height = video.videoHeight; const context = canvas.getContext('2d'); context?.drawImage(video, 0, 0, canvas.width, canvas.height); finish(canvas.toDataURL('image/jpeg', .82)); } catch { finish(''); } }; const timeout = window.setTimeout(() => finish(''), 6000); video.preload = 'auto'; video.muted = true; video.playsInline = true; video.onloadeddata = capture; video.onerror = () => finish(''); video.src = url; video.load(); }); }
+function formatVideoDuration(seconds) { const total = Math.max(0, Math.round(Number(seconds) || 0)); const minutes = Math.floor(total / 60); return `${minutes}:${String(total % 60).padStart(2, '0')}`; }

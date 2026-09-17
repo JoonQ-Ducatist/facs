@@ -172,7 +172,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .upload-media-control--move { background: rgba(16,34,55,.88); }
 .upload-media-control--remove { background: rgba(224,48,83,.94); }
 .upload-media-control:disabled { cursor: default; filter: saturate(.4); }
-.media-preview { cursor: grab; touch-action: pan-y; transition: transform .18s ease, border-color .18s ease, opacity .18s ease, box-shadow .18s ease; }
+.media-preview { cursor: grab; touch-action: none; transition: transform .18s ease, border-color .18s ease, opacity .18s ease, box-shadow .18s ease; }
 .media-preview:active { cursor: grabbing; }
 .media-preview--dragging { opacity: .52; transform: scale(.97); box-shadow: 0 0 0 2px rgba(255,255,255,.56), 0 8px 18px rgba(0,0,0,.28); }
 .media-preview--drag-over { border-color: rgba(255,255,255,.96) !important; box-shadow: 0 0 0 3px rgba(255,53,98,.72), 0 8px 18px rgba(0,0,0,.22); transform: scale(1.025); }
