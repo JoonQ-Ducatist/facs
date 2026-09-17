@@ -3,6 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      /* 정의: iOS가 첫 새로고침에서 문서 위치와 큰 layout viewport를 복원하기 전에
+         실제 visual viewport를 앱 셸의 시작점으로 고정한다. */
+      (() => {
+        const normalizeInitialViewport = () => {
+          const height = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+          if (height > 0) document.documentElement.style.setProperty('--xc-app-height', `${height}px`);
+          document.documentElement.scrollTop = 0;
+          if (document.body) document.body.scrollTop = 0;
+          if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+        };
+        if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+        normalizeInitialViewport();
+        window.addEventListener('pageshow', normalizeInitialViewport);
+        window.addEventListener('load', normalizeInitialViewport, { once: true });
+      })();
+    </script>
     <meta name="description" content="첫인상을 데이터로 분석하는 실시간 피드백 플랫폼 FACt.Smack" />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
     <link rel="manifest" href="/manifest.webmanifest" />

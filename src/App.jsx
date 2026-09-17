@@ -44,16 +44,16 @@ function hasFocusedTextEditor() {
   return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement || Boolean(active?.isContentEditable);
 }
 
-/** Keeps the app shell at the last non-keyboard visual viewport height. */
-function syncAppCanvasHeight({ force = false } = {}) {
-  if (!force && Date.now() < appCanvasSyncBlockedUntil) return;
+/** Keeps the app shell on the currently visible viewport without storing a keyboard viewport. */
+function syncAppCanvasHeight() {
+  if (Date.now() < appCanvasSyncBlockedUntil) return;
   if (hasFocusedTextEditor()) return;
   const visualHeight = Math.round(window.visualViewport?.height ?? 0);
   const layoutHeight = Math.round(window.innerHeight);
-  // iOS keeps innerHeight at its non-keyboard value while visualViewport is
-  // reduced. Never store that temporary keyboard height as the app shell.
-  if (visualHeight && layoutHeight && visualHeight < layoutHeight - 120) return;
-  const height = Math.max(visualHeight, layoutHeight);
+  // iOS can restore a larger layout viewport for one frame while its address
+  // bar leaves a smaller visual viewport. Text focus already excludes the
+  // software-keyboard case, so the visible height is authoritative here.
+  const height = visualHeight || layoutHeight;
   if (height > 0) document.documentElement.style.setProperty('--xc-app-height', `${height}px`);
 }
 
@@ -516,31 +516,6 @@ export default function App() {
       window.removeEventListener('pageshow', scheduleSync);
       window.removeEventListener('focus', scheduleSync);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, []);
-
-  /** Normalizes browser scroll restoration on a fresh/bfcache return so the fixed shell always starts at its header. */
-  useLayoutEffect(() => {
-    const previousRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = 'manual';
-    appCanvasSyncBlockedUntil = 0;
-    const normalizeDocumentViewport = () => {
-      if (window.scrollX || window.scrollY) window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-      if (document.scrollingElement) {
-        document.scrollingElement.scrollLeft = 0;
-        document.scrollingElement.scrollTop = 0;
-      }
-      document.body.scrollLeft = 0;
-      document.body.scrollTop = 0;
-      syncAppCanvasHeight({ force: true });
-    };
-    const timers = [0, 80, 240, 600].map((delay) => window.setTimeout(normalizeDocumentViewport, delay));
-    normalizeDocumentViewport();
-    window.addEventListener('pageshow', normalizeDocumentViewport);
-    return () => {
-      timers.forEach((timer) => window.clearTimeout(timer));
-      window.removeEventListener('pageshow', normalizeDocumentViewport);
-      window.history.scrollRestoration = previousRestoration;
     };
   }, []);
 
