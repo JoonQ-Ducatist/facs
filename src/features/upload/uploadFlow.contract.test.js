@@ -87,7 +87,10 @@ test('media previews support desktop drop and mobile long-press reordering', asy
   assert.match(source, /data-upload-media-id=\{item\.id\} draggable/);
   assert.match(source, /onDragOver=\{\(event\) => onNativeDragOver\(item\.id, event\)\}/);
   assert.match(source, /onDrop=\{\(event\) => onNativeDrop\(item\.id, event\)\}/);
+  assert.match(source, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
   assert.match(styles, /\.media-preview \{[\s\S]*?cursor: grab; touch-action: none/);
+  assert.match(styles, /\.media-preview > img, \.media-preview > video \{ pointer-events: none; \}/);
+  assert.match(styles, /\.upload-video-duration \{[\s\S]*?z-index: 40;[\s\S]*?display: inline-flex !important/);
   assert.match(styles, /\.media-preview--dragging \{/);
   assert.match(styles, /\.media-preview--drag-over \{/);
 });

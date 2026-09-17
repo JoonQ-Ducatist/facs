@@ -173,9 +173,17 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .upload-media-control--remove { background: rgba(224,48,83,.94); }
 .upload-media-control:disabled { cursor: default; filter: saturate(.4); }
 .media-preview { cursor: grab; touch-action: none; transition: transform .18s ease, border-color .18s ease, opacity .18s ease, box-shadow .18s ease; }
+.media-preview > img, .media-preview > video { pointer-events: none; }
+.media-preview::selection { background: transparent; }
+.upload-video-duration { position: absolute; left: 4px; bottom: 4px; z-index: 40; display: inline-flex !important; min-width: 28px; align-items: center; justify-content: center; pointer-events: none; border: 1px solid rgba(255,255,255,.46); border-radius: 999px; background: rgba(0,0,0,.78); padding: 4px 7px; color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 800; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.42); box-shadow: 0 2px 7px rgba(0,0,0,.38); }
 .media-preview:active { cursor: grabbing; }
 .media-preview--dragging { opacity: .52; transform: scale(.97); box-shadow: 0 0 0 2px rgba(255,255,255,.56), 0 8px 18px rgba(0,0,0,.28); }
 .media-preview--drag-over { border-color: rgba(255,255,255,.96) !important; box-shadow: 0 0 0 3px rgba(255,53,98,.72), 0 8px 18px rgba(0,0,0,.22); transform: scale(1.025); }
+.feed-video-shell { position: relative; width: 100%; height: 100%; }
+.video-fullscreen-button { position: absolute; top: 68px; right: 16px; z-index: 35; display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.42); border-radius: 999px; background: rgba(1,8,17,.54); color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.3); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background .15s ease, transform .15s ease, opacity .15s ease; }
+.video-fullscreen-button:hover { background: rgba(1,8,17,.76); }
+.video-fullscreen-button:active { transform: scale(.92); }
+.video-fullscreen-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .media-card-photo-nav { display: none; }
 .ranking-preview-card { width: min(100%, 620px); }
 .ranking-preview-carousel { width: 100%; }
