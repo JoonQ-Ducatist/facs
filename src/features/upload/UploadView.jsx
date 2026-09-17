@@ -67,6 +67,9 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDragActive, setIsDragActive] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [draggingMediaId, setDraggingMediaId] = useState(null);
+  const [dragOverMediaId, setDragOverMediaId] = useState(null);
+  const mediaDragRef = useRef(null);
 
   const imageCount = media.filter((item) => item.type === 'image').length;
   const videoCount = media.filter((item) => item.type === 'video').length;
@@ -121,6 +124,88 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   function removeMedia(id) { setMedia((items) => { const target = items.find((item) => item.id === id); if (target) URL.revokeObjectURL(target.url); return items.filter((item) => item.id !== id); }); }
   /** 정의: 선택한 미디어의 대표 노출 순서를 한 칸 이동한다. @param {number} index 현재 순서 @param {-1|1} direction 이동 방향 */
   function moveMedia(index, direction) { setMedia((items) => { const destination = index + direction; if (destination < 0 || destination >= items.length) return items; const next = [...items]; [next[index], next[destination]] = [next[destination], next[index]]; return next; }); }
+  /** 정의: 드래그 완료 시 선택 미디어를 목표 썸네일 앞에 배치한다. */
+  function reorderMedia(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    setMedia((items) => {
+      const sourceIndex = items.findIndex((item) => item.id === sourceId);
+      const targetIndex = items.findIndex((item) => item.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return items;
+      const next = [...items];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }
+  function mediaTargetAtPoint(event) {
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    return element?.closest?.('[data-upload-media-id]')?.dataset.uploadMediaId ?? null;
+  }
+  function clearMediaTouchDrag() {
+    const drag = mediaDragRef.current;
+    if (drag?.timer) window.clearTimeout(drag.timer);
+    mediaDragRef.current = null;
+    setDraggingMediaId(null);
+    setDragOverMediaId(null);
+  }
+  /** 정의: 모바일은 180ms 길게 누른 뒤에만 드래그를 시작해 일반적인 스크롤을 보존한다. */
+  function beginMediaTouchDrag(id, event) {
+    if (event.pointerType !== 'touch' || mediaDragRef.current) return;
+    event.stopPropagation();
+    const target = event.currentTarget;
+    const drag = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, target, active: false, timer: null };
+    drag.timer = window.setTimeout(() => {
+      if (mediaDragRef.current !== drag) return;
+      drag.active = true;
+      setDraggingMediaId(id);
+      target.setPointerCapture?.(event.pointerId);
+    }, 180);
+    mediaDragRef.current = drag;
+  }
+  function moveMediaTouchDrag(event) {
+    const drag = mediaDragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.stopPropagation();
+    const movedDistance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (!drag.active && movedDistance > 8) {
+      clearMediaTouchDrag();
+      return;
+    }
+    if (!drag.active) return;
+    event.preventDefault();
+    setDragOverMediaId(mediaTargetAtPoint(event));
+  }
+  function endMediaTouchDrag(event) {
+    const drag = mediaDragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.stopPropagation();
+    if (drag.active) {
+      event.preventDefault();
+      reorderMedia(drag.id, mediaTargetAtPoint(event));
+    }
+    clearMediaTouchDrag();
+  }
+  function startNativeMediaDrag(id, event) {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+    setDraggingMediaId(id);
+  }
+  function overNativeMediaDrag(id, event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverMediaId(id);
+  }
+  function dropNativeMedia(id, event) {
+    event.preventDefault();
+    reorderMedia(event.dataTransfer.getData('text/plain') || draggingMediaId, id);
+    setDraggingMediaId(null);
+    setDragOverMediaId(null);
+  }
+  function endNativeMediaDrag() {
+    setDraggingMediaId(null);
+    setDragOverMediaId(null);
+  }
   /** 정의: 추천 문장을 비우고 직접 작성할 수 있도록 질문 입력창에 포커스한다. */
   function clearQuestion() { setQuestion(''); setFieldErrors((errors) => ({ ...errors, question: undefined })); window.requestAnimationFrame(() => questionRef.current?.focus()); }
   /** 추천 선택은 모바일 키보드를 자동으로 열지 않아 선택한 문장이 가려지지 않게 한다. */
@@ -186,7 +271,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       <div role={canOpenDropzone ? 'button' : undefined} tabIndex={canOpenDropzone ? 0 : undefined} onClick={() => canOpenDropzone && inputRef.current?.click()} onKeyDown={(event) => { if (canOpenDropzone && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canOpenDropzone ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
         <input id="upload-media-input" ref={inputRef} type="file" multiple accept={acceptedTypes} className="sr-only" onChange={handleFileChange} />
         <input id="upload-camera-input" ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="sr-only" onChange={handleFileChange} />
-        {!media.length ? <div className="flex min-h-[164px] flex-col items-center justify-center text-center"><span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-2xl">upload_file</span></span><p className="font-headline text-sm font-bold text-white">사진 또는 짧은 동영상 선택</p><p className="mt-1 font-mono text-[11px] text-slate-400">이미지 5개 + 동영상 1개 · 동영상 최대 10초 · 파일당 15MB</p><label htmlFor="upload-media-input" onClick={(event) => event.stopPropagation()} className="mt-3 cursor-pointer rounded-full border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-medium text-cyan-glow">로컬 디바이스에서 파일 찾기</label><span className="mt-2 hidden text-[11px] text-[#5f9f9a] sm:block">파일을 이 영역에 끌어다 놓아도 바로 추가할 수 있어요</span></div> : <><div className="mb-2 flex items-center justify-between text-[11px] font-mono"><span className="text-slate-300">이미지 <strong style={{ color: selectedTheme.color }}>{imageCount}/{MAX_IMAGES}</strong> · 동영상 <strong style={{ color: selectedTheme.color }}>{videoCount}/{MAX_VIDEOS}</strong></span><span className="text-slate-500">{canAddImage ? '사진 또는 동영상을 추가할 수 있어요' : canAddVideo ? '동영상 1개를 더 추가할 수 있어요' : '최대 선택 완료'}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{media.map((item, index) => <MediaPreview key={item.id} item={item} index={index} color={selectedTheme.color} onRemove={() => removeMedia(item.id)} onMove={(direction) => moveMedia(index, direction)} canMovePrevious={index > 0} canMoveNext={index < media.length - 1} />)}{canAddImage && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="사진 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">add</span></button>}{canAddVideo && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="동영상 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">videocam</span></button>}</div></>}
+        {!media.length ? <div className="flex min-h-[164px] flex-col items-center justify-center text-center"><span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-2xl">upload_file</span></span><p className="font-headline text-sm font-bold text-white">사진 또는 짧은 동영상 선택</p><p className="mt-1 font-mono text-[11px] text-slate-400">이미지 5개 + 동영상 1개 · 동영상 최대 10초 · 파일당 15MB</p><label htmlFor="upload-media-input" onClick={(event) => event.stopPropagation()} className="mt-3 cursor-pointer rounded-full border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-medium text-cyan-glow">로컬 디바이스에서 파일 찾기</label><span className="mt-2 hidden text-[11px] text-[#5f9f9a] sm:block">파일을 이 영역에 끌어다 놓아도 바로 추가할 수 있어요</span></div> : <><div className="mb-2 flex items-center justify-between text-[11px] font-mono"><span className="text-slate-300">이미지 <strong style={{ color: selectedTheme.color }}>{imageCount}/{MAX_IMAGES}</strong> · 동영상 <strong style={{ color: selectedTheme.color }}>{videoCount}/{MAX_VIDEOS}</strong></span><span className="text-slate-500">{canAddImage ? '사진 또는 동영상을 추가할 수 있어요' : canAddVideo ? '동영상 1개를 더 추가할 수 있어요' : '최대 선택 완료'}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{media.map((item, index) => <MediaPreview key={item.id} item={item} index={index} color={selectedTheme.color} onRemove={() => removeMedia(item.id)} onMove={(direction) => moveMedia(index, direction)} canMovePrevious={index > 0} canMoveNext={index < media.length - 1} isDragging={draggingMediaId === item.id} isDragOver={dragOverMediaId === item.id} onTouchStart={beginMediaTouchDrag} onTouchMove={moveMediaTouchDrag} onTouchEnd={endMediaTouchDrag} onTouchCancel={clearMediaTouchDrag} onNativeDragStart={startNativeMediaDrag} onNativeDragOver={overNativeMediaDrag} onNativeDrop={dropNativeMedia} onNativeDragEnd={endNativeMediaDrag} />)}{canAddImage && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="사진 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">add</span></button>}{canAddVideo && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="동영상 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">videocam</span></button>}</div></>}
       </div>
       <fieldset><legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300">1. 카테고리 선택</legend><div className="upload-category-grid grid grid-cols-3 gap-2">{Object.entries(categories).map(([id, item]) => <button key={id} type="button" onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch} onClick={() => setCategory(id)} className="flex min-w-0 items-center justify-center gap-1 rounded-md border px-2 py-2 font-body text-xs transition-all" style={category === id ? { borderColor: item.color, color: item.color, backgroundColor: `${item.color}14`, fontWeight: 700 } : { borderColor: '#c4c6cd', color: '#44474c', backgroundColor: '#ffffff' }}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: item.color, color: item.color }}><span className="material-symbols-outlined text-[13px]">{item.icon}</span></span><span>{item.label}</span></button>)}</div></fieldset>
       <fieldset className="rounded-lg border border-[#ddd8cd] bg-[#f5f3ee] p-3"><legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-[#74777d]">2. 공개 범위</legend><div role="radiogroup" aria-label="공개 범위" className="grid grid-cols-2 gap-2"><VisibilityChoice selected={visibility === 'public'} icon="public" label="전체 공개" description="피드에서 누구나 볼 수 있어요." onSelect={() => setVisibility('public')} /><VisibilityChoice selected={visibility === 'followers'} icon="group" label="팔로워만" description="나와 나를 팔로우한 사람만 볼 수 있어요." onSelect={() => setVisibility('followers')} /></div></fieldset>
@@ -227,13 +312,13 @@ function getImagePreviewUrl(file) {
   });
 }
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
-function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext }) {
+function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext, isDragging, isDragOver, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onNativeDragStart, onNativeDragOver, onNativeDrop, onNativeDragEnd }) {
   const [previewError, setPreviewError] = useState(false);
   function isolateMediaControlTouch(event) {
     if (event.pointerType === 'touch') event.stopPropagation();
   }
-  return <div className="relative aspect-square overflow-hidden rounded-xl border bg-black/30" style={{ borderColor: `${color}66` }}>
-    {previewError ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline onError={() => setPreviewError(true)} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} onError={() => setPreviewError(true)} />}
+  return <div data-upload-media-id={item.id} draggable onPointerDown={(event) => onTouchStart(item.id, event)} onPointerMove={onTouchMove} onPointerUp={onTouchEnd} onPointerCancel={onTouchCancel} onDragStart={(event) => onNativeDragStart(item.id, event)} onDragOver={(event) => onNativeDragOver(item.id, event)} onDrop={(event) => onNativeDrop(item.id, event)} onDragEnd={onNativeDragEnd} className={`media-preview relative aspect-square overflow-hidden rounded-xl border bg-black/30${isDragging ? ' media-preview--dragging' : ''}${isDragOver ? ' media-preview--drag-over' : ''}`} style={{ borderColor: `${color}66` }}>
+    {previewError ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline preload="metadata" onError={() => setPreviewError(true)} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} onError={() => setPreviewError(true)} />}
     {item.type === 'video' && <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">VIDEO {item.duration.toFixed(1)}s</span>}<div className="absolute left-1 top-1 flex gap-1"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
 }
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */

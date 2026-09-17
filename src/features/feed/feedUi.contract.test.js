@@ -23,6 +23,18 @@ test('feed cards render protected media and adjacent multi-photo previews', asyn
   assert.match(source, /media-card--multi/);
 });
 
+test('feed video uses native playback controls without stealing feed gestures', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(source, /autoPlay=\{Boolean\(muted\)\}/);
+  assert.match(source, /loop=\{Boolean\(muted\)\}/);
+  assert.match(source, /preload="metadata"/);
+  assert.match(source, /controls=\{!muted\}/);
+  assert.match(source, /onPointerDown=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerMove=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
+});
+
 test('multi-photo media keeps the central photo full width with fixed edge previews', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(styles, /\.media-card \.media-primary \{ inset: 0;/);

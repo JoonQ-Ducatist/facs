@@ -74,6 +74,23 @@ test('image previews keep the photo surface clean while video duration stays vis
   assert.doesNotMatch(source, /`IMAGE \$\{index \+ 1\}`/);
 });
 
+test('media previews support desktop drop and mobile long-press reordering', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /const \[draggingMediaId, setDraggingMediaId\] = useState\(null\)/);
+  assert.match(source, /function reorderMedia\(sourceId, targetId\)/);
+  assert.match(source, /function beginMediaTouchDrag\(id, event\)/);
+  assert.match(source, /window\.setTimeout\(\(\) => \{/);
+  assert.match(source, /function moveMediaTouchDrag\(event\)/);
+  assert.match(source, /function endMediaTouchDrag\(event\)/);
+  assert.match(source, /data-upload-media-id=\{item\.id\} draggable/);
+  assert.match(source, /onDragOver=\{\(event\) => onNativeDragOver\(item\.id, event\)\}/);
+  assert.match(source, /onDrop=\{\(event\) => onNativeDrop\(item\.id, event\)\}/);
+  assert.match(styles, /\.media-preview \{[\s\S]*?cursor: grab; touch-action: pan-y/);
+  assert.match(styles, /\.media-preview--dragging \{/);
+  assert.match(styles, /\.media-preview--drag-over \{/);
+});
+
 test('a just-published card is retained and kept canonical during feed hydration', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const pendingPublishedCard = useRef\(null\)/);
