@@ -180,6 +180,7 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
   const videoPoster = useVideoPoster(isVideo ? source.url : '');
   const videoRef = useRef(null);
   const fullscreenSnapshotRef = useRef(null);
+  const fullscreenRequestRef = useRef(false);
   const [fullscreenActive, setFullscreenActive] = useState(false);
   const protectMedia = (event) => event.preventDefault();
   const isolateVideoTouch = (event) => {
@@ -200,49 +201,36 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
   const enterFullscreen = () => {
     const video = videoRef.current;
     if (!video) return;
-    const main = document.querySelector('.editorial-main');
-    const categoryRail = document.querySelector('.feed-category-rail');
-    fullscreenSnapshotRef.current = {
-      windowX: window.scrollX,
-      windowY: window.scrollY,
-      mainScrollTop: main?.scrollTop ?? 0,
-      categoryScrollLeft: categoryRail?.scrollLeft ?? 0,
-    };
-    setFullscreenActive(true);
-    document.documentElement.classList.add('facs-video-fullscreen-active');
-    const enterWebkitFullscreen = () => {
-      if (typeof video.webkitEnterFullscreen === 'function') {
-        video.webkitEnterFullscreen();
-        return true;
-      }
-      return false;
-    };
-    try {
-      if (fullscreenActive) {
+    if (fullscreenRequestRef.current) return;
+    if (fullscreenActive) {
+      try {
         if (typeof document.exitFullscreen === 'function' && document.fullscreenElement) {
           const result = document.exitFullscreen();
           result?.catch?.(() => {});
-        } else if (typeof video.webkitExitFullscreen === 'function') {
-          video.webkitExitFullscreen();
-        }
-        return;
-      }
-      if (typeof video.requestFullscreen === 'function') {
-        const result = video.requestFullscreen();
-        result?.catch?.(() => {
-          if (!enterWebkitFullscreen()) {
-            setFullscreenActive(false);
-            document.documentElement.classList.remove('facs-video-fullscreen-active');
-          }
-        });
-      } else if (!enterWebkitFullscreen()) {
-        setFullscreenActive(false);
-        document.documentElement.classList.remove('facs-video-fullscreen-active');
-      }
-    } catch {
-      // iOS may reject fullscreen when the gesture is not considered user initiated.
+        } else if (typeof video.webkitExitFullscreen === 'function') video.webkitExitFullscreen();
+      } catch { /* Native exit can be rejected after the browser leaves the video. */ }
+      return;
+    }
+    const main = document.querySelector('.editorial-main');
+    const categoryRail = document.querySelector('.feed-category-rail');
+    fullscreenSnapshotRef.current = { mainScrollTop: main?.scrollTop ?? 0, categoryScrollLeft: categoryRail?.scrollLeft ?? 0 };
+    fullscreenRequestRef.current = true;
+    const failFullscreen = () => {
+      fullscreenRequestRef.current = false;
       setFullscreenActive(false);
       document.documentElement.classList.remove('facs-video-fullscreen-active');
+    };
+    try {
+      // iOS Chrome exposes WebKit's video-only fullscreen path. Prefer it so
+      // repeated enter/exit cycles follow the same native lifecycle events.
+      if (typeof video.webkitEnterFullscreen === 'function') video.webkitEnterFullscreen();
+      else if (typeof video.requestFullscreen === 'function') {
+        const result = video.requestFullscreen();
+        result?.catch?.(failFullscreen);
+      } else failFullscreen();
+    } catch {
+      // iOS may reject fullscreen when the gesture is not considered user initiated.
+      failFullscreen();
     }
   };
   const stopFullscreenGesture = (event) => {
@@ -253,18 +241,20 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
     if (!isVideo || !videoRef.current) return undefined;
     const video = videoRef.current;
     const restoreShell = () => {
+      fullscreenRequestRef.current = false;
       setFullscreenActive(false);
       document.documentElement.classList.remove('facs-video-fullscreen-active');
       const snapshot = fullscreenSnapshotRef.current;
       if (!snapshot) return;
       window.requestAnimationFrame(() => {
-        window.scrollTo(snapshot.windowX, snapshot.windowY);
-        document.querySelector('.editorial-main')?.scrollTo({ top: snapshot.mainScrollTop, behavior: 'auto' });
+        const main = document.querySelector('.editorial-main');
+        if (main) main.scrollTop = snapshot.mainScrollTop;
         const categoryRail = document.querySelector('.feed-category-rail');
         if (categoryRail) categoryRail.scrollLeft = snapshot.categoryScrollLeft;
       });
     };
     const markFullscreen = () => {
+      fullscreenRequestRef.current = false;
       setFullscreenActive(true);
       document.documentElement.classList.add('facs-video-fullscreen-active');
     };

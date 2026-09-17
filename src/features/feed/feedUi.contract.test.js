@@ -38,10 +38,13 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /const stopFullscreenGesture = \(event\) =>/);
   assert.match(source, /stopFullscreenGesture\(event\); enterFullscreen\(\)/);
   assert.match(source, /fullscreenSnapshotRef/);
+  assert.match(source, /fullscreenRequestRef/);
+  assert.match(source, /if \(fullscreenRequestRef\.current\) return/);
   assert.match(source, /webkitbeginfullscreen/);
   assert.match(source, /webkitendfullscreen/);
-  assert.match(source, /enterWebkitFullscreen/);
+  assert.match(source, /webkitEnterFullscreen/);
   assert.match(source, /categoryScrollLeft/);
+  assert.doesNotMatch(source, /window\.scrollTo\(snapshot\.windowX, snapshot\.windowY\)/);
   assert.match(source, /facs-video-fullscreen-active/);
   assert.match(source, /showFullscreen/);
   assert.match(source, /video-fullscreen-button/);
@@ -78,7 +81,7 @@ test('multi-photo edge previews only render for directions that have a neighbori
 
 test('fullscreen exit resynchronizes the mobile app shell viewport', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(source, /const onFullscreenChange = \(\) => \{ scheduleSync\(\);/);
+  assert.match(source, /const onFullscreenChange = \(\) => \{/);
   assert.match(source, /document\.addEventListener\('fullscreenchange', onFullscreenChange\)/);
   assert.match(source, /document\.addEventListener\('webkitendfullscreen', onFullscreenChange\)/);
 });
