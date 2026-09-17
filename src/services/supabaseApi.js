@@ -243,8 +243,13 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
   const pageSize = Math.min(Math.max(limit, 1), 50);
   const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_ids', { page_size: pageSize, category_filter: null });
   if (orderError) return apiSuccess([], { source: 'degraded' });
+  return listSupabaseCardsInServerOrder(orderedPosts, { client, source: 'supabase' });
+}
+
+/** Converts an already-authorized ordered ID RPC response into protected Feed cards. */
+async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = 'supabase', isMyUpload = false } = {}) {
   const postIds = (orderedPosts ?? []).map((item) => item.post_id).filter(Boolean);
-  if (!postIds.length) return apiSuccess([], { source: 'supabase' });
+  if (!postIds.length) return apiSuccess([], { source });
   const { data, error } = await client
     .from('posts')
     .select('id,author_id,category,evaluation,question,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
@@ -294,12 +299,35 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
       timestamp: '방금 전',
       publishedAt: post.published_at,
       feedSource: sourceById.get(post.id) ?? 'discovery',
-      isMyUpload: false,
+      isMyUpload,
       commentsAllowed: true,
       comments: [],
     };
   }));
-  return apiSuccess(cards.filter(Boolean), { source: 'supabase' });
+  return apiSuccess(cards.filter(Boolean), { source });
+}
+
+/** Reads every server-authorized profile post in stable newest-first order, independent of the Feed page limit. */
+export async function listSupabaseMyPublishedProfileCards({ limit = 100, client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const pageSize = Math.min(Math.max(limit, 1), 100);
+  const { data, error } = await client.rpc('get_my_published_profile_post_ids', { page_size: pageSize });
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '내 업로드를 불러오지 못했어요.');
+  return listSupabaseCardsInServerOrder(data, { client, source: 'supabase-profile', isMyUpload: true });
+}
+
+/** Reads the current member's still-accessible Scraps in saved-time order for a Feed-detail popup. */
+export async function listSupabaseMyScrapFeedCards({ limit = 100, client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const pageSize = Math.min(Math.max(limit, 1), 100);
+  const { data, error } = await client.rpc('get_my_scrap_post_ids', { page_size: pageSize });
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '스크랩을 불러오지 못했어요.');
+  const cards = await listSupabaseCardsInServerOrder(data, { client, source: 'supabase-scraps' });
+  if (cards.error) return cards;
+  const savedAtById = new Map((data ?? []).map((item) => [item.post_id, item.saved_at]));
+  return apiSuccess(cards.data.map((card) => ({ ...card, savedAt: savedAtById.get(card.id) ?? null })), cards.meta);
 }
 
 /** Maps the reduced deployed post schema without requiring profile, media, or vote-row reads. */

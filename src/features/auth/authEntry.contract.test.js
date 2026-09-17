@@ -12,7 +12,10 @@ test('preview authentication resumes an existing session unless authPreview expl
   assert.match(source, /const forceAuthPreview = authPreview/);
   assert.match(source, /forceAuthPreview \|\| previewMode \|\| !sharedPostId/);
   assert.match(source, /forceAuthPreview && !allowPreviewTransition/);
-  assert.match(source, /finishAuthenticatedEntry\(session, \{ allowPreviewTransition: event === 'SIGNED_IN' \}\)/);
+  assert.match(source, /const authTransitionPending = useRef\(false\)/);
+  assert.match(source, /const authTransitionConsumed = useRef\(false\)/);
+  assert.match(source, /allowPreviewTransition: event === 'SIGNED_IN' && authTransitionPending\.current/);
+  assert.match(source, /allowPreviewTransition && !authTransitionConsumed\.current/);
   assert.match(source, /event\.key === 'facs_auth_completed_at'.*restoreOriginalTab\(true\)/s);
   assert.match(source, /event\.key\?\.startsWith\('sb-'\).*restoreOriginalTab\(\)/s);
   assert.match(source, /const onVisible = \(\) => \{ if \(document\.visibilityState === 'visible'\) void restoreOriginalTab\(\); \}/);
@@ -20,6 +23,14 @@ test('preview authentication resumes an existing session unless authPreview expl
 
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(source, /if \(allowPreviewTransition\) \{\s*setIsSharedGuest\(false\);\s*setActiveTab\('feed'\);\s*\}/);
+  assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);
+  assert.match(source, /if \(allowPreviewTransition && !authTransitionConsumed\.current\) \{[\s\S]*?setIsSharedGuest\(false\);\s*setActiveTab\('feed'\);\s*\}/);
   assert.match(source, /event\.key === 'facs_auth_completed_at'.*restoreOriginalTab\(true\)/s);
+});
+
+test('passive session restoration cannot consume the explicit Feed transition', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /allowPreviewTransition: event === 'SIGNED_IN' && authTransitionPending\.current/);
+  assert.match(source, /authTransitionConsumed\.current = true;[\s\S]*authTransitionPending\.current = false;/);
+  assert.match(source, /onVisible = \(\) => \{ if \(document\.visibilityState === 'visible'\) void restoreOriginalTab\(\); \}/);
 });

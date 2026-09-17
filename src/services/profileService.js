@@ -4,6 +4,13 @@ import { supabase } from './supabaseClient.js';
 const HANDLE_PATTERN = /^[a-z0-9_]{3,30}$/;
 const HANDLE_PREFIXES = ['mood', 'daily', 'soft', 'bright', 'calm', 'fresh'];
 const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
+// Keep browser read-back compatible with the original profile schema. The
+// server-only handle cooldown column is not rendered by the client, and an
+// older deployed database must not turn a successful handle save into a
+// generic profile-read failure merely because that optional column is absent.
+const PROFILE_READ_COLUMNS = 'id,handle,display_name';
+export const HANDLE_CHANGE_COOLDOWN_REASON = 'public_handle_change_cooldown';
+export const HANDLE_CHANGE_LOCK_ERROR_CODES = Object.freeze([API_ERROR.RATE_LIMITED]);
 
 /** Public handles are lower-case, non-identifying IDs rather than email addresses. */
 export function normalizeHandle(value) {
@@ -26,10 +33,23 @@ export function canSubmitHandle({ handle, saving = false, checking = false, avai
 }
 
 /** Adapts the shared API envelope to the ProfileView action contract. */
-export function mapHandleSaveResult(result) {
-  if (result?.error) return { ok: false, message: result.error.message ?? '아이디를 저장하지 못했어요.' };
+export function mapHandleSaveResult(result, locale = 'ko') {
+  if (result?.error) return { ok: false, message: handleSaveErrorMessage(result.error, locale) };
   if (result?.data?.id && isConfiguredHandle(result.data.handle)) return { ok: true, data: result.data };
   return { ok: false, message: '프로필 저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.' };
+}
+
+/** Provides a stable UI message for a future server-side one-month handle lock. */
+export function handleSaveErrorMessage(error, locale = 'ko') {
+  const isCooldown = HANDLE_CHANGE_LOCK_ERROR_CODES.includes(error?.code)
+    || error?.fieldErrors?.reason === HANDLE_CHANGE_COOLDOWN_REASON
+    || (error?.code === '22023' && error?.message === HANDLE_CHANGE_COOLDOWN_REASON);
+  if (isCooldown) {
+    return locale === 'en'
+      ? 'You can change your public ID again one month after the last change.'
+      : '공개 아이디는 변경 후 1개월이 지나야 다시 변경할 수 있어요.';
+  }
+  return error?.message ?? '아이디를 저장하지 못했어요.';
 }
 
 /** Makes stable, non-identifying starter IDs so a new member need not invent one. */
@@ -54,7 +74,7 @@ async function requireUser(client = supabase) {
 export async function getMyProfile({ client = supabase } = {}) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
-  const { data, error } = await client.from('profiles').select('id,handle,display_name').eq('id', identity.user.id).maybeSingle();
+  const { data, error } = await client.from('profiles').select(PROFILE_READ_COLUMNS).eq('id', identity.user.id).maybeSingle();
   if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '프로필을 불러오지 못했어요.');
   if (!data) return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   return apiSuccess(data);
@@ -90,6 +110,7 @@ export async function updateMyHandle(rawHandle, { client = supabase } = {}) {
   if (identity.error) return identity.error;
   const { data, error } = await client.rpc('set_my_public_handle', { input_handle: handle });
   if (error?.code === '23505') return apiFailure(API_ERROR.VALIDATION_FAILED, '이미 사용 중인 아이디예요. 다른 아이디를 선택해 주세요.');
+  if (error?.code === '22023' && error?.message === HANDLE_CHANGE_COOLDOWN_REASON) return apiFailure(API_ERROR.RATE_LIMITED, '공개 아이디는 변경 후 1개월이 지나야 다시 변경할 수 있어요.', { reason: HANDLE_CHANGE_COOLDOWN_REASON });
   if (error?.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '아이디는 영문 소문자·숫자·밑줄로 3~30자까지 입력해 주세요.');
   if (error?.code === '42501' && error?.message === 'profile_not_ready') return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   if (error?.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '현재 계정에서는 아이디를 저장할 수 없어요. 다시 로그인해 주세요.');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -121,6 +121,43 @@ test('Boost candidates use the private server-clock RPC and map only safe fields
   const result = await listSupabaseBoostCandidates({ client });
   assert.deepEqual(calls, [{ name: 'get_my_boost_candidates', args: { page_size: 20 } }]);
   assert.deepEqual(result.data[0], { postId: 'post-a', category: 'PerceivedAge', publishedAt: '2026-09-15T00:00:00Z', otherVoteCount: 0, targetVotes: 100 });
+});
+
+function orderedLibraryClient(rpcRows) {
+  const calls = [];
+  const post = {
+    id: 'post-b', author_id: 'member-a', category: 'outfit', evaluation: 'binary', question: '새 사진', age_min: null, age_max: null,
+    published_at: '2026-09-16T09:00:00Z', profiles: { handle: 'member_a' },
+    post_media: [{ position: 0, media_assets: { id: 'asset-b', storage_path: 'uploads/b', media_type: 'image' } }],
+  };
+  const query = { select: () => query, eq: () => query, in: async () => ({ data: [post], error: null }) };
+  return {
+    calls,
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      if (name === 'get_published_post_aggregates') return { data: [], error: null };
+      return { data: rpcRows, error: null };
+    },
+    from: () => query,
+    storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/b.jpg' }, error: null }) }) },
+  };
+}
+
+test('profile library reads its own newest-first RPC, not the limited personalized feed', async () => {
+  const client = orderedLibraryClient([{ post_id: 'post-b', published_at: '2026-09-16T09:00:00Z' }]);
+  const result = await listSupabaseMyPublishedProfileCards({ client });
+  assert.deepEqual(client.calls[0], { name: 'get_my_published_profile_post_ids', args: { page_size: 100 } });
+  assert.equal(result.data[0].id, 'post-b');
+  assert.equal(result.data[0].isMyUpload, true);
+});
+
+test('Scrap library preserves private saved order and includes popup-ready protected media', async () => {
+  const client = orderedLibraryClient([{ post_id: 'post-b', saved_at: '2026-09-16T10:00:00Z' }]);
+  const result = await listSupabaseMyScrapFeedCards({ client });
+  assert.deepEqual(client.calls[0], { name: 'get_my_scrap_post_ids', args: { page_size: 100 } });
+  assert.equal(result.data[0].savedAt, '2026-09-16T10:00:00Z');
+  assert.equal(result.data[0].media[0].url, 'https://signed.example/b.jpg');
 });
 
 test('upload categories map to the database contract without exposing display labels', () => {

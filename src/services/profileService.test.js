@@ -28,6 +28,12 @@ test('profile save adapts the shared API envelope for success, duplicate, and pe
   assert.equal(mapHandleSaveResult({ data: { id: 'a', handle: 'member_placeholder' } }).ok, false);
 });
 
+test('profile save exposes a localized message for a future one-month handle lock', () => {
+  assert.deepEqual(mapHandleSaveResult({ error: { code: 'RATE_LIMITED' } }, 'en'), { ok: false, message: 'You can change your public ID again one month after the last change.' });
+  assert.deepEqual(mapHandleSaveResult({ error: { code: 'RATE_LIMITED', fieldErrors: { reason: 'public_handle_change_cooldown' } } }, 'en'), { ok: false, message: 'You can change your public ID again one month after the last change.' });
+  assert.deepEqual(mapHandleSaveResult({ error: { code: '22023', message: 'public_handle_change_cooldown' } }), { ok: false, message: '공개 아이디는 변경 후 1개월이 지나야 다시 변경할 수 있어요.' });
+});
+
 test('generated member handles never unlock public posting', () => {
   assert.equal(isConfiguredHandle('member_27cf48e1'), false);
   assert.equal(isConfiguredHandle('my_look_daily'), true);
@@ -43,17 +49,22 @@ test('starter handle suggestions are stable and use valid public-handle syntax',
 
 function profileClient({ id, handle, profileReadable = true }) {
   const profile = { id, handle, display_name: null };
+  const selectedColumns = [];
   return {
     auth: { getUser: async () => ({ data: { user: { id } }, error: null }) },
     rpc: async () => ({ data: { ...profile }, error: null }),
     from: () => ({
-      select: () => ({
+      select: (columns) => {
+        selectedColumns.push(columns);
+        return ({
         eq: () => ({
           maybeSingle: async () => ({ data: profileReadable ? { ...profile } : null, error: null }),
         }),
-      }),
+        });
+      },
     }),
     setHandle(nextHandle) { profile.handle = nextHandle; },
+    selectedColumns,
   };
 }
 
@@ -67,6 +78,14 @@ test('a saved public handle is confirmed by a server read and survives reload hy
   assert.equal(saved.data.handle, 'reload_probe_a');
   const afterReload = await getMyProfile({ client });
   assert.equal(afterReload.data.handle, 'reload_probe_a');
+  assert.deepEqual(client.selectedColumns, ['id,handle,display_name', 'id,handle,display_name']);
+});
+
+test('profile read-back avoids optional server-only cooldown columns', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  await getMyProfile({ client });
+  assert.equal(client.selectedColumns[0], 'id,handle,display_name');
+  assert.doesNotMatch(client.selectedColumns[0], /handle_changed_at/);
 });
 
 test('profile sessions remain isolated when handles are saved independently', async () => {
@@ -86,4 +105,13 @@ test('a write is not reported as successful when the saved profile cannot be rea
   const client = profileClient({ id: 'member-a', handle: 'member_placeholder', profileReadable: false });
   const result = await updateMyHandle('missing_profile', { client });
   assert.equal(result.error.code, 'NOT_FOUND');
+});
+
+test('the server cooldown error remains distinct from handle syntax validation', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  client.rpc = async () => ({ data: null, error: { code: '22023', message: 'public_handle_change_cooldown' } });
+  const result = await updateMyHandle('account_b', { client });
+  assert.equal(result.error.code, 'RATE_LIMITED');
+  assert.equal(result.error.fieldErrors.reason, 'public_handle_change_cooldown');
+  assert.match(result.error.message, /1개월/);
 });

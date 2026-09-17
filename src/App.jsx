@@ -15,7 +15,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -98,8 +98,11 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
+  const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
+  const [profileCards, setProfileCards] = useState(null);
+  const [scrapCards, setScrapCards] = useState(null);
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
@@ -118,6 +121,9 @@ export default function App() {
   const mainRef = useRef(null);
   const authCallbackHandled = useRef(false);
   const authCallbackExchange = useRef(null);
+  const authTransitionPending = useRef(false);
+  const authTransitionConsumed = useRef(false);
+  const pendingPublishedCard = useRef(null);
   const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   const followingIdsKey = [...followingIds].sort().join('|');
@@ -127,6 +133,8 @@ export default function App() {
     return Number(rightFollowed) - Number(leftFollowed);
   }), [cards, followingIdsKey, blockedMembers]);
   const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
+  const displayProfileCards = useMemo(() => profileCards?.map((card) => localizeCard(card, locale)) ?? null, [profileCards, locale]);
+  const displayScrapCards = useMemo(() => scrapCards?.map((card) => localizeCard(card, locale)) ?? null, [scrapCards, locale]);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
@@ -173,9 +181,12 @@ export default function App() {
       setIsGuest(false);
 
       // A direct OTP verification does not carry a callback URL. Treat the
-      // explicit unlock event as a complete sign-in so the user always lands
-      // on Feed, even when they started from another tab or a preview splash.
-      if (allowPreviewTransition) {
+      // explicit unlock event as a complete sign-in once. Session restoration
+      // can emit the same Supabase event while returning from a native picker;
+      // it must never replace the member's current Upload view with Feed.
+      if (allowPreviewTransition && !authTransitionConsumed.current) {
+        authTransitionConsumed.current = true;
+        authTransitionPending.current = false;
         setIsSharedGuest(false);
         setActiveTab('feed');
       }
@@ -216,7 +227,11 @@ export default function App() {
         setAuthUser(null);
         return;
       }
-      finishAuthenticatedEntry(session, { allowPreviewTransition: event === 'SIGNED_IN' });
+      finishAuthenticatedEntry(session, {
+        // SIGNED_IN is only a navigation event when this tab initiated an
+        // explicit auth action. Passive session restoration stays in place.
+        allowPreviewTransition: event === 'SIGNED_IN' && authTransitionPending.current,
+      });
     });
 
     const onStorage = (event) => {
@@ -268,12 +283,52 @@ export default function App() {
     };
   }, [forceAuthPreview]);
 
+  /** Clears a half-finished swipe when the browser hands control to another surface. */
+  useEffect(() => {
+    const resetTabGesture = () => { tabGestureStart.current = null; };
+    const onVisible = () => { if (document.visibilityState === 'visible') resetTabGesture(); };
+    window.addEventListener('blur', resetTabGesture);
+    window.addEventListener('pageshow', resetTabGesture);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('blur', resetTabGesture);
+      window.removeEventListener('pageshow', resetTabGesture);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   /** Loads private Scraps only after a real authenticated session exists. */
   useEffect(() => {
     let active = true;
     if (!authUser) { setSavedPostIds(new Set()); return undefined; }
     getMyScrapPostIds().then((result) => {
       if (active && result.data) setSavedPostIds(result.data);
+    });
+    return () => { active = false; };
+  }, [authUser?.id]);
+
+  /** Hydrates complete private profile libraries independently of the Feed page limit. */
+  useEffect(() => {
+    let active = true;
+    if (!authUser) {
+      setProfileCards(null);
+      setScrapCards(null);
+      return undefined;
+    }
+    setProfileCards(null);
+    setScrapCards(null);
+    Promise.all([listSupabaseMyPublishedProfileCards(), listSupabaseMyScrapFeedCards()]).then(([profileResult, scrapResult]) => {
+      if (!active) return;
+      if (profileResult.error) {
+        setProfileCards(null);
+      } else {
+        const hydratedProfileCards = profileResult.data ?? [];
+        const justPublished = pendingPublishedCard.current;
+        setProfileCards(justPublished && !hydratedProfileCards.some((card) => card.id === justPublished.id)
+          ? [justPublished, ...hydratedProfileCards]
+          : hydratedProfileCards);
+      }
+      setScrapCards(scrapResult.error ? null : (scrapResult.data ?? []));
     });
     return () => { active = false; };
   }, [authUser?.id]);
@@ -318,11 +373,23 @@ export default function App() {
         const serverCards = result.error ? [] : (result.data ?? []);
         if (serverCards.length) {
           const serverIds = new Set(serverCards.map((card) => card.id));
+          const hydratedServerCards = serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
+          const justPublished = pendingPublishedCard.current;
           setCards((existing) => {
-            const localOnly = existing.filter((card) => !serverIds.has(card.id));
-            return [...serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id })), ...localOnly];
+            const localOnly = existing.filter((card) => !serverIds.has(card.id) && card.id !== justPublished?.id);
+            const serverPublished = hydratedServerCards.find((card) => card.id === justPublished?.id);
+            const featured = justPublished
+              ? { ...justPublished, ...(serverPublished ?? {}), category: justPublished.category, isMyUpload: true }
+              : null;
+            const remainingServerCards = featured
+              ? hydratedServerCards.filter((card) => card.id !== justPublished.id)
+              : hydratedServerCards;
+            return [...(featured ? [featured] : []), ...remainingServerCards, ...localOnly];
           });
-
+          // Once the server has acknowledged the UUID, its aggregates and
+          // signed media are authoritative while the local category remains
+          // canonical for the current Feed filter.
+          if (justPublished && serverIds.has(justPublished.id)) pendingPublishedCard.current = null;
         }
       } finally {
         if (active) setFeedHydrated(true);
@@ -622,7 +689,9 @@ export default function App() {
       media: serverMedia.map((item) => ({ ...item, objectPosition: card.objectPosition })),
       publishedAt: result.data.post.published_at,
     };
+    pendingPublishedCard.current = publishedCard;
     setCards((items) => [publishedCard, ...items]);
+    setProfileCards((items) => Array.isArray(items) ? [publishedCard, ...items.filter((item) => item.id !== publishedCard.id)] : items);
     setFeaturedPostId(publishedCard.id);
     // Keep the uploaded category selected after returning to Feed so the
     // category rail reflects the card the member just published.
@@ -664,13 +733,24 @@ export default function App() {
 
   const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
-    const saved = mapHandleSaveResult(result);
-    if (!saved.ok) return saved;
+    const saved = mapHandleSaveResult(result, locale);
+    if (!saved.ok) {
+      // The server is authoritative for the one-month handle lock. Surface
+      // that result immediately as a toast as well as in the edit form.
+      setToast(saved.message);
+      return saved;
+    }
     setProfile(saved.data);
     setProfileNotice('');
-    setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
+    if (resumeUploadAfterHandle) {
+      setResumeUploadAfterHandle(false);
+      setActiveTab('upload');
+      setToast(locale === 'en' ? 'Your public ID is ready. Continue your upload.' : '공개 아이디를 저장했어요. 업로드를 계속해 주세요.');
+    } else {
+      setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
+    }
     return saved;
-  }, [locale]);
+  }, [locale, resumeUploadAfterHandle]);
 
   const checkHandle = useCallback(async (handle) => {
     const result = await checkHandleAvailability(handle);
@@ -689,10 +769,11 @@ export default function App() {
       return;
     }
     if (!profileLoading && !isConfiguredHandle(profile?.handle)) {
+      setResumeUploadAfterHandle(true);
       setActiveTab('profile');
       setProfileNotice(locale === 'en'
-        ? 'You were sent to Profile because a public ID is required before you can upload. Save one below, then tap Upload again.'
-        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장한 뒤 업로드를 다시 눌러 주세요.');
+        ? 'A public ID is required before you can upload. Save one below to continue your upload.'
+        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장하면 업로드를 계속할 수 있어요.');
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
@@ -727,6 +808,7 @@ export default function App() {
     const landscapePhone = window.matchMedia?.('(orientation: landscape) and (max-height: 599px) and (max-width: 1023px)').matches;
     setIsLandscapeNavExpanded(Boolean(landscapePhone));
     if (id === 'upload') { openUpload(); return; }
+    if (id !== 'profile') setResumeUploadAfterHandle(false);
     if (id !== 'profile') setProfileNotice('');
     setActiveTab(id);
   }
@@ -746,8 +828,13 @@ export default function App() {
 
   /** Completes email sign-in inside the original browser tab, without a link redirect. */
   async function confirmEmailCode(email, code, remember) {
+    // The auth listener may fire before verifyEmailCode resolves. Mark this
+    // attempt first so exactly one SIGNED_IN event may open Feed.
+    authTransitionPending.current = true;
+    authTransitionConsumed.current = false;
     const result = await verifyEmailCode(email, code, authConfig, remember);
     if (result.ok) return result;
+    authTransitionPending.current = false;
     return {
       ...result,
       message: result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
@@ -758,8 +845,11 @@ export default function App() {
 
   /** Starts Google in the current tab after Supabase returns its HTTPS handoff URL. */
   async function startGoogleAuth(remember) {
+    authTransitionPending.current = true;
+    authTransitionConsumed.current = false;
     const result = await beginOAuthSignIn('google', authConfig, remember);
     if (!result.ok) {
+      authTransitionPending.current = false;
       return {
         ...result,
         message: locale === 'en'
@@ -772,12 +862,18 @@ export default function App() {
   }
 
   async function switchLocalQaAccount(accountId) {
+    authTransitionPending.current = true;
+    authTransitionConsumed.current = false;
     const result = await signInWithLocalQaAccount(accountId);
     if (result.ok) {
+      authTransitionPending.current = false;
+      authTransitionConsumed.current = true;
       setIsSharedGuest(false);
       setIsGuest(false);
       setActiveTab('feed');
       setToast(`${result.account.displayName} QA 계정으로 전환했어요.`);
+    } else {
+      authTransitionPending.current = false;
     }
     return result;
   }
@@ -786,6 +882,18 @@ export default function App() {
   function openRankingCard(target) {
     setActiveCategory('ALL');
     setCurrentIndex(Math.max(cards.findIndex((item) => item.id === target.id), 0));
+    setActiveTab('feed');
+  }
+
+  /** Returns a saved post to Feed so the profile can hand it to the feed preview layer. */
+  function openScrapCard(card) {
+    if (!card) return;
+    setCards((items) => items.some((item) => item.id === card.id)
+      ? items.map((item) => item.id === card.id ? { ...item, ...card } : item)
+      : [card, ...items]);
+    setActiveCategory('ALL');
+    setFeaturedPostId(card.id);
+    setCurrentIndex(0);
     setActiveTab('feed');
   }
 
@@ -805,6 +913,8 @@ export default function App() {
       }
     }
     setCards((items) => items.filter((item) => item.id !== id));
+    setProfileCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
+    setScrapCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
     setSavedPostIds((current) => {
       const next = new Set(current);
       next.delete(id);
@@ -833,6 +943,12 @@ export default function App() {
       const next = new Set(current);
       if (result.data.saved) next.add(postId); else next.delete(postId);
       return next;
+    });
+    setScrapCards((items) => {
+      if (!Array.isArray(items)) return items;
+      if (!result.data.saved) return items.filter((item) => item.id !== postId);
+      const target = cards.find((item) => item.id === postId);
+      return target ? [{ ...target, savedAt: new Date().toISOString() }, ...items.filter((item) => item.id !== postId)] : items;
     });
     return { ok: true, saved: result.data.saved };
   }
@@ -884,21 +1000,32 @@ export default function App() {
     // Native file pickers can resume with a pointer-up far from the original
     // touch target. Keep every form control (including the upload drop zone)
     // outside tab-swipe tracking so choosing media never changes the view.
-    if (event.pointerType !== 'touch' || event.target.closest('button, input, textarea, select, label, form, a, [role="button"], [role="dialog"], .media-carousel')) return;
-    tabGestureStart.current = { x: event.clientX, y: event.clientY };
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.pointerType !== 'touch' || !target || target.closest('button, input, textarea, select, label, form, a, [role="button"], [role="dialog"], .media-carousel')) {
+      // A control pointerdown can be the first event after a native picker
+      // returns, so clear any gesture that never received pointerup.
+      tabGestureStart.current = null;
+      return;
+    }
+    tabGestureStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
   }
 
   /** 정의: 가로 터치가 세로 스크롤보다 충분히 클 때 Feed·Upload·Ranking·Profile을 인접 순서로 이동한다. @param {PointerEvent} event 포인터 종료 이벤트 */
   function finishTabGesture(event) {
     const start = tabGestureStart.current;
+    if (!start || event.pointerType !== 'touch' || event.pointerId !== start.pointerId) return;
     tabGestureStart.current = null;
-    if (!start || event.pointerType !== 'touch') return;
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
     if (Math.abs(deltaX) < 72 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return;
     const currentTabIndex = tabs.findIndex(([id]) => id === activeTab);
     const nextIndex = Math.min(Math.max(currentTabIndex + (deltaX < 0 ? 1 : -1), 0), tabs.length - 1);
     if (nextIndex !== currentTabIndex) setActiveTab(tabs[nextIndex][0]);
+  }
+
+  function cancelTabGesture(event) {
+    const start = tabGestureStart.current;
+    if (!start || event?.pointerId === undefined || event.pointerId === start.pointerId) tabGestureStart.current = null;
   }
 
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
@@ -935,12 +1062,12 @@ export default function App() {
       </div>
     </header>
 
-    <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDown={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={() => { tabGestureStart.current = null; }} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+    <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={(postId) => toggleSavedPost(postId)} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
       </>}
     </main>
 
