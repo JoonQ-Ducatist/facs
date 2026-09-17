@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PageHeading from '../../components/ui/PageHeading.jsx';
 
 /** 정의: 게시물 하나에 허용하는 이미지·동영상·파일 크기의 클라이언트 사전 검증 한도다. */
@@ -79,7 +79,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const canAddVideo = videoCount < MAX_VIDEOS;
   const canAddMedia = canAddImage || canAddVideo;
   const canOpenDropzone = !media.length && canAddMedia;
-  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/webm,video/quicktime'].filter(Boolean).join(',');
+  const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/quicktime'].filter(Boolean).join(',');
 
   /** 정의: 파일 형식·용량·개수·영상 길이를 확인해 미리보기 가능한 미디어 목록에 추가한다. @param {FileList|File[]} fileList 선택 또는 드롭된 파일 */
   async function addFiles(fileList) {
@@ -97,6 +97,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
       if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
       if (type === 'video' && nextVideos >= MAX_VIDEOS) { setError('동영상은 1개만 선택할 수 있습니다.'); continue; }
+      if (type === 'video' && !supportsVideoFile(file)) { setError('이 동영상 형식은 현재 브라우저에서 재생할 수 없어요. H.264 MP4 또는 iPhone MOV를 선택해 주세요.'); continue; }
       const url = type === 'image' ? await getImagePreviewUrl(file) : URL.createObjectURL(file);
       if (!url) { setError(`${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`); continue; }
       if (type === 'video') {
@@ -302,6 +303,18 @@ function detectMediaType(file) {
   if (['mp4', 'webm', 'mov', 'quicktime'].includes(extension)) return 'video';
   return null;
 }
+function resolveClientVideoMime(file) {
+  const supplied = String(file?.type ?? '').trim().toLowerCase();
+  if (supplied) return supplied;
+  const extension = String(file?.name ?? '').trim().toLowerCase().split('.').pop();
+  return { mp4: 'video/mp4', mov: 'video/quicktime', quicktime: 'video/quicktime' }[extension] ?? 'video/mp4';
+}
+function supportsVideoFile(file) {
+  const mime = resolveClientVideoMime(file);
+  if (!['video/mp4', 'video/quicktime'].includes(mime)) return false;
+  const probe = document.createElement('video');
+  return Boolean(probe.canPlayType(mime));
+}
 /** 정의: 모바일 파일 제공자에서도 안정적으로 표시되도록 이미지 미리보기를 data URL로 읽는다. */
 function getImagePreviewUrl(file) {
   return new Promise((resolve) => {
@@ -314,12 +327,22 @@ function getImagePreviewUrl(file) {
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
 function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext, isDragging, isDragOver, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onNativeDragStart, onNativeDragOver, onNativeDrop, onNativeDragEnd }) {
   const [previewError, setPreviewError] = useState(false);
+  const [videoPoster, setVideoPoster] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (item.type !== 'video') return undefined;
+    createVideoPoster(item.url).then((poster) => {
+      if (!cancelled && poster) setVideoPoster(poster);
+    });
+    return () => { cancelled = true; };
+  }, [item.type, item.url]);
   function isolateMediaControlTouch(event) {
     if (event.pointerType === 'touch') event.stopPropagation();
   }
   return <div data-upload-media-id={item.id} draggable onPointerDown={(event) => onTouchStart(item.id, event)} onPointerMove={onTouchMove} onPointerUp={onTouchEnd} onPointerCancel={onTouchCancel} onDragStart={(event) => onNativeDragStart(item.id, event)} onDragOver={(event) => onNativeDragOver(item.id, event)} onDrop={(event) => onNativeDrop(item.id, event)} onDragEnd={onNativeDragEnd} className={`media-preview relative aspect-square overflow-hidden rounded-xl border bg-black/30${isDragging ? ' media-preview--dragging' : ''}${isDragOver ? ' media-preview--drag-over' : ''}`} style={{ borderColor: `${color}66` }}>
-    {previewError ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} muted playsInline preload="metadata" onError={() => setPreviewError(true)} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} onError={() => setPreviewError(true)} />}
+    {previewError && item.type === 'image' ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} poster={videoPoster || undefined} muted playsInline preload="metadata" draggable="false" onError={() => {}} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} draggable="false" onError={() => setPreviewError(true)} />}
     {item.type === 'video' && <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white">VIDEO {item.duration.toFixed(1)}s</span>}<div className="absolute left-1 top-1 flex gap-1"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
 }
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */
-function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); video.preload = 'metadata'; video.onloadedmetadata = () => resolve(video.duration); video.onerror = () => resolve(Number.NaN); video.src = url; }); }
+function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); let settled = false; const finish = (duration) => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(duration); }; const timeout = window.setTimeout(() => finish(Number.NaN), 6000); video.preload = 'metadata'; video.onloadedmetadata = () => finish(Number.isFinite(video.duration) ? video.duration : Number.NaN); video.onerror = () => finish(Number.NaN); video.src = url; video.load(); }); }
+function createVideoPoster(url) { return new Promise((resolve) => { const video = document.createElement('video'); const canvas = document.createElement('canvas'); let settled = false; const finish = (poster = '') => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(poster); }; const capture = () => { try { if (!video.videoWidth || !video.videoHeight) return finish(''); canvas.width = video.videoWidth; canvas.height = video.videoHeight; const context = canvas.getContext('2d'); context?.drawImage(video, 0, 0, canvas.width, canvas.height); finish(canvas.toDataURL('image/jpeg', .82)); } catch { finish(''); } }; const timeout = window.setTimeout(() => finish(''), 6000); video.preload = 'auto'; video.muted = true; video.playsInline = true; video.onloadeddata = capture; video.onerror = () => finish(''); video.src = url; video.load(); }); }

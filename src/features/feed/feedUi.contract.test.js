@@ -33,6 +33,10 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /onPointerMove=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
+  assert.match(source, /function useVideoPoster\(url\)/);
+  assert.match(source, /function createRemoteVideoPoster\(url\)/);
+  assert.match(source, /poster=\{videoPoster \|\| undefined\}/);
+  assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
 });
 
 test('multi-photo media keeps the central photo full width with fixed edge previews', async () => {

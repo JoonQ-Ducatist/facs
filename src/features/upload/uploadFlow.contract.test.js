@@ -91,6 +91,15 @@ test('media previews support desktop drop and mobile long-press reordering', asy
   assert.match(styles, /\.media-preview--drag-over \{/);
 });
 
+test('video upload input targets browser-compatible MP4 and iPhone MOV sources', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  assert.match(source, /video\/mp4,video\/quicktime/);
+  assert.doesNotMatch(source, /video\/mp4,video\/webm,video\/quicktime/);
+  assert.match(source, /function supportsVideoFile\(file\)/);
+  assert.match(source, /canPlayType\(mime\)/);
+  assert.match(source, /H\.264 MP4 또는 iPhone MOV/);
+});
+
 test('a just-published card is retained and kept canonical during feed hydration', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const pendingPublishedCard = useRef\(null\)/);
