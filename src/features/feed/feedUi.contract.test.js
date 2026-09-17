@@ -81,14 +81,15 @@ test('multi-photo edge previews only render for directions that have a neighbori
   assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
 });
 
-test('browser refresh normalizes document scroll before React and trusts the visible viewport height', async () => {
+test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');
-  assert.match(html, /window\.history\.scrollRestoration = 'manual'/);
-  assert.match(html, /normalizeInitialViewport/);
-  assert.match(html, /window\.addEventListener\('pageshow', normalizeInitialViewport\)/);
-  assert.match(html, /window\.visualViewport\?\.height \|\| window\.innerHeight/);
-  assert.match(source, /const height = visualHeight \|\| layoutHeight/);
-  assert.doesNotMatch(source, /Math\.max\(visualHeight, layoutHeight\)/);
-  assert.doesNotMatch(source, /normalizeDocumentViewport/);
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.doesNotMatch(html, /scrollRestoration|normalizeInitialViewport|visualViewport/);
+  assert.doesNotMatch(source, /syncAppCanvasHeight|settleAppCanvasAfterKeyboardDismissal|visualViewport/);
+  assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
+  assert.doesNotMatch(styles, /\.app-stage \{[^}]*position: fixed/);
+  assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
+  assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
+  assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
 });

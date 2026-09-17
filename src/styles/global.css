@@ -4,10 +4,6 @@
 
 /* 정의: FACt.Smack 전 화면이 공유하는 표면·텍스트·강조 색상 토큰이다. */
 :root {
-  /* The application shell must not shrink with a software keyboard. A dynamic
-     viewport makes iOS/Android move the dock upward and leaves the abandoned
-     lower canvas blank, so use the stable browser viewport for the shell. */
-  --xc-app-height: 100vh;
   --xc-surface: #f9f7f2;
   --xc-surface-low: #f5f3ee;
   --xc-surface-card: #ffffff;
@@ -53,10 +49,11 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
-/* The shell is pinned to the browser viewport. Document scrolling must never
-   move one chrome bar while leaving another behind after keyboard/file-picker
-   transitions; Upload owns the only scrollable region inside this boundary. */
-.app-stage { position: fixed; inset: 0 auto auto 0; display: flex; width: 100%; height: var(--xc-app-height); min-height: 0; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
+/* The root shell stays in normal flow so iOS WebKit never has to composite the
+   whole product inside one fixed layer. `100vh` is the legacy fallback and
+   `100dvh` follows browser chrome changes in current mobile engines. Upload
+   remains the only independently scrollable region inside this boundary. */
+.app-stage { position: relative; display: flex; width: 100%; height: 100vh; height: 100dvh; min-height: 0; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
 .app-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--xc-surface); }
 
 /* 정의: 좁은 모바일 가로 화면에서도 헤더·하단 메뉴 사이에 사진 중심 Feed를 유지한다. */
