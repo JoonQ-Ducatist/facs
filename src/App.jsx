@@ -45,15 +45,15 @@ function hasFocusedTextEditor() {
 }
 
 /** Keeps the app shell at the last non-keyboard visual viewport height. */
-function syncAppCanvasHeight({ preferLayoutHeight = false } = {}) {
-  if (Date.now() < appCanvasSyncBlockedUntil) return;
+function syncAppCanvasHeight({ force = false } = {}) {
+  if (!force && Date.now() < appCanvasSyncBlockedUntil) return;
   if (hasFocusedTextEditor()) return;
   const visualHeight = Math.round(window.visualViewport?.height ?? 0);
   const layoutHeight = Math.round(window.innerHeight);
   // iOS keeps innerHeight at its non-keyboard value while visualViewport is
   // reduced. Never store that temporary keyboard height as the app shell.
-  if (!preferLayoutHeight && visualHeight && layoutHeight && visualHeight < layoutHeight - 120) return;
-  const height = preferLayoutHeight ? (layoutHeight || visualHeight) : Math.max(visualHeight, layoutHeight);
+  if (visualHeight && layoutHeight && visualHeight < layoutHeight - 120) return;
+  const height = Math.max(visualHeight, layoutHeight);
   if (height > 0) document.documentElement.style.setProperty('--xc-app-height', `${height}px`);
 }
 
@@ -497,37 +497,50 @@ export default function App() {
   /** Stores only a non-keyboard viewport height; input focus keeps the shell stable while Upload scrolls its own content. */
   useEffect(() => {
     let settleTimer;
-    let fullscreenSettleTimers = [];
     const scheduleSync = () => {
       syncAppCanvasHeight();
       window.clearTimeout(settleTimer);
       settleTimer = window.setTimeout(syncAppCanvasHeight, 180);
     };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') scheduleSync(); };
-    const onFullscreenChange = () => {
-      fullscreenSettleTimers.forEach((timer) => window.clearTimeout(timer));
-      fullscreenSettleTimers = [0, 80, 220, 480, 900].map((delay) => window.setTimeout(() => syncAppCanvasHeight({ preferLayoutHeight: true }), delay));
-    };
     scheduleSync();
     window.visualViewport?.addEventListener('resize', scheduleSync);
     window.visualViewport?.addEventListener('scroll', scheduleSync);
     window.addEventListener('pageshow', scheduleSync);
     window.addEventListener('focus', scheduleSync);
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-    document.addEventListener('webkitendfullscreen', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearTimeout(settleTimer);
-      fullscreenSettleTimers.forEach((timer) => window.clearTimeout(timer));
       window.visualViewport?.removeEventListener('resize', scheduleSync);
       window.visualViewport?.removeEventListener('scroll', scheduleSync);
       window.removeEventListener('pageshow', scheduleSync);
       window.removeEventListener('focus', scheduleSync);
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
-      document.removeEventListener('webkitendfullscreen', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
+  /** Normalizes browser scroll restoration on a fresh/bfcache return so the fixed shell always starts at its header. */
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    appCanvasSyncBlockedUntil = 0;
+    const normalizeDocumentViewport = () => {
+      if (window.scrollX || window.scrollY) window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollLeft = 0;
+        document.scrollingElement.scrollTop = 0;
+      }
+      document.body.scrollLeft = 0;
+      document.body.scrollTop = 0;
+      syncAppCanvasHeight({ force: true });
+    };
+    const timers = [0, 80, 240, 600].map((delay) => window.setTimeout(normalizeDocumentViewport, delay));
+    normalizeDocumentViewport();
+    window.addEventListener('pageshow', normalizeDocumentViewport);
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener('pageshow', normalizeDocumentViewport);
+      window.history.scrollRestoration = previousRestoration;
     };
   }, []);
 

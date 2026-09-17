@@ -34,22 +34,7 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
   assert.match(source, /event\.clientY >= bounds\.bottom - 58/);
-  assert.match(source, /onPointerMove=\{\(event\) => event\.stopPropagation\(\)\}/);
-  assert.match(source, /const stopFullscreenGesture = \(event\) =>/);
-  assert.match(source, /stopFullscreenGesture\(event\); enterFullscreen\(\)/);
-  assert.match(source, /fullscreenSnapshotRef/);
-  assert.match(source, /fullscreenRequestRef/);
-  assert.match(source, /if \(fullscreenRequestRef\.current\) return/);
-  assert.match(source, /webkitbeginfullscreen/);
-  assert.match(source, /webkitendfullscreen/);
-  assert.match(source, /webkitEnterFullscreen/);
-  assert.match(source, /categoryScrollLeft/);
-  assert.doesNotMatch(source, /window\.scrollTo\(snapshot\.windowX, snapshot\.windowY\)/);
-  assert.match(source, /facs-video-fullscreen-active/);
-  assert.match(source, /showFullscreen/);
-  assert.match(source, /video-fullscreen-button/);
-  assert.match(source, /requestFullscreen/);
-  assert.match(source, /webkitEnterFullscreen/);
+  assert.doesNotMatch(source, /video-fullscreen-button|requestFullscreen|webkitEnterFullscreen/);
   assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
   assert.match(source, /function useVideoPoster\(url\)/);
   assert.match(source, /function createRemoteVideoPoster\(url\)/);
@@ -68,9 +53,7 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
   assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\)/);
-  assert.match(styles, /\.video-fullscreen-button--active \{ opacity: 0; pointer-events: none; \}/);
+  assert.doesNotMatch(styles, /video-fullscreen-button/);
 });
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
@@ -79,9 +62,10 @@ test('multi-photo edge previews only render for directions that have a neighbori
   assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
 });
 
-test('fullscreen exit resynchronizes the mobile app shell viewport', async () => {
+test('browser refresh normalizes document scroll and keeps the fixed shell at the current viewport', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(source, /const onFullscreenChange = \(\) => \{/);
-  assert.match(source, /document\.addEventListener\('fullscreenchange', onFullscreenChange\)/);
-  assert.match(source, /document\.addEventListener\('webkitendfullscreen', onFullscreenChange\)/);
+  assert.match(source, /window\.history\.scrollRestoration = 'manual'/);
+  assert.match(source, /normalizeDocumentViewport/);
+  assert.match(source, /window\.addEventListener\('pageshow', normalizeDocumentViewport\)/);
+  assert.match(source, /syncAppCanvasHeight\(\{ force: true \}\)/);
 });
