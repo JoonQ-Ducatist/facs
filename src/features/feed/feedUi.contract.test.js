@@ -37,6 +37,12 @@ test('feed video uses native playback controls without stealing feed gestures', 
   assert.match(source, /onPointerMove=\{\(event\) => event\.stopPropagation\(\)\}/);
   assert.match(source, /const stopFullscreenGesture = \(event\) =>/);
   assert.match(source, /stopFullscreenGesture\(event\); enterFullscreen\(\)/);
+  assert.match(source, /fullscreenSnapshotRef/);
+  assert.match(source, /webkitbeginfullscreen/);
+  assert.match(source, /webkitendfullscreen/);
+  assert.match(source, /enterWebkitFullscreen/);
+  assert.match(source, /categoryScrollLeft/);
+  assert.match(source, /facs-video-fullscreen-active/);
   assert.match(source, /showFullscreen/);
   assert.match(source, /video-fullscreen-button/);
   assert.match(source, /requestFullscreen/);
@@ -60,10 +66,19 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
   assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\)/);
+  assert.match(styles, /\.video-fullscreen-button--active \{ opacity: 0; pointer-events: none; \}/);
 });
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"/);
   assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
+});
+
+test('fullscreen exit resynchronizes the mobile app shell viewport', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /const onFullscreenChange = \(\) => \{ scheduleSync\(\);/);
+  assert.match(source, /document\.addEventListener\('fullscreenchange', onFullscreenChange\)/);
+  assert.match(source, /document\.addEventListener\('webkitendfullscreen', onFullscreenChange\)/);
 });

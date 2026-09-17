@@ -503,11 +503,15 @@ export default function App() {
       settleTimer = window.setTimeout(syncAppCanvasHeight, 180);
     };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') scheduleSync(); };
+    const onFullscreenChange = () => { scheduleSync(); window.setTimeout(scheduleSync, 420); };
     scheduleSync();
     window.visualViewport?.addEventListener('resize', scheduleSync);
     window.visualViewport?.addEventListener('scroll', scheduleSync);
     window.addEventListener('pageshow', scheduleSync);
     window.addEventListener('focus', scheduleSync);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitendfullscreen', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearTimeout(settleTimer);
@@ -515,6 +519,9 @@ export default function App() {
       window.visualViewport?.removeEventListener('scroll', scheduleSync);
       window.removeEventListener('pageshow', scheduleSync);
       window.removeEventListener('focus', scheduleSync);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitendfullscreen', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);

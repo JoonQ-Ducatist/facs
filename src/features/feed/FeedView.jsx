@@ -130,7 +130,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   function endCategoryDrag() { categoryDrag.current = null; }
 
   return <section className="editorial-feed relative flex h-full w-full min-h-0 flex-col items-center">
-    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
+    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
@@ -179,6 +179,8 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
   const videoPoster = useVideoPoster(isVideo ? source.url : '');
   const videoRef = useRef(null);
+  const fullscreenSnapshotRef = useRef(null);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
   const protectMedia = (event) => event.preventDefault();
   const isolateVideoTouch = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -198,25 +200,92 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
   const enterFullscreen = () => {
     const video = videoRef.current;
     if (!video) return;
+    const main = document.querySelector('.editorial-main');
+    const categoryRail = document.querySelector('.feed-category-rail');
+    fullscreenSnapshotRef.current = {
+      windowX: window.scrollX,
+      windowY: window.scrollY,
+      mainScrollTop: main?.scrollTop ?? 0,
+      categoryScrollLeft: categoryRail?.scrollLeft ?? 0,
+    };
+    setFullscreenActive(true);
+    document.documentElement.classList.add('facs-video-fullscreen-active');
+    const enterWebkitFullscreen = () => {
+      if (typeof video.webkitEnterFullscreen === 'function') {
+        video.webkitEnterFullscreen();
+        return true;
+      }
+      return false;
+    };
     try {
+      if (fullscreenActive) {
+        if (typeof document.exitFullscreen === 'function' && document.fullscreenElement) {
+          const result = document.exitFullscreen();
+          result?.catch?.(() => {});
+        } else if (typeof video.webkitExitFullscreen === 'function') {
+          video.webkitExitFullscreen();
+        }
+        return;
+      }
       if (typeof video.requestFullscreen === 'function') {
         const result = video.requestFullscreen();
-        result?.catch?.(() => {});
-      } else if (typeof video.webkitEnterFullscreen === 'function') {
-        video.webkitEnterFullscreen();
+        result?.catch?.(() => {
+          if (!enterWebkitFullscreen()) {
+            setFullscreenActive(false);
+            document.documentElement.classList.remove('facs-video-fullscreen-active');
+          }
+        });
+      } else if (!enterWebkitFullscreen()) {
+        setFullscreenActive(false);
+        document.documentElement.classList.remove('facs-video-fullscreen-active');
       }
     } catch {
       // iOS may reject fullscreen when the gesture is not considered user initiated.
+      setFullscreenActive(false);
+      document.documentElement.classList.remove('facs-video-fullscreen-active');
     }
   };
   const stopFullscreenGesture = (event) => {
     event.preventDefault();
     event.stopPropagation();
   };
+  useEffect(() => {
+    if (!isVideo || !videoRef.current) return undefined;
+    const video = videoRef.current;
+    const restoreShell = () => {
+      setFullscreenActive(false);
+      document.documentElement.classList.remove('facs-video-fullscreen-active');
+      const snapshot = fullscreenSnapshotRef.current;
+      if (!snapshot) return;
+      window.requestAnimationFrame(() => {
+        window.scrollTo(snapshot.windowX, snapshot.windowY);
+        document.querySelector('.editorial-main')?.scrollTo({ top: snapshot.mainScrollTop, behavior: 'auto' });
+        const categoryRail = document.querySelector('.feed-category-rail');
+        if (categoryRail) categoryRail.scrollLeft = snapshot.categoryScrollLeft;
+      });
+    };
+    const markFullscreen = () => {
+      setFullscreenActive(true);
+      document.documentElement.classList.add('facs-video-fullscreen-active');
+    };
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement === video) markFullscreen();
+      else if (!document.fullscreenElement) restoreShell();
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    video.addEventListener('webkitbeginfullscreen', markFullscreen);
+    video.addEventListener('webkitendfullscreen', restoreShell);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      video.removeEventListener('webkitbeginfullscreen', markFullscreen);
+      video.removeEventListener('webkitendfullscreen', restoreShell);
+      document.documentElement.classList.remove('facs-video-fullscreen-active');
+    };
+  }, [isVideo, source.url]);
   if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
   const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload="metadata" controls={!muted} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   if (!showFullscreen || muted) return video;
-  return <div className="feed-video-shell">{video}<button type="button" className="video-fullscreen-button" aria-label="동영상 전체 화면" title="전체 화면" onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={(event) => { stopFullscreenGesture(event); enterFullscreen(); }}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>;
+  return <div className="feed-video-shell">{video}<button type="button" className={`video-fullscreen-button${fullscreenActive ? ' video-fullscreen-button--active' : ''}`} aria-label={fullscreenActive ? '동영상 전체 화면 종료' : '동영상 전체 화면'} aria-pressed={fullscreenActive} title={fullscreenActive ? '전체 화면 종료' : '전체 화면'} onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={(event) => { stopFullscreenGesture(event); enterFullscreen(); }}><span className="material-symbols-outlined" aria-hidden="true">{fullscreenActive ? 'fullscreen_exit' : 'fullscreen'}</span></button></div>;
 }
 function useVideoPoster(url) {
   const [poster, setPoster] = useState('');
