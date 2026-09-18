@@ -148,10 +148,12 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .feed-result__boost, .feed-result__self, .feed-result__next { white-space: nowrap; }
 .feed-result__boost { font-size: clamp(9px, 2.55vw, 10px); }
 .age-vote-panel { min-width: 0; }
-/* 정의: 다중 미디어의 이전·다음 사진은 좁은 28px 좌우 미리보기로 안내하고
-   중앙 사진 폭은 줄이지 않는다. 미리보기 위·아래에는 카드 표면의 흰 여백을 남긴다. */
+/* 정의: Feed 다중 미디어는 전용 전체 폭 슬라이드 좌표계로 움직이고,
+   정지 상태에서는 좌우 28px 스트립만 노출한다. Ranking/댓글 팝업의
+   기존 좁은 peek 규칙은 `.media-peek` 기본값으로 보존한다. */
 .media-card--multi { background: #fff; }
 .media-peek { position: absolute; top: 5%; bottom: 5%; z-index: 11; height: auto; width: 28px; overflow: hidden; pointer-events: auto; border: 0; border-radius: .35rem; background: #fff; opacity: .56; filter: saturate(.8) brightness(.68) blur(.35px); box-shadow: 0 8px 16px rgba(1,8,17,.24); transform: scale(.96); transform-origin: center; transition: opacity .18s ease, filter .18s ease, transform .22s cubic-bezier(.16,1,.3,1); }
+.media-peek--continuous { --media-peek-width: 28px; width: 100%; transform-origin: center; transition: opacity .18s ease, filter .18s ease, transform .24s cubic-bezier(.16,1,.3,1); }
 .media-peek > button { display: block; width: 100%; height: 100%; padding: 0; cursor: pointer; border: 0; background: transparent; }
 .media-peek--left { left: 0; transform-origin: right center; }
 .media-peek--right { right: 0; transform-origin: left center; }
@@ -162,6 +164,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .media-protected { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
 .media-primary { transition: transform .24s cubic-bezier(.18,.72,.28,1); will-change: transform; }
 .media-primary--dragging { transition: none; }
+.media-card--dragging .media-peek--continuous { transition: none; }
 .upload-media-control { display: inline-flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.78); border-radius: 999px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px rgba(1,8,17,.16); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: transform .15s ease, filter .15s ease, opacity .15s ease; touch-action: manipulation; }
 .upload-media-control:hover { filter: brightness(1.12); transform: scale(1.04); }
 .upload-media-control:active { transform: scale(.94); }
@@ -204,8 +207,12 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .live-reaction { opacity: .9; animation-duration: 1s; } .live-reaction::after { display: none; } }
 .media-carousel--kick-left { animation: carousel-kick-left .28s cubic-bezier(.18,.7,.32,1); }
 .media-carousel--kick-right { animation: carousel-kick-right .28s cubic-bezier(.18,.7,.32,1); }
+.media-carousel--resist-left { animation: carousel-resist-left .22s cubic-bezier(.16,1,.3,1); }
+.media-carousel--resist-right { animation: carousel-resist-right .22s cubic-bezier(.16,1,.3,1); }
 @keyframes carousel-kick-left { 0% { transform: translateX(0); } 42% { transform: translateX(-10px); } 100% { transform: translateX(0); } }
 @keyframes carousel-kick-right { 0% { transform: translateX(0); } 42% { transform: translateX(10px); } 100% { transform: translateX(0); } }
+@keyframes carousel-resist-left { 0% { transform: translateX(0); } 42% { transform: translateX(-6px); } 100% { transform: translateX(0); } }
+@keyframes carousel-resist-right { 0% { transform: translateX(0); } 42% { transform: translateX(6px); } 100% { transform: translateX(0); } }
 .feed-card--exit-up { animation: feed-exit-up .15s cubic-bezier(.42,0,1,1) both; }
 .feed-card--exit-down { animation: feed-exit-down .15s cubic-bezier(.42,0,1,1) both; }
 .feed-card--enter-up { animation: feed-enter-up .31s cubic-bezier(.16,1,.3,1) both; }
@@ -316,6 +323,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .ranking-preview-carousel { width: 100% !important; flex: 0 0 auto; }
   .editorial-feed article { align-self: center; width: 100%; height: 100%; max-width: none; aspect-ratio: auto; }
   .media-peek { width: clamp(24px, 8vw, 32px); }
+  .media-peek--continuous { --media-peek-width: clamp(24px, 8vw, 32px); width: 100%; }
   /* 정의: PC 다중 사진 카드에서만 마우스 오버 시 존재하는 방향의 사진 이동 화살표를 부드럽게 드러낸다. */
   .media-card-photo-nav { position: absolute; inset: 0; z-index: 31; display: block; pointer-events: none; }
   .media-card-photo-nav__button { position: absolute; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; transform: translateY(-50%) scale(.9); border: 1px solid rgba(255,255,255,.32); border-radius: 999px; background: rgba(1,8,17,.34); color: #fff; opacity: 0; pointer-events: auto; transition: opacity .2s ease, transform .22s cubic-bezier(.16,1,.3,1), background .15s ease; }
