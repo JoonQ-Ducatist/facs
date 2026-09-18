@@ -14,8 +14,8 @@ test('feed preserves the uploaded category selection after publishing', async ()
 
 test('feed cards render protected media and adjacent multi-photo previews', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /media-peek media-peek--left/);
-  assert.match(source, /media-peek media-peek--right/);
+  assert.match(source, /media-peek media-peek--continuous media-peek--left/);
+  assert.match(source, /media-peek media-peek--continuous media-peek--right/);
   assert.match(source, /onContextMenu=\{protectMedia\}/);
   assert.match(source, /onDragStart=\{protectMedia\}/);
   assert.match(source, /onContextMenu=\{protectMediaEvent\}/);
@@ -59,15 +59,25 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
 });
 
-test('multi-photo media keeps the central photo full width with fixed edge previews', async () => {
+test('multi-photo media keeps a full-width center track with continuous edge previews', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(styles, /\.media-card \.media-primary \{ inset: 0;/);
   assert.match(styles, /\.media-card--multi \.media-primary \{ inset: 0;/);
   assert.match(styles, /\.media-card--multi \{ background: #fff; \}/);
-  assert.match(styles, /\.media-peek \{[^}]*top: 5%; bottom: 5%;[^}]*width: 28px/);
+  assert.match(styles, /\.media-peek--continuous \{[^}]*--media-peek-width: 28px;[^}]*width: 100%/);
   assert.match(styles, /\.media-peek \{[^}]*background: #fff/);
   assert.match(styles, /\.media-peek \{[^}]*filter: saturate\(\.8\) brightness\(\.68\) blur\(\.35px\)/);
-  assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
+  assert.match(styles, /\.media-peek \{ --media-peek-width: clamp\(24px, 8vw, 32px\); width: 100%; \}/);
+  assert.match(styles, /\.media-card--dragging \.media-peek--continuous \{ transition: none; \}/);
+  assert.match(source, /const width = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
+  assert.match(source, /deltaX \* 0\.2/);
+  assert.match(source, /function bounceMedia\(direction\)/);
+  assert.match(styles, /\.media-carousel--resist-left/);
+  assert.match(styles, /\.media-carousel--resist-right/);
+  assert.match(source, /const travel = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
+  assert.match(source, /translate3d\(calc\(-100% \+ var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
+  assert.match(source, /translate3d\(calc\(100% - var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
   assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
@@ -77,8 +87,8 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"/);
-  assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
+  assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left"/);
+  assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--continuous media-peek--right"/);
 });
 
 test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {

@@ -17,6 +17,8 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const [saveNotice, setSaveNotice] = useState('');
   const feedLocked = useRef(false);
   const mediaLocked = useRef(false);
+  const mediaCardRef = useRef(null);
+  const carouselKickTimer = useRef(null);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
   useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
@@ -71,8 +73,13 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     const deltaX = event.clientX - gestureStart.current.x;
     const deltaY = event.clientY - gestureStart.current.y;
     if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    const width = Math.max(1, mediaCardRef.current?.clientWidth ?? window.innerWidth ?? 320);
+    const atStartBoundary = mediaIndex === 0 && deltaX > 0;
+    const atEndBoundary = mediaIndex === cardMedia.length - 1 && deltaX < 0;
+    const resistedDelta = (atStartBoundary || atEndBoundary) ? deltaX * 0.2 : deltaX;
+    const travelLimit = Math.max(120, width * 0.96);
     setIsDraggingMedia(true);
-    setDragOffset(Math.max(-82, Math.min(82, deltaX)));
+    setDragOffset(Math.max(-travelLimit, Math.min(travelLimit, resistedDelta)));
   }
   /** 같은 카드 안에서만 사진을 부드럽게 교체한다. 양옆 미리보기·가로 스와이프·데스크톱 화살표가 같은 전환을 사용한다. */
   function navigateMedia(direction) {
@@ -81,15 +88,24 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     if (nextIndex === mediaIndex) return;
     mediaLocked.current = true;
     const movingLeft = direction > 0;
+    const travel = Math.max(1, mediaCardRef.current?.clientWidth ?? window.innerWidth ?? 320);
     setCarouselKick(`media-carousel--kick-${movingLeft ? 'left' : 'right'}`);
     setIsDraggingMedia(false);
-    setDragOffset(movingLeft ? -150 : 150);
+    setDragOffset(movingLeft ? -travel : travel);
     window.setTimeout(() => {
       setMediaIndex(nextIndex);
-      setDragOffset(movingLeft ? 42 : -42);
+      setDragOffset(movingLeft ? travel * 0.08 : -travel * 0.08);
       window.requestAnimationFrame(() => setDragOffset(0));
     }, 130);
-    window.setTimeout(() => { setCarouselKick(''); mediaLocked.current = false; }, 300);
+    window.clearTimeout(carouselKickTimer.current);
+    carouselKickTimer.current = window.setTimeout(() => { setCarouselKick(''); mediaLocked.current = false; }, 300);
+  }
+  function bounceMedia(direction) {
+    setIsDraggingMedia(false);
+    setDragOffset(0);
+    setCarouselKick(`media-carousel--resist-${direction}`);
+    window.clearTimeout(carouselKickTimer.current);
+    carouselKickTimer.current = window.setTimeout(() => setCarouselKick(''), 220);
   }
   /** 정의: 가로 스와이프는 같은 카드의 미디어를, 세로 터치 스와이프는 이전·다음 카드를 표시한다. @param {PointerEvent} event 포인터 이벤트 */
   function finishCardGesture(event) {
@@ -103,6 +119,12 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     const resetDrag = () => { setIsDraggingMedia(false); setDragOffset(0); };
     if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 42) { resetDrag(); return; }
     if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      const atStartBoundary = mediaIndex === 0 && deltaX > 0;
+      const atEndBoundary = mediaIndex === cardMedia.length - 1 && deltaX < 0;
+      if (atStartBoundary || atEndBoundary) {
+        bounceMedia(deltaX > 0 ? 'right' : 'left');
+        return;
+      }
       navigateMedia(deltaX < 0 ? 1 : -1);
       return;
     }
@@ -148,10 +170,10 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </div>
 
     <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${feedMotion}`}>
-      {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></button></div>}
-      {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--right"><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></button></div>}
-      <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translateX(${dragOffset}px)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
+    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
+      {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left" style={{ transform: `translate3d(calc(-100% + var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></button></div>}
+      {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--continuous media-peek--right" style={{ transform: `translate3d(calc(100% - var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></button></div>}
+      <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translate3d(${dragOffset}px, 0, 0)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
       <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
