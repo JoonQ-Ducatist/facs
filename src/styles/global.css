@@ -353,16 +353,64 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .comment-panel__close { position: fixed; right: 22px; top: 20px; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.7); border-radius: .35rem; background: rgba(0,0,0,.18); color: #fff; }
 }
 
-/* 정의: 휴대폰을 가로로 돌리면 하단 독을 유지하지 않고, 남는 폭을 사진과 본문에 돌려주는
-   축소형 PC 탐색 레일로 바꾼다. 화면 폭이 넓은 태블릿 가로 모드는 데스크톱 규칙을 그대로 쓴다. */
+/* 정의: 휴대폰 가로 모드는 좁은 데스크톱 셸 계약을 사용한다.
+   본문이 사이드바 열림 상태에 따라 재계산되면 iOS/Android에서 텍스트·버튼이
+   겹치므로, 본문용 rail을 항상 예약하고 메뉴만 overlay로 펼친다. 이 계약은
+   max-width 1023px + landscape + max-height 599px에만 적용한다. */
 @media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
-  .editorial-app { --landscape-nav-width: 58px; display: grid; grid-template-columns: calc(var(--landscape-nav-width) + env(safe-area-inset-left)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); transition: grid-template-columns .2s ease; }
-  .editorial-app--landscape-nav-open { --landscape-nav-width: 196px; }
+  /* 216px is the reserved PC-like navigation rail. It never changes when the
+     compact 58px menu expands, so the body does not reflow or change width. */
+  .editorial-app {
+    --landscape-nav-collapsed: 58px;
+    --landscape-nav-expanded: 196px;
+    --landscape-nav-rail: 216px;
+    display: grid;
+    grid-template-columns: calc(var(--landscape-nav-rail) + env(safe-area-inset-left)) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    transition: none;
+  }
+  /* The 600–1023px tablet rule centers a 430px canvas. Landscape phones are
+     a full-width shell, otherwise the reserved rail would overlap that
+     centered canvas instead of giving the body its own column. */
+  .app-stage { padding: 0; }
+  .app-canvas { width: 100%; max-width: none; box-shadow: none; }
   .editorial-app > header { display: none; }
-  .editorial-main { grid-column: 2; grid-row: 1; width: 100%; padding-top: 8px !important; padding-right: calc(12px + env(safe-area-inset-right)) !important; padding-bottom: 8px !important; padding-left: 12px !important; }
+  .editorial-main {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    justify-self: stretch;
+    padding-top: 8px !important;
+    padding-right: calc(12px + env(safe-area-inset-right)) !important;
+    padding-bottom: 8px !important;
+    padding-left: 12px !important;
+  }
   .editorial-main--feed { overflow: hidden; padding-top: 8px !important; padding-bottom: 8px !important; }
   .editorial-main--scroll { overflow-y: auto; }
-  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; width: var(--landscape-nav-width); height: 100%; overflow: hidden; border: 0; border-right: 1px solid var(--xc-outline); padding: 8px 4px 8px calc(4px + env(safe-area-inset-left)); box-shadow: none; transition: width .2s ease, box-shadow .2s ease; }
+  .editorial-ranking, .editorial-profile, .editorial-upload,
+  .editorial-ranking > *, .editorial-profile > *, .editorial-upload > * { min-width: 0; max-width: 100%; }
+  .editorial-main--feed > .editorial-feed,
+  .editorial-main--feed .media-carousel,
+  .editorial-main--feed .media-carousel > article { width: 100%; min-width: 0; max-width: 100%; }
+  .editorial-app > nav {
+    position: absolute !important;
+    inset: 0 auto 0 env(safe-area-inset-left);
+    z-index: 50;
+    width: var(--landscape-nav-collapsed);
+    height: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    border: 0;
+    border-right: 1px solid var(--xc-outline);
+    padding: 8px 4px;
+    box-shadow: none;
+    transition: width .2s ease, box-shadow .2s ease;
+  }
+  .editorial-app > nav:hover,
+  .editorial-app > nav:focus-within,
+  .editorial-app.editorial-app--landscape-nav-open > nav { width: var(--landscape-nav-expanded); box-shadow: 12px 0 28px rgba(14,28,45,.10); }
   .desktop-nav-brand { display: flex; align-items: center; width: 50px; height: 38px; margin: 0 0 8px; padding: 0 10px; overflow: hidden; color: var(--xc-text); text-align: left; white-space: nowrap; transition: width .2s ease, padding .2s ease; }
   .desktop-nav-brand img { width: 30px; height: 24px; flex: 0 0 auto; object-fit: contain; }
   .desktop-nav-brand span { max-width: 0; overflow: hidden; opacity: 0; transform: translateX(-6px); transition: max-width .2s ease, opacity .16s ease, transform .2s ease; }
@@ -374,9 +422,30 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app--landscape-nav-open .desktop-nav-brand span { max-width: 140px; opacity: 1; transform: translateX(0); }
   .editorial-app--landscape-nav-open > nav > .desktop-nav-items button { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
   .editorial-app--landscape-nav-open > nav > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; }
+  .editorial-app > nav:hover .desktop-nav-brand,
+  .editorial-app > nav:focus-within .desktop-nav-brand { width: 100%; gap: 9px; padding: 0 12px; }
+  .editorial-app > nav:hover .desktop-nav-brand span,
+  .editorial-app > nav:focus-within .desktop-nav-brand span { max-width: 140px; opacity: 1; transform: translateX(0); }
+  .editorial-app > nav:hover > .desktop-nav-items button,
+  .editorial-app > nav:focus-within > .desktop-nav-items button { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 12px; }
+  .editorial-app > nav:hover > .desktop-nav-items button span:last-child,
+  .editorial-app > nav:focus-within > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; }
   .desktop-nav-language { display: none !important; }
   .editorial-feed > div:first-child { min-height: 26px; padding-bottom: 4px; }
   .editorial-feed article { min-height: 0; }
+
+  /* Landscape phone dialogs use the desktop two-column contract instead of a
+     portrait bottom sheet, keeping media and controls inside the viewport. */
+  .comment-panel { align-items: center; padding: 12px; }
+  .comment-panel__dialog { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(250px, .9fr); width: min(920px, calc(100vw - 24px)); height: min(560px, calc(100dvh - 24px)); min-height: 0; flex-direction: row; border-radius: .5rem; }
+  .comment-panel__media { display: block; min-width: 0; height: 100%; overflow: hidden; background: #05080c; }
+  .comment-panel__media > img, .comment-panel__media > video { display: block; width: 100%; height: 100%; object-fit: contain !important; }
+  .comment-panel__media-nav, .comment-panel__media-count { display: inline-flex; }
+  .comment-panel__sheet-heading { display: none; }
+  .comment-panel__content { height: 100%; min-height: 0; }
+  .comment-panel__comments { padding: 1rem; }
+  .comment-panel__form { padding: .6rem .75rem; }
+  .comment-panel__close { position: absolute; right: 10px; top: 10px; }
 }
 /* 정의: 넓은 데스크톱에서는 Instagram처럼 좌측 아이콘 메뉴·중앙 피드·우측 추천 정보를 동시에 배치한다. */
 @media (min-width: 1200px) {
