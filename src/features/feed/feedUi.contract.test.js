@@ -68,7 +68,7 @@ test('multi-photo media keeps a full-width center track with continuous edge pre
   assert.match(styles, /\.media-peek--continuous \{[^}]*--media-peek-width: 28px;[^}]*width: 100%/);
   assert.match(styles, /\.media-peek \{[^}]*background: #fff/);
   assert.match(styles, /\.media-peek \{[^}]*filter: saturate\(\.8\) brightness\(\.68\) blur\(\.35px\)/);
-  assert.match(styles, /\.media-peek \{ --media-peek-width: clamp\(24px, 8vw, 32px\); width: 100%; \}/);
+  assert.match(styles, /\.media-peek--continuous \{ --media-peek-width: clamp\(24px, 8vw, 32px\); width: 100%; \}/);
   assert.match(styles, /\.media-card--dragging \.media-peek--continuous \{ transition: none; \}/);
   assert.match(source, /const width = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
   assert.match(source, /deltaX \* 0\.2/);
