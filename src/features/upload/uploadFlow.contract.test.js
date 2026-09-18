@@ -70,8 +70,38 @@ test('media preview controls remain visible and touch-safe over dark images', as
 
 test('image previews keep the photo surface clean while video duration stays visible', async () => {
   const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
-  assert.match(source, /\{item\.type === 'video' && <span[^>]*>VIDEO/);
+  assert.match(source, /\{item\.type === 'video' && <time[^>]*>\{formatVideoDuration\(item\.duration\)\}<\/time>/);
+  assert.match(source, /function formatVideoDuration\(seconds\)/);
   assert.doesNotMatch(source, /`IMAGE \$\{index \+ 1\}`/);
+});
+
+test('media previews support desktop drop and mobile long-press reordering', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /const \[draggingMediaId, setDraggingMediaId\] = useState\(null\)/);
+  assert.match(source, /function reorderMedia\(sourceId, targetId\)/);
+  assert.match(source, /function beginMediaTouchDrag\(id, event\)/);
+  assert.match(source, /window\.setTimeout\(\(\) => \{/);
+  assert.match(source, /function moveMediaTouchDrag\(event\)/);
+  assert.match(source, /function endMediaTouchDrag\(event\)/);
+  assert.match(source, /data-upload-media-id=\{item\.id\} draggable/);
+  assert.match(source, /onDragOver=\{\(event\) => onNativeDragOver\(item\.id, event\)\}/);
+  assert.match(source, /onDrop=\{\(event\) => onNativeDrop\(item\.id, event\)\}/);
+  assert.match(source, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(styles, /\.media-preview \{[\s\S]*?cursor: grab; touch-action: none/);
+  assert.match(styles, /\.media-preview > img, \.media-preview > video \{ pointer-events: none; \}/);
+  assert.match(styles, /\.upload-video-duration \{[\s\S]*?z-index: 40;[\s\S]*?display: inline-flex !important/);
+  assert.match(styles, /\.media-preview--dragging \{/);
+  assert.match(styles, /\.media-preview--drag-over \{/);
+});
+
+test('video upload input targets browser-compatible MP4 and iPhone MOV sources', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  assert.match(source, /video\/mp4,video\/quicktime/);
+  assert.doesNotMatch(source, /video\/mp4,video\/webm,video\/quicktime/);
+  assert.match(source, /function supportsVideoFile\(file\)/);
+  assert.match(source, /canPlayType\(mime\)/);
+  assert.match(source, /H\.264 MP4 또는 iPhone MOV/);
 });
 
 test('a just-published card is retained and kept canonical during feed hydration', async () => {

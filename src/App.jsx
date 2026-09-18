@@ -37,30 +37,6 @@ const tabs = [
 const LIVE_REACTION_ANIMATION_MS = 2_450;
 const LIVE_REACTION_STAGGER_MS = 180;
 const LIVE_REACTION_PAIR_THRESHOLD = 8;
-let appCanvasSyncBlockedUntil = 0;
-
-function hasFocusedTextEditor() {
-  const active = document.activeElement;
-  return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement || Boolean(active?.isContentEditable);
-}
-
-/** Keeps the app shell at the last non-keyboard visual viewport height. */
-function syncAppCanvasHeight() {
-  if (Date.now() < appCanvasSyncBlockedUntil) return;
-  if (hasFocusedTextEditor()) return;
-  const visualHeight = Math.round(window.visualViewport?.height ?? 0);
-  const layoutHeight = Math.round(window.innerHeight);
-  // iOS keeps innerHeight at its non-keyboard value while visualViewport is
-  // reduced. Never store that temporary keyboard height as the app shell.
-  if (visualHeight && layoutHeight && visualHeight < layoutHeight - 120) return;
-  const height = Math.max(visualHeight, layoutHeight);
-  if (height > 0) document.documentElement.style.setProperty('--xc-app-height', `${height}px`);
-}
-
-function settleAppCanvasAfterKeyboardDismissal() {
-  appCanvasSyncBlockedUntil = Date.now() + 520;
-  window.setTimeout(syncAppCanvasHeight, 540);
-}
 
 function liveReactionCheckpointKey(memberId, postId) { return `facs_live_reaction_seen_v1:${memberId}:${postId}`; }
 function getLiveReactionCheckpoint(memberId, postId) {
@@ -173,10 +149,9 @@ export default function App() {
       // locked until a fresh sign-in event (or cross-tab completion signal).
       if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
       // The OTP field can remain focused while Supabase updates the session.
-      // Dismiss its software keyboard before replacing Splash with Feed so an
-      // old visual viewport is never carried into the authenticated canvas.
+      // Dismiss its software keyboard before replacing Splash with Feed; the
+      // CSS viewport shell then resolves the next visible size without JS timing.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      settleAppCanvasAfterKeyboardDismissal();
       setAuthUser(session.user ?? null);
       setIsGuest(false);
 
@@ -494,31 +469,6 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.VISITOR_OPENED, { locale, source: sharedPostId ? 'shared_post' : 'direct' });
   }, [locale, sharedPostId]);
 
-  /** Stores only a non-keyboard viewport height; input focus keeps the shell stable while Upload scrolls its own content. */
-  useEffect(() => {
-    let settleTimer;
-    const scheduleSync = () => {
-      syncAppCanvasHeight();
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(syncAppCanvasHeight, 180);
-    };
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') scheduleSync(); };
-    scheduleSync();
-    window.visualViewport?.addEventListener('resize', scheduleSync);
-    window.visualViewport?.addEventListener('scroll', scheduleSync);
-    window.addEventListener('pageshow', scheduleSync);
-    window.addEventListener('focus', scheduleSync);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      window.clearTimeout(settleTimer);
-      window.visualViewport?.removeEventListener('resize', scheduleSync);
-      window.visualViewport?.removeEventListener('scroll', scheduleSync);
-      window.removeEventListener('pageshow', scheduleSync);
-      window.removeEventListener('focus', scheduleSync);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, []);
-
   useEnglishUi(locale);
   useEffect(() => { applySeoMetadata(locale); }, [locale]);
 
@@ -655,9 +605,8 @@ export default function App() {
     }
     // An iPhone can keep the question field's software keyboard open while the
     // upload request is in flight. Close that transient viewport before the
-    // request; only successful publication should reset the scroll position.
+    // request; only successful publication should reset the inner Upload scroll.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    settleAppCanvasAfterKeyboardDismissal();
     const previousScrollTop = mainRef.current?.scrollTop ?? window.scrollY;
     const result = await createSupabasePublishedPost({
       category: card.category,

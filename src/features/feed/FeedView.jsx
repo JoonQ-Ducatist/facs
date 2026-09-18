@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bookmark, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
+import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
 export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onBoost, onStartUpload, onAddComment }) {
@@ -42,15 +43,31 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨'));
   }
 
+  /** Clears every part of a card gesture so native media controls cannot leave a stale pointer behind. */
+  function resetCardGesture() {
+    gestureStart.current = null;
+    setIsDraggingMedia(false);
+    setDragOffset(0);
+  }
+  function cancelCapturedCardGesture() { if (gestureStart.current) resetCardGesture(); }
+
   /** 정의: 카드 표면의 시작 좌표를 기록해 가로 앨범·세로 피드 제스처를 구분한다. @param {PointerEvent} event 포인터 이벤트 */
   function startCardGesture(event) {
-    if (event.target.closest('button, input, textarea')) return;
-    gestureStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { resetCardGesture(); return; }
+    if (event.target instanceof HTMLVideoElement) {
+      const bounds = event.target.getBoundingClientRect();
+      // Native iOS video controls live along the bottom edge. Keep that strip
+      // dedicated to playhead/volume interactions while the rest of the video
+      // remains part of the card swipe surface.
+      if (event.clientY >= bounds.bottom - 58) { resetCardGesture(); return; }
+    }
+    gestureStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType, pointerId: event.pointerId };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
   /** 정의: 가로 이동 거리를 중앙 사진에 반영해 손으로 잡고 넘기는 앨범 전환 감각을 제공한다. @param {PointerEvent} event 포인터 이벤트 */
   function moveCardGesture(event) {
-    if (!gestureStart.current || cardMedia.length < 2) return;
+    if (!gestureStart.current || gestureStart.current.pointerId !== event.pointerId || cardMedia.length < 2) return;
     const deltaX = event.clientX - gestureStart.current.x;
     const deltaY = event.clientY - gestureStart.current.y;
     if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
@@ -76,7 +93,9 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   }
   /** 정의: 가로 스와이프는 같은 카드의 미디어를, 세로 터치 스와이프는 이전·다음 카드를 표시한다. @param {PointerEvent} event 포인터 이벤트 */
   function finishCardGesture(event) {
-    if (!gestureStart.current) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { resetCardGesture(); return; }
+    if (!gestureStart.current || gestureStart.current.pointerId !== event.pointerId) { resetCardGesture(); return; }
     const start = gestureStart.current;
     gestureStart.current = null;
     const deltaX = event.clientX - start.x;
@@ -123,17 +142,17 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   function endCategoryDrag() { categoryDrag.current = null; }
 
   return <section className="editorial-feed relative flex h-full w-full min-h-0 flex-col items-center">
-    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
+    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
 
     <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={() => { gestureStart.current = null; setIsDraggingMedia(false); setDragOffset(0); }} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${feedMotion}`}>
+    <article onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${feedMotion}`}>
       {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></button></div>}
       {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--right"><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></button></div>}
-      <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translateX(${dragOffset}px)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" /></div>
-      <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
+      <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translateX(${dragOffset}px)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
+      <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
       <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
@@ -167,7 +186,53 @@ function UserBadge({ author, canFollow = false, following = false, onToggleFollo
 /** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
 function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="rounded-full p-0"><span className="block rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'rgba(255,255,255,.52)' }} /></button>)}</div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
-function CardMedia({ card, media, className, muted = false }) { const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }; const protectMedia = (event) => event.preventDefault(); return source.type === 'video' ? <video className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} autoPlay loop muted={muted || undefined} playsInline controls={!muted} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} /> : <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />; }
+function CardMedia({ card, media, className, muted = false, showFullscreen = false }) {
+  const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
+  const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
+  const videoPoster = useVideoPoster(isVideo ? source.url : '');
+  const videoRef = useRef(null);
+  const protectMedia = (event) => event.preventDefault();
+  const isolateVideoTouch = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientY >= bounds.bottom - 58) event.stopPropagation();
+  };
+  const reportVideoEvent = (event) => {
+    if (!import.meta.env.DEV) return;
+    const video = event.currentTarget;
+    const mediaError = video.error;
+    console.debug('[FACS video]', event.type, {
+      readyState: video.readyState,
+      networkState: video.networkState,
+      errorCode: mediaError?.code ?? null,
+      source: String(video.currentSrc || source.url || '').split('?')[0],
+    });
+  };
+  const enterFullscreen = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    enterNativeVideoFullscreen(video);
+  };
+  const stopFullscreenGesture = (event) => event.stopPropagation();
+  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
+  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={showFullscreen && !muted ? 'auto' : 'metadata'} controls={!muted} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
+  if (!showFullscreen || muted) return video;
+  return <div className="feed-video-shell">{video}<button type="button" data-video-fullscreen-button aria-label="동영상 전체 화면" title="전체 화면" className="video-fullscreen-button" onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>;
+}
+function useVideoPoster(url) {
+  const [poster, setPoster] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (!url) { setPoster(''); return undefined; }
+    createRemoteVideoPoster(url).then((nextPoster) => {
+      if (!cancelled && nextPoster) setPoster(nextPoster);
+    });
+    return () => { cancelled = true; };
+  }, [url]);
+  return poster;
+}
+function createRemoteVideoPoster(url) { return new Promise((resolve) => { const video = document.createElement('video'); const canvas = document.createElement('canvas'); let settled = false; const finish = (poster = '') => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(poster); }; const capture = () => { try { if (!video.videoWidth || !video.videoHeight) return finish(''); canvas.width = video.videoWidth; canvas.height = video.videoHeight; const context = canvas.getContext('2d'); context?.drawImage(video, 0, 0, canvas.width, canvas.height); finish(canvas.toDataURL('image/jpeg', .82)); } catch { finish(''); } }; const timeout = window.setTimeout(() => finish(''), 6000); video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.muted = true; video.playsInline = true; video.onloadeddata = capture; video.onerror = () => finish(''); video.src = url; video.load(); }); }
 /** 정의: 카드 이동을 위한 접근성 레이블 포함 화살표 버튼이다. */
 function ArrowButton({ label, icon, onClick }) { return <button type="button" onClick={onClick} aria-label={label} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white shadow-md backdrop-blur active:scale-90"><span className="material-symbols-outlined text-xl">{icon}</span></button>; }
 /** 정의: 공유 기능을 카드 탐색 제어와 같은 터치 영역으로 제공한다. */

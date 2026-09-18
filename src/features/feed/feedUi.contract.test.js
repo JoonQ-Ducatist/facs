@@ -23,6 +23,42 @@ test('feed cards render protected media and adjacent multi-photo previews', asyn
   assert.match(source, /media-card--multi/);
 });
 
+test('feed video owns fullscreen gestures in unstarted, playing and replay states without stealing carousel gestures', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const fullscreenSource = await readFile(resolve(featureRoot, 'videoFullscreen.js'), 'utf8');
+  assert.match(source, /autoPlay=\{Boolean\(muted\)\}/);
+  assert.match(source, /loop=\{Boolean\(muted\)\}/);
+  assert.match(source, /preload=\{showFullscreen && !muted \? 'auto' : 'metadata'\}/);
+  assert.match(source, /controls=\{!muted\}/);
+  assert.match(source, /onPointerDown=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerMove=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
+  assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
+  assert.match(source, /event\.clientY >= bounds\.bottom - 58/);
+  assert.match(source, /data-video-fullscreen-button/);
+  assert.match(source, /target\.closest\('button, input, textarea, \[data-video-fullscreen-button\]'\)/);
+  assert.match(source, /pointerId: event\.pointerId/);
+  assert.match(source, /gestureStart\.current\.pointerId !== event\.pointerId/);
+  assert.match(source, /onLostPointerCapture=\{cancelCapturedCardGesture\}/);
+  assert.match(source, /if \(gestureStart\.current\) resetCardGesture\(\)/);
+  assert.match(source, /function enterFullscreen|const enterFullscreen/);
+  assert.match(source, /enterNativeVideoFullscreen\(video\)/);
+  assert.match(fullscreenSource, /webkitEnterFullscreen/);
+  assert.match(fullscreenSource, /if \(video\.readyState === 0\) video\.load\(\)/);
+  assert.match(fullscreenSource, /if \(video\.paused\) playRequest = video\.play\(\)/);
+  assert.match(fullscreenSource, /webkitDisplayingFullscreen/);
+  assert.match(fullscreenSource, /restorePreviewAfterFailure/);
+  assert.match(fullscreenSource, /requestFullscreen/);
+  assert.match(source, /onPointerDown=\{stopFullscreenGesture\}/);
+  assert.match(source, /onClick=\{enterFullscreen\}/);
+  assert.doesNotMatch(source, /fullscreenActive|fullscreenSnapshotRef|fullscreenRequestRef|facs-video-fullscreen-active/);
+  assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
+  assert.match(source, /function useVideoPoster\(url\)/);
+  assert.match(source, /function createRemoteVideoPoster\(url\)/);
+  assert.match(source, /poster=\{videoPoster \|\| undefined\}/);
+  assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
+});
+
 test('multi-photo media keeps the central photo full width with fixed edge previews', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(styles, /\.media-card \.media-primary \{ inset: 0;/);
@@ -34,10 +70,26 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
   assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?right: calc\(40px \+ env\(safe-area-inset-right\)\)/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?pointer-events: auto/);
 });
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"/);
   assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
+});
+
+test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.doesNotMatch(html, /scrollRestoration|normalizeInitialViewport|visualViewport/);
+  assert.doesNotMatch(source, /syncAppCanvasHeight|settleAppCanvasAfterKeyboardDismissal|visualViewport/);
+  assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
+  assert.doesNotMatch(styles, /\.app-stage \{[^}]*position: fixed/);
+  assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
+  assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
+  assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
 });
