@@ -154,6 +154,22 @@ test('Boost retries a newly refreshed API schema once before surfacing a safe er
   assert.equal(result.data.status, 'active');
 });
 
+test('Boost candidate recovery retries a newly refreshed API schema before clearing the CTA', async () => {
+  let calls = 0;
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => {
+      calls += 1;
+      return calls === 1
+        ? { data: null, error: { code: 'PGRST202' } }
+        : { data: [{ post_id: 'post-a', category: 'perceived_age', published_at: '2026-09-15T00:00:00Z', other_vote_count: '0', target_votes: 100 }], error: null };
+    },
+  };
+  const result = await listSupabaseBoostCandidates({ client });
+  assert.equal(calls, 2);
+  assert.equal(result.data[0].postId, 'post-a');
+});
+
 test('Boost candidates use the private server-clock RPC and map only safe fields', async () => {
   const calls = [];
   const client = {

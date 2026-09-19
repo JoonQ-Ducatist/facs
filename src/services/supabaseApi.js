@@ -111,7 +111,14 @@ export async function listSupabaseBoostCandidates({ limit = 20, client = supabas
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
   const pageSize = Math.min(Math.max(limit, 1), 50);
-  const { data, error } = await client.rpc('get_my_boost_candidates', { page_size: pageSize });
+  let { data, error } = await client.rpc('get_my_boost_candidates', { page_size: pageSize });
+  // Keep reload recovery consistent with the request path. PostgREST can
+  // briefly miss a just-deployed RPC from its schema cache; an empty list
+  // would otherwise incorrectly remove a valid Boost CTA after refresh.
+  if (error?.code === 'PGRST202') {
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 250));
+    ({ data, error } = await client.rpc('get_my_boost_candidates', { page_size: pageSize }));
+  }
   if (error) return apiSuccess([], { source: 'degraded' });
   return apiSuccess((data ?? []).filter((candidate) => candidate?.post_id).map((candidate) => ({
     postId: candidate.post_id,

@@ -29,6 +29,7 @@ test('every browser lifecycle state retains one fixed app shell and never scroll
     await t.test(`${transition} remains owned by ${owner}`, () => {
       assert.match(styles, /\.app-stage \{ position: relative;/);
       assert.match(styles, /height: 100vh; height: 100dvh;/);
+      assert.match(styles, /html, body, #root \{ width: 100%; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; \}/);
       assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none;/);
       assert.doesNotMatch(styles, /--xc-app-offset-top|--xc-app-height/);
       assert.doesNotMatch(app, /visualViewport|scrollRestoration|setTimeout\(syncAppCanvas/);
