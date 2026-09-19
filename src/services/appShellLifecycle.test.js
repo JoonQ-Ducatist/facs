@@ -20,7 +20,7 @@ const lifecycleMatrix = [
   ['fullscreen exited', 'active'],
 ];
 
-test('every browser lifecycle state retains one normal-flow shell and never adds a viewport offset', async (t) => {
+test('every browser lifecycle state retains one fixed app shell and never scrolls the menus with the document', async (t) => {
   const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
   const app = await readFile(resolve(serviceRoot, '../App.jsx'), 'utf8');
   const html = await readFile(resolve(serviceRoot, '../../index.html'), 'utf8');
@@ -29,6 +29,7 @@ test('every browser lifecycle state retains one normal-flow shell and never adds
     await t.test(`${transition} remains owned by ${owner}`, () => {
       assert.match(styles, /\.app-stage \{ position: relative;/);
       assert.match(styles, /height: 100vh; height: 100dvh;/);
+      assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none;/);
       assert.doesNotMatch(styles, /--xc-app-offset-top|--xc-app-height/);
       assert.doesNotMatch(app, /visualViewport|scrollRestoration|setTimeout\(syncAppCanvas/);
       assert.doesNotMatch(html, /visualViewport|scrollRestoration|normalizeInitialViewport/);
@@ -43,6 +44,8 @@ test('keyboard, file-picker and fullscreen states retain their existing isolated
   const fullscreen = await readFile(resolve(serviceRoot, '../features/feed/videoFullscreen.js'), 'utf8');
 
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > header \{ position: static !important; grid-row: 1;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
   assert.match(upload, /visualViewport\?\.height \?\? window\.innerHeight/);
   assert.match(upload, /onPointerDown=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
   assert.match(upload, /onTouchStart=\{\(event\) => onTouchStart\(item\.id, event\)\}/);

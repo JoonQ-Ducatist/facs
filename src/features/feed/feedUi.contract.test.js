@@ -104,14 +104,14 @@ test('feed navigation uses scroll and touch handoff without visible up/down cont
   assert.doesNotMatch(source, /label="다음 카드"/);
 });
 
-test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {
+test('browser lifecycle fixes the authenticated shell while preserving isolated body scrolling', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.doesNotMatch(html, /scrollRestoration|normalizeInitialViewport|visualViewport/);
   assert.doesNotMatch(source, /syncAppCanvasHeight|settleAppCanvasAfterKeyboardDismissal|visualViewport/);
   assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
-  assert.doesNotMatch(styles, /\.app-stage \{[^}]*position: fixed/);
+  assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0;[\s\S]*?overflow: hidden; overscroll-behavior: none;/);
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
   assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
