@@ -702,6 +702,7 @@ export default function App() {
       return next;
     });
     setCards((items) => items.map((item) => item.id === currentCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
+    trackEvent(ANALYTICS_EVENT.BOOST_REQUESTED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Boost requested. It increases reach and sample size only.' : 'Boost를 요청했어요. 노출과 표본만 늘어납니다.');
   }
 

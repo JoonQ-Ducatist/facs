@@ -11,6 +11,7 @@ export const ANALYTICS_EVENT = {
   UPLOAD_COMPLETED: 'upload_completed',
   RESULT_VIEWED: 'result_viewed',
   SHARE_REQUESTED: 'share_requested',
+  BOOST_REQUESTED: 'boost_requested',
 };
 
 function readEvents() {

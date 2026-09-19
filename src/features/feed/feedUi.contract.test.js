@@ -12,6 +12,13 @@ test('feed preserves the uploaded category selection after publishing', async ()
   assert.match(source, /boostRequested=\{currentCard\?\.boostStatus === 'active'\}/);
 });
 
+test('a server-eligible zero-rating post exposes the recovery Boost request without implying payment', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(source, /if \(total === 0\) return <ResultShell total=\{total\} color=\{color\} onBoost=\{onBoost\}/);
+  assert.match(source, /평가가 없어 Boost 요청/);
+  assert.doesNotMatch(source, /Boost · ₩1,000/);
+});
+
 test('feed cards render protected media and adjacent multi-photo previews', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /media-peek media-peek--continuous media-peek--left/);
