@@ -3,6 +3,7 @@ import { Bookmark, Share2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavigation.js';
+import { formatPublishedTime } from '../../services/publishedTime.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
 export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onBoost, onStartUpload, onAddComment }) {
@@ -17,12 +18,17 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const [feedMotion, setFeedMotion] = useState('');
   const [saveNotice, setSaveNotice] = useState('');
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const feedLocked = useRef(false);
   const mediaLocked = useRef(false);
   const mediaCardRef = useRef(null);
   const carouselKickTimer = useRef(null);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
   useLayoutEffect(() => {
     const cardElement = mediaCardRef.current;
@@ -41,6 +47,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const yesPercent = isAgeEvaluation ? 0 : Math.round((card.yesVotes / total) * 100);
   const noPercent = 100 - yesPercent;
   const isSaved = savedPostIds?.has(card.id) ?? false;
+  const publishedTime = formatPublishedTime(card.publishedAt, { locale, now: clockNow }) || card.timestamp;
 
   /** Prevent browser image-save affordances while leaving explicit controls usable. */
   function protectMediaEvent(event) {
@@ -220,7 +227,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
-      <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
+      <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><time dateTime={card.publishedAt || undefined} className="font-mono text-[8px] leading-none text-white/75">{publishedTime}</time></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
       {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
       <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
         {hasVoted || isOwnPost || (canViewLiveReactions && liveReactions.length) ? <>{isAgeEvaluation ? <AgeResult card={card} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
