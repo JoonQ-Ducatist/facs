@@ -25,8 +25,11 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const categoryDrag = useRef(null);
   useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
   useLayoutEffect(() => {
-    const scroller = mediaCardRef.current?.closest('.editorial-main--feed');
-    if (scroller) scroller.scrollTop = 0;
+    const cardElement = mediaCardRef.current;
+    const carousel = cardElement?.closest('.media-carousel');
+    const main = cardElement?.closest('.editorial-main--feed');
+    if (carousel) carousel.scrollTop = 0;
+    if (main) main.scrollTop = 0;
   }, [card.id]);
   if (!card) return <section className="mt-4 rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-slate-400">표시할 사진이 없습니다.</section>;
   const theme = categories[card.category];
@@ -58,6 +61,14 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     setDragOffset(0);
   }
   function cancelCapturedCardGesture() { if (gestureStart.current) resetCardGesture(); }
+
+  /** The landscape carousel owns body scrolling below the fixed category row;
+   * portrait keeps the main feed as its zero-range gesture boundary. */
+  function getCardScrollOwner(element) {
+    const carousel = element.closest('.media-carousel');
+    if (carousel && carousel.scrollHeight > carousel.clientHeight + 2) return carousel;
+    return element.closest('.editorial-main--feed');
+  }
 
   /** 정의: 카드 표면의 시작 좌표를 기록해 가로 앨범·세로 피드 제스처를 구분한다. @param {PointerEvent} event 포인터 이벤트 */
   function startCardGesture(event) {
@@ -146,7 +157,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { touchGestureStart.current = null; return; }
     const touch = event.touches[0];
     if (!touch) return;
-    const scroller = event.currentTarget.closest('.editorial-main--feed');
+    const scroller = getCardScrollOwner(event.currentTarget);
     touchGestureStart.current = {
       x: touch.clientX,
       y: touch.clientY,
@@ -165,7 +176,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   /** 정의: 데스크톱 휠의 세로 이동으로 피드를 한 장씩 안전하게 순환한다. @param {WheelEvent} event 마우스 휠 이벤트 */
   function moveCardByWheel(event) {
     if (wheelLocked.current) return;
-    const scroller = event.currentTarget.closest('.editorial-main--feed');
+    const scroller = getCardScrollOwner(event.currentTarget);
     const direction = resolveWheelFeedDirection({ deltaY: event.deltaY, scrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0 });
     if (!direction) return;
     event.preventDefault();

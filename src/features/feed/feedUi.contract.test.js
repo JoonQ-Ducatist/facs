@@ -97,6 +97,8 @@ test('feed navigation uses scroll and touch handoff without visible up/down cont
   assert.match(source, /if \(event\.pointerType === 'mouse'\) event\.currentTarget\.setPointerCapture/);
   assert.match(source, /onTouchStart=\{startCardTouch\}/);
   assert.match(source, /onTouchEnd=\{finishCardTouch\}/);
+  assert.match(source, /function getCardScrollOwner\(element\)/);
+  assert.match(source, /carousel\.scrollHeight > carousel\.clientHeight \+ 2/);
   assert.match(source, /resolveTouchFeedDirection\(/);
   assert.match(source, /resolveWheelFeedDirection\(/);
   assert.doesNotMatch(source, /function ArrowButton/);

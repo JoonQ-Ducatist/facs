@@ -348,9 +348,9 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .editorial-app > header { display: none; }
   .editorial-main { grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center; padding: 8px 0 !important; }
-  .editorial-main--feed { display: block !important; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
-  .editorial-main--feed > .editorial-feed { display: block; height: auto; min-height: max-content; }
-  .editorial-main--feed .media-carousel { display: block; height: auto; min-height: 640px; }
+  .editorial-main--feed { display: block !important; overflow: hidden; overscroll-behavior: none; }
+  .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
+  .editorial-main--feed .media-carousel { display: block; grid-row: 2; height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
   .editorial-main--feed .media-carousel > article { display: block; width: 100%; height: 640px; min-height: 640px; }
   .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; z-index: 50; width: 216px; height: 100%; overflow: hidden; box-sizing: border-box; border: 0; border-right: 1px solid var(--xc-outline); padding: 24px 14px; box-shadow: 12px 0 28px rgba(14,28,45,.10); }
   .desktop-nav-brand { display: flex; align-items: center; gap: 9px; width: 100%; margin: 0 0 28px; padding: 4px 8px; color: var(--xc-text); text-align: left; white-space: nowrap; }
@@ -361,7 +361,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app > nav > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; font-size: 13px; }
   .desktop-nav-language { display: inline-flex; margin: 0 0 10px; }
   .desktop-nav-language span:last-child { max-width: 90px; opacity: 1; }
-  .editorial-feed > div:first-child { position: sticky; top: 0; z-index: 45; min-height: 30px; padding: .25rem 0; background: var(--xc-surface); }
+  .editorial-feed > div:first-child { position: relative; grid-row: 1; z-index: 45; min-height: 30px; padding: .25rem 0; background: var(--xc-surface); }
 
   /* Landscape phone dialogs use the desktop two-column contract instead of a
      portrait bottom sheet, keeping media and controls inside the viewport. */
