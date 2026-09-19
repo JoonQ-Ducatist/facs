@@ -91,6 +91,18 @@ test('multi-photo edge previews only render for directions that have a neighbori
   assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--continuous media-peek--right"/);
 });
 
+test('feed navigation uses scroll and touch handoff without visible up/down controls', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(source, /className=\{`media-card[^`]*touch-pan-y/);
+  assert.match(source, /if \(event\.pointerType === 'mouse'\) event\.currentTarget\.setPointerCapture/);
+  assert.match(source, /const canRevealMoreOfThisCard = deltaY < 0/);
+  assert.match(source, /if \(!canRevealMoreOfThisCard\) navigateFeed\(deltaY < 0 \? 1 : -1\);/);
+  assert.match(source, /const canRevealMoreOfThisCard = event\.deltaY > 0/);
+  assert.doesNotMatch(source, /function ArrowButton/);
+  assert.doesNotMatch(source, /label="이전 카드"/);
+  assert.doesNotMatch(source, /label="다음 카드"/);
+});
+
 test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');

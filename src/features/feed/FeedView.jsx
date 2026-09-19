@@ -65,7 +65,9 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       if (event.clientY >= bounds.bottom - 58) { resetCardGesture(); return; }
     }
     gestureStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType, pointerId: event.pointerId };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Touch must keep its native vertical scroll path. Capturing it here made
+    // landscape cards switch feeds instead of revealing their lower content.
+    if (event.pointerType === 'mouse') event.currentTarget.setPointerCapture?.(event.pointerId);
   }
   /** 정의: 가로 이동 거리를 중앙 사진에 반영해 손으로 잡고 넘기는 앨범 전환 감각을 제공한다. @param {PointerEvent} event 포인터 이벤트 */
   function moveCardGesture(event) {
@@ -129,13 +131,28 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       return;
     }
     resetDrag();
-    if (start.pointerType !== 'mouse') {
-      navigateFeed(deltaY < 0 ? 1 : -1);
-    }
+    if (start.pointerType === 'mouse') return;
+    const scroller = event.currentTarget.closest('.editorial-main--feed');
+    const maxScrollTop = Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0));
+    const scrollTop = scroller?.scrollTop ?? 0;
+    const canRevealMoreOfThisCard = deltaY < 0
+      ? scrollTop < maxScrollTop - 2
+      : scrollTop > 2;
+    // Mobile and tablet swipe through feeds only after the visible card cannot
+    // scroll farther in that direction. This is the same scroll-first handoff
+    // users expect from an Instagram-style feed.
+    if (!canRevealMoreOfThisCard) navigateFeed(deltaY < 0 ? 1 : -1);
   }
   /** 정의: 데스크톱 휠의 세로 이동으로 피드를 한 장씩 안전하게 순환한다. @param {WheelEvent} event 마우스 휠 이벤트 */
   function moveCardByWheel(event) {
     if (Math.abs(event.deltaY) < 12 || wheelLocked.current) return;
+    const scroller = event.currentTarget.closest('.editorial-main--feed');
+    const maxScrollTop = Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0));
+    const scrollTop = scroller?.scrollTop ?? 0;
+    const canRevealMoreOfThisCard = event.deltaY > 0
+      ? scrollTop < maxScrollTop - 2
+      : scrollTop > 2;
+    if (canRevealMoreOfThisCard) return;
     event.preventDefault();
     wheelLocked.current = true;
     navigateFeed(event.deltaY > 0 ? 1 : -1);
@@ -170,7 +187,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </div>
 
     <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-none overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
+    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-pan-y overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
       {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left" style={{ transform: `translate3d(calc(-100% + var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></button></div>}
       {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--continuous media-peek--right" style={{ transform: `translate3d(calc(100% - var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></button></div>}
       <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translate3d(${dragOffset}px, 0, 0)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
@@ -179,7 +196,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
       <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
       {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
-      <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2"><ShareRailButton onClick={() => onShare(card)} /><div className="flex flex-col gap-2.5"><ArrowButton label="이전 카드" icon="expand_less" onClick={() => navigateFeed(-1)} /><ArrowButton label="다음 카드" icon="expand_more" onClick={() => navigateFeed(1)} /></div></div>
+      <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2"><ShareRailButton onClick={() => onShare(card)} /></div>
       <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
         {hasVoted || isOwnPost || (canViewLiveReactions && liveReactions.length) ? <>{isAgeEvaluation ? <AgeResult card={card} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
         {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onExpand={() => setExpandedComments(true)} />}
@@ -256,7 +273,6 @@ function useVideoPoster(url) {
 }
 function createRemoteVideoPoster(url) { return new Promise((resolve) => { const video = document.createElement('video'); const canvas = document.createElement('canvas'); let settled = false; const finish = (poster = '') => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(poster); }; const capture = () => { try { if (!video.videoWidth || !video.videoHeight) return finish(''); canvas.width = video.videoWidth; canvas.height = video.videoHeight; const context = canvas.getContext('2d'); context?.drawImage(video, 0, 0, canvas.width, canvas.height); finish(canvas.toDataURL('image/jpeg', .82)); } catch { finish(''); } }; const timeout = window.setTimeout(() => finish(''), 6000); video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.muted = true; video.playsInline = true; video.onloadeddata = capture; video.onerror = () => finish(''); video.src = url; video.load(); }); }
 /** 정의: 카드 이동을 위한 접근성 레이블 포함 화살표 버튼이다. */
-function ArrowButton({ label, icon, onClick }) { return <button type="button" onClick={onClick} aria-label={label} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white shadow-md backdrop-blur active:scale-90"><span className="material-symbols-outlined text-xl">{icon}</span></button>; }
 /** 정의: 공유 기능을 카드 탐색 제어와 같은 터치 영역으로 제공한다. */
 function ShareRailButton({ onClick }) { return <button type="button" onClick={onClick} aria-label="이 피드 공유하기" title="공유하기" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#D94C70]/60 bg-[#D94C70]/85 text-white shadow-[0_5px_14px_rgba(217,76,112,0.24)] transition-all duration-150 hover:bg-[#D94C70] active:scale-90"><span className="material-symbols-outlined text-[19px]">share</span></button>; }
 /** 정의: 투표 완료 뒤 Result를 표본 상태별로 정직하게 표시하고 적격 상태에서만 Boost를 제안한다. */

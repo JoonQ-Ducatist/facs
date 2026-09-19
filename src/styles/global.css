@@ -374,6 +374,17 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .comment-panel__form { padding: .6rem .75rem; }
   .comment-panel__close { position: absolute; right: 10px; top: 10px; }
 }
+
+/* A reload after rotating must reassert the portrait shell. Safari can retain
+   the former landscape style during visual-viewport restoration unless these
+   rows explicitly win after the landscape contract. */
+@media (max-width: 1023px) and (orientation: portrait) {
+  .editorial-app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(44px + env(safe-area-inset-top)) minmax(0, 1fr) auto; }
+  .editorial-app > header { display: block !important; position: static !important; grid-column: 1; grid-row: 1; }
+  .editorial-main { grid-column: 1; grid-row: 2; width: 100%; min-width: 0; max-width: none; justify-self: stretch; }
+  .editorial-main--feed { display: flex !important; overflow: hidden; }
+  .editorial-app > nav { display: block !important; position: static !important; grid-column: 1; grid-row: 3; width: 100%; height: auto; }
+}
 /* 정의: 넓은 데스크톱에서는 Instagram처럼 좌측 아이콘 메뉴·중앙 피드·우측 추천 정보를 동시에 배치한다. */
 @media (min-width: 1200px) {
   .editorial-app { grid-template-columns: var(--desktop-nav-width) minmax(0, 520px) minmax(280px, 300px); justify-content: center; column-gap: 32px; }
