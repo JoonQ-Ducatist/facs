@@ -336,26 +336,30 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .comment-panel__close { position: fixed; right: 22px; top: 20px; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.7); border-radius: .35rem; background: rgba(0,0,0,.18); color: #fff; }
 }
 
-/* 정의: 휴대폰 가로 모드는 세로 모바일의 정보 구조와 카드 비율을 보존한다.
-   가로로 돌렸다고 데스크톱 사이드바를 섞으면 본문 폭이 축소되고 카드 위 제어가
-   겹친다. 그래서 Instagram처럼 모바일 헤더·하단 메뉴를 유지하고, 원래 카드
-   높이는 피드 내부의 세로 스크롤로 본다. 이 계약은 좁은 가로 휴대폰에만 적용한다. */
+/* 정의: 휴대폰 가로 모드는 PC형 좌측 메뉴와 모바일 원본 폭 피드를 분리한다.
+   메뉴가 본문 폭을 다시 계산하면 카드 비율과 제어가 깨지므로, 메뉴 열은 216px로
+   고정하고 피드는 원래 430px 폭을 유지한다. Instagram처럼 카드 전체는 피드의
+   세로 스크롤로 보며, 메뉴 선택은 PC와 동일한 좌측 메뉴에서 수행한다. */
 @media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
   .app-stage { padding: 0; }
-  .app-canvas { width: min(100%, 430px); max-width: 430px; box-shadow: 0 0 36px rgba(14,28,45,.12); }
-  .editorial-app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(44px + env(safe-area-inset-top)) minmax(0, 1fr) auto; }
-  .editorial-app > header { display: block; position: static !important; grid-column: 1; grid-row: 1; }
-  .editorial-main { grid-column: 1; grid-row: 2; width: 100%; min-width: 0; padding: 0 !important; }
+  .app-canvas { width: 100%; max-width: none; box-shadow: none; }
+  .editorial-app { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .editorial-app > header { display: none; }
+  .editorial-main { grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center; padding: 8px 0 !important; }
   .editorial-main--feed { display: block !important; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
   .editorial-main--feed > .editorial-feed { display: block; height: auto; min-height: max-content; }
   .editorial-main--feed .media-carousel { display: block; height: auto; min-height: 640px; }
   .editorial-main--feed .media-carousel > article { display: block; width: 100%; height: 640px; min-height: 640px; }
-  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 3; width: 100%; height: auto; padding: 0 0 env(safe-area-inset-bottom); border-top: 1px solid var(--xc-outline); border-right: 0; box-shadow: 0 -4px 20px rgba(0,0,0,.03); }
-  .desktop-nav-brand, .desktop-nav-language { display: none !important; }
-  .editorial-app > nav > .desktop-nav-items { height: 44px; flex-direction: row; align-items: center; justify-content: space-around; gap: 0; padding: 0 .5rem; }
-  .editorial-app > nav > .desktop-nav-items button { width: 64px; height: 38px; flex-direction: column; justify-content: center; gap: 0; padding: 0; }
-  .editorial-app > nav > .desktop-nav-items button span:last-child { max-width: none; opacity: 1; font-size: 10px; }
-  .editorial-feed > div:first-child { min-height: 28px; padding: .25rem .5rem; }
+  .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; z-index: 50; width: 216px; height: 100%; overflow: hidden; box-sizing: border-box; border: 0; border-right: 1px solid var(--xc-outline); padding: 24px 14px; box-shadow: 12px 0 28px rgba(14,28,45,.10); }
+  .desktop-nav-brand { display: flex; align-items: center; gap: 9px; width: 100%; margin: 0 0 28px; padding: 4px 8px; color: var(--xc-text); text-align: left; white-space: nowrap; }
+  .desktop-nav-brand span { max-width: 160px; opacity: 1; transform: none; }
+  .editorial-app > nav > .desktop-nav-items { height: auto; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 10px; padding: 0; }
+  .editorial-app > nav > .desktop-nav-items button { width: 100%; height: 52px; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 14px; }
+  .editorial-app > nav > .desktop-nav-items button .material-symbols-outlined { font-size: 28px; }
+  .editorial-app > nav > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; font-size: 13px; }
+  .desktop-nav-language { display: inline-flex; margin: 0 0 10px; }
+  .desktop-nav-language span:last-child { max-width: 90px; opacity: 1; }
+  .editorial-feed > div:first-child { min-height: 30px; padding: .25rem 0; }
 
   /* Landscape phone dialogs use the desktop two-column contract instead of a
      portrait bottom sheet, keeping media and controls inside the viewport. */

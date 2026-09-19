@@ -18,17 +18,19 @@ const landscapeMatrix = [
   [915, 412],
 ];
 
-test('landscape phone keeps the portrait feed contract and scrolls the full-height card', async () => {
+test('landscape phone keeps a PC-style menu beside a fixed-width scrolling feed', async () => {
   const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
   assert.ok(styles.includes(`${landscapeQuery} {`), 'landscape contract is scoped to the narrow phone query');
   const landscapeBlock = styles.slice(styles.indexOf(landscapeQuery), styles.indexOf('/* 정의: 넓은 데스크톱'));
-  assert.match(landscapeBlock, /\.app-canvas \{ width: min\(100%, 430px\); max-width: 430px;/);
-  assert.match(landscapeBlock, /grid-template-rows: calc\(44px \+ env\(safe-area-inset-top\)\) minmax\(0, 1fr\) auto;/);
-  assert.match(landscapeBlock, /\.editorial-app > header \{ display: block; position: static !important; grid-column: 1; grid-row: 1;/);
+  assert.match(landscapeBlock, /\.app-canvas \{ width: 100%; max-width: none;/);
+  assert.match(landscapeBlock, /grid-template-columns: 216px minmax\(0, 1fr\);/);
+  assert.match(landscapeBlock, /\.editorial-app > header \{ display: none;/);
+  assert.match(landscapeBlock, /\.editorial-main \{ grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center;/);
   assert.match(landscapeBlock, /\.editorial-main--feed \{ display: block !important; overflow-y: auto;/);
   assert.match(landscapeBlock, /\.editorial-main--feed \.media-carousel > article \{ display: block; width: 100%; height: 640px; min-height: 640px;/);
-  assert.match(landscapeBlock, /\.editorial-app > nav \{ position: static !important; grid-column: 1; grid-row: 3;/);
-  assert.doesNotMatch(landscapeBlock, /landscape-nav-rail|landscape-nav-collapsed|grid-template-columns: calc\(/);
+  assert.match(landscapeBlock, /\.editorial-app > nav \{ position: static !important; grid-column: 1; grid-row: 1;[\s\S]*?width: 216px;/);
+  assert.match(landscapeBlock, /\.editorial-app > nav > \.desktop-nav-items button \{ width: 100%; height: 52px; flex-direction: row;/);
+  assert.doesNotMatch(landscapeBlock, /landscape-nav-rail|landscape-nav-collapsed/);
 
   for (const [width, height] of landscapeMatrix) {
     assert.ok(width >= 600 && width < 1024 && height < 600, `${width}x${height} belongs to the narrow landscape contract`);
