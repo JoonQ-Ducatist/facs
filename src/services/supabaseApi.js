@@ -87,11 +87,19 @@ export async function requestSupabasePostBoost(postId, client = supabase) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
   if (!postId) return apiFailure(API_ERROR.VALIDATION_FAILED, 'Boost할 게시물을 찾을 수 없어요.');
-  const { data, error } = await client.rpc('request_post_boost', { target_post_id: postId });
+  let { data, error } = await client.rpc('request_post_boost', { target_post_id: postId });
+  // A newly deployed Supabase function can briefly be absent from PostgREST's
+  // schema cache even though the database function is ready. That response
+  // cannot have created a Boost, so one short retry is safe.
+  if (error?.code === 'PGRST202') {
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 250));
+    ({ data, error } = await client.rpc('request_post_boost', { target_post_id: postId }));
+  }
   if (error) {
     if (error.code === '23505') return apiFailure(API_ERROR.ALREADY_VOTED, '이 게시물은 이미 Boost가 요청됐어요.');
     if (error.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '현재는 이 게시물을 Boost할 수 없어요.');
     if (error.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '이 게시물을 Boost할 권한이 없어요.');
+    if (error.code === 'PGRST202' || error.code === '42883') return apiFailure(API_ERROR.INTERNAL_ERROR, 'Boost 기능을 준비하고 있어요. 잠시 후 다시 시도해 주세요.');
     return apiFailure(API_ERROR.INTERNAL_ERROR, 'Boost 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
   const request = Array.isArray(data) ? data[0] : data;
@@ -287,7 +295,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       category: fromDatabaseCategory(post.category),
       evaluationType,
       question: post.question,
-      subtext: evaluationType === 'NUMERIC_AGE' ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다',
+      subtext: evaluationType === 'NUMERIC_AGE' ? '참여자의 주관적인 평가를 모으고 있어요.' : '실시간 평가를 수집 중입니다',
       imageUrl: media[0].url,
       mediaType: media[0].type,
       media,

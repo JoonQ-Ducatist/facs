@@ -138,6 +138,22 @@ test('Boost eligibility errors stay distinct from duplicate-vote errors', async 
   assert.equal(result.error.code, 'VALIDATION_FAILED');
 });
 
+test('Boost retries a newly refreshed API schema once before surfacing a safe error', async () => {
+  let calls = 0;
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => {
+      calls += 1;
+      return calls === 1
+        ? { data: null, error: { code: 'PGRST202' } }
+        : { data: [{ post_id: 'post-a', status: 'active' }], error: null };
+    },
+  };
+  const result = await requestSupabasePostBoost('post-a', client);
+  assert.equal(calls, 2);
+  assert.equal(result.data.status, 'active');
+});
+
 test('Boost candidates use the private server-clock RPC and map only safe fields', async () => {
   const calls = [];
   const client = {

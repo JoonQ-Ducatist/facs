@@ -48,7 +48,7 @@ const mediaByCategory = {
   SocialProfile: [getSelfieImage(6)],
 };
 
-/** 정의: 연령 첫인상 카드는 사람별로만 묶어 1장·2장·3장의 독립 사진을 제공한다. */
+/** 정의: 연령 평가 카드는 사람별로만 묶어 1장·2장·3장의 독립 사진을 제공한다. */
 const perceivedAgeAlbums = {
   pool: [getPerceivedAgeImage('age-pool-01')],
   bike: [getPerceivedAgeImage('age-bike-01'), getPerceivedAgeImage('age-bike-02')],
@@ -57,14 +57,14 @@ const perceivedAgeAlbums = {
 
 /** 정의: 카테고리별로 생성한 서울 생활권 사진과 대표 질문을 정의한 목업 시드다. */
 const mockCardSeeds = [
-  { category: 'Outfit', author: 'today_sora', question: '오늘 이 스타일,\n괜찮아 보여요?', subtext: '오늘의 스타일이 주는 첫인상이에요.', imageUrl: getSelfieImage(categorySelfieIndex.Outfit), yesVotes: 1280, noVotes: 210, comments: [{ id: 'c1', author: 'style_lab', body: '서울 거리의 자연광과 룩이 잘 어울려요.', createdAt: '8분 전', replies: [{ id: 'r1', author: 'today_sora', body: '의견 감사합니다!', createdAt: '6분 전' }] }] },
-  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'pool_jiyeon', question: '사람들은 저를\n몇 살로 볼까요?', subtext: '사진 속 첫인상은 몇 살로 느껴지나요?', imageUrls: perceivedAgeAlbums.pool, ageMin: 25, ageMax: 42, ageEstimate: 32.4, ageVoteCount: 28, comments: [{ id: 'age-c1', author: 'summer_note', body: '수영장에서도 생기 있는 첫인상이에요.', createdAt: '9분 전', replies: [] }] },
-  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'cycle_mina', question: '자전거 라이딩 후의 저는\n몇 살로 보여요?', subtext: '활동적인 분위기가 주는 첫인상이에요.', imageUrls: perceivedAgeAlbums.bike, ageMin: 26, ageMax: 44, ageEstimate: 34.1, ageVoteCount: 41, comments: [{ id: 'age-c2', author: 'ride_seoul', body: '건강하고 밝은 에너지가 느껴져요.', createdAt: '14분 전', replies: [] }] },
-  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'career_yuna', question: '일하다 잠깐 찍은 이 사진,\n몇 살로 보여요?', subtext: '일하는 순간의 첫인상이에요.', imageUrls: perceivedAgeAlbums.office, ageMin: 27, ageMax: 46, ageEstimate: 33.2, ageVoteCount: 53, comments: [{ id: 'age-c3', author: 'office_days', body: '차분하고 자신감 있는 분위기예요.', createdAt: '18분 전', replies: [] }] },
+  { category: 'Outfit', author: 'today_sora', question: '오늘 이 스타일,\n괜찮아 보여요?', subtext: '오늘의 스타일을 평가해 주세요.', imageUrl: getSelfieImage(categorySelfieIndex.Outfit), yesVotes: 1280, noVotes: 210, comments: [{ id: 'c1', author: 'style_lab', body: '서울 거리의 자연광과 룩이 잘 어울려요.', createdAt: '8분 전', replies: [{ id: 'r1', author: 'today_sora', body: '의견 감사합니다!', createdAt: '6분 전' }] }] },
+  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'pool_jiyeon', question: '사람들은 저를\n몇 살로 볼까요?', subtext: '사진을 보고 예상 나이를 평가해 주세요.', imageUrls: perceivedAgeAlbums.pool, ageMin: 25, ageMax: 42, ageEstimate: 32.4, ageVoteCount: 28, comments: [{ id: 'age-c1', author: 'summer_note', body: '수영장에서도 생기 있어 보여요.', createdAt: '9분 전', replies: [] }] },
+  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'cycle_mina', question: '자전거 라이딩 후의 저는\n몇 살로 보여요?', subtext: '활동적인 분위기를 평가해 주세요.', imageUrls: perceivedAgeAlbums.bike, ageMin: 26, ageMax: 44, ageEstimate: 34.1, ageVoteCount: 41, comments: [{ id: 'age-c2', author: 'ride_seoul', body: '건강하고 밝은 에너지가 느껴져요.', createdAt: '14분 전', replies: [] }] },
+  { category: 'PerceivedAge', evaluationType: 'NUMERIC_AGE', author: 'career_yuna', question: '일하다 잠깐 찍은 이 사진,\n몇 살로 보여요?', subtext: '일하는 모습의 분위기를 평가해 주세요.', imageUrls: perceivedAgeAlbums.office, ageMin: 27, ageMax: 46, ageEstimate: 33.2, ageVoteCount: 53, comments: [{ id: 'age-c3', author: 'office_days', body: '차분하고 자신감 있는 분위기예요.', createdAt: '18분 전', replies: [] }] },
   { category: 'Date', author: 'date_mood', question: '첫 만남이라면\n호감이 가나요?', subtext: '첫 만남에서 느껴지는 인상이에요.', imageUrl: getSelfieImage(categorySelfieIndex.Date), yesVotes: 942, noVotes: 88, comments: [{ id: 'c2', author: 'facs_kr', body: '밝고 다정한 인상이 느껴져요.', createdAt: '12분 전', replies: [] }] },
-  { category: 'Fitness', author: 'fit_queen', question: '건강하고 매력적인 인상을\n주나요?', subtext: '건강하고 자신감 있는 첫인상이에요.', imageUrl: getSelfieImage(categorySelfieIndex.Fitness, true), yesVotes: 1105, noVotes: 95, comments: [{ id: 'c4', author: 'run_more', body: '활동적인 에너지가 잘 보여요.', createdAt: '1시간 전', replies: [] }] },
-  { category: 'Work', author: 'workday_note', question: '직장에서 좋은 첫인상을\n줄 것 같나요?', subtext: '직장에서 느껴지는 첫인상이에요.', imageUrl: getSelfieImage(categorySelfieIndex.Work), yesVotes: 1430, noVotes: 190, comments: [{ id: 'c5', author: 'team_player', body: '차분하고 믿음직한 분위기입니다.', createdAt: '45분 전', replies: [] }] },
-  { category: 'SocialProfile', author: 'portrait_note', question: '이 사진, SNS 프로필로\n매력적으로 보이나요?', subtext: '프로필 사진으로 남는 첫인상이에요.', imageUrl: getSelfieImage(categorySelfieIndex.SocialProfile), yesVotes: 654, noVotes: 72, comments: [] },
+  { category: 'Fitness', author: 'fit_queen', question: '건강하고 매력적인 인상을\n주나요?', subtext: '건강하고 자신감 있는 모습으로 보이나요?', imageUrl: getSelfieImage(categorySelfieIndex.Fitness, true), yesVotes: 1105, noVotes: 95, comments: [{ id: 'c4', author: 'run_more', body: '활동적인 에너지가 잘 보여요.', createdAt: '1시간 전', replies: [] }] },
+  { category: 'Work', author: 'workday_note', question: '직장에서 좋은 평가를\n받을 것 같나요?', subtext: '직장에서의 모습을 평가해 주세요.', imageUrl: getSelfieImage(categorySelfieIndex.Work), yesVotes: 1430, noVotes: 190, comments: [{ id: 'c5', author: 'team_player', body: '차분하고 믿음직한 분위기입니다.', createdAt: '45분 전', replies: [] }] },
+  { category: 'SocialProfile', author: 'portrait_note', question: '이 사진, SNS 프로필로\n매력적으로 보이나요?', subtext: '프로필 사진을 평가해 주세요.', imageUrl: getSelfieImage(categorySelfieIndex.SocialProfile), yesVotes: 654, noVotes: 72, comments: [] },
 ];
 
 /** 정의: 카테고리별 1~5장의 현실적인 단독 인물 미디어 수를 가진 초기 목업 피드다. */
@@ -82,12 +82,12 @@ function samplePhoto(path) {
 }
 
 const sampleCopy = {
-  PerceivedAge: ['사람들은 저를\n몇 살로 볼까요?', '사진 속 첫인상은 몇 살로 느껴지나요?'],
-  Outfit: ['오늘 이 스타일,\n괜찮아 보여요?', '오늘의 스타일이 주는 첫인상이에요.'],
+  PerceivedAge: ['사람들은 저를\n몇 살로 볼까요?', '사진을 보고 예상 나이를 평가해 주세요.'],
+  Outfit: ['오늘 이 스타일,\n괜찮아 보여요?', '오늘의 스타일을 평가해 주세요.'],
   Date: ['첫 만남이라면\n호감이 가나요?', '첫 만남에서 느껴지는 인상이에요.'],
-  Fitness: ['건강하고 매력적인 인상을\n주나요?', '건강하고 자신감 있는 첫인상이에요.'],
-  Work: ['직장에서 좋은 첫인상을\n줄 것 같나요?', '직장에서 느껴지는 첫인상이에요.'],
-  SocialProfile: ['이 사진, SNS 프로필로\n매력적으로 보이나요?', '프로필 사진으로 남는 첫인상이에요.'],
+  Fitness: ['건강하고 매력적인 인상을\n주나요?', '건강하고 자신감 있는 모습으로 보이나요?'],
+  Work: ['직장에서 좋은 평가를\n받을 것 같나요?', '직장에서의 모습을 평가해 주세요.'],
+  SocialProfile: ['이 사진, SNS 프로필로\n매력적으로 보이나요?', '프로필 사진을 평가해 주세요.'],
 };
 
 /** 정의: MVP 6개 카테고리마다 다른 사용자의 카드 5개를 제공한다. 서비스 전체에서 1·2·3·4·5장 피드 규칙을 모두 검증한다. */
@@ -107,5 +107,5 @@ export const initialCards = sampleSeeds.map((seed, index) => {
   const isAge = seed.category === 'PerceivedAge';
   const [question, subtext] = sampleCopy[seed.category];
   const yesVotes = isAge ? 0 : Math.round(seed.total * seed.score / 100);
-  return { id, category: seed.category, evaluationType: isAge ? 'NUMERIC_AGE' : 'BINARY', author: seed.author, question, subtext, imageUrl: media[0].url, media, objectPosition: 'center center', timestamp: `${index * 7 + 3}분 전`, isMyUpload: index === 5, commentsAllowed: true, comments: index % 3 === 0 ? [{ id: `${id}-comment`, author: 'first_view', body: '첫인상이 자연스럽고 좋아 보여요.', createdAt: '방금 전', replies: [] }] : [], ...(isAge ? { ageMin: 24, ageMax: 46, ageEstimate: seed.score, ageVoteCount: seed.total } : { yesVotes, noVotes: seed.total - yesVotes }) };
+  return { id, category: seed.category, evaluationType: isAge ? 'NUMERIC_AGE' : 'BINARY', author: seed.author, question, subtext, imageUrl: media[0].url, media, objectPosition: 'center center', timestamp: `${index * 7 + 3}분 전`, isMyUpload: index === 5, commentsAllowed: true, comments: index % 3 === 0 ? [{ id: `${id}-comment`, author: 'first_view', body: '자연스럽고 좋아 보여요.', createdAt: '방금 전', replies: [] }] : [], ...(isAge ? { ageMin: 24, ageMax: 46, ageEstimate: seed.score, ageVoteCount: seed.total } : { yesVotes, noVotes: seed.total - yesVotes }) };
 });

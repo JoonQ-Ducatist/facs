@@ -539,7 +539,7 @@ export default function App() {
     const url = buildShareUrl(card.id, locale);
     const shareData = locale === 'en'
       ? { title: 'FACt.Smack First Impression', text: `Share your first impression of @${card.author}.`, url }
-      : { title: 'FACt.Smack 첫인상', text: `@${card.author}의 첫인상 평가에 참여해 보세요.`, url };
+      : { title: 'FACt.Smack 평가', text: `@${card.author}의 평가에 참여해 보세요.`, url };
     try {
       if (navigator.share) await navigator.share(shareData);
       else if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); setToast(locale === 'en' ? 'Evaluation link copied.' : '평가 참여 링크를 복사했습니다.'); }
@@ -552,7 +552,7 @@ export default function App() {
   /** 정의: 카테고리 평가 유형에 맞춰 BINARY 또는 NUMERIC_AGE 투표를 기록하고 카드 집계를 동기화한다. @param {boolean|number} value YES/NO 또는 예상 나이 */
   async function vote(value) {
     if (isCurrentUserPost) {
-      setToast(locale === 'en' ? 'Your own post is not included in its result. Watch other members’ first impressions here.' : '내 게시물은 결과에 포함되지 않아요. 다른 사람의 첫인상을 여기에서 확인해 주세요.');
+      setToast(locale === 'en' ? 'Your own post is not included in its result. Review other members’ evaluations here.' : '내 게시물은 결과에 포함되지 않아요. 다른 사람의 평가를 여기에서 확인해 주세요.');
       return;
     }
     const payload = currentCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
@@ -607,7 +607,7 @@ export default function App() {
     }
     setToast(locale === 'en'
       ? (currentCard.evaluationType === 'NUMERIC_AGE' ? `You chose age ${value}.` : value ? 'Your YES vote was recorded.' : 'Your NO vote was recorded.')
-      : (currentCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 첫인상을 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
+      : (currentCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 평가를 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
   }
 
   /** 정의: 유효한 댓글을 현재 목업 카드에 추가한다. @param {string} cardId 게시물 ID @param {string} body 댓글 내용 */
@@ -1101,23 +1101,23 @@ function localizeCard(card, locale) {
 
 const EN_COPY = {
   '오늘 이 스타일,\n괜찮아 보여요?': 'Does this look\nwork for today?',
-  '오늘의 스타일이 주는 첫인상이에요.': 'A first impression from today’s look.',
+  '오늘의 스타일을 평가해 주세요.': 'Rate today’s look.',
   '사람들은 저를\n몇 살로 볼까요?': 'How old do I look\nto people?',
-  '사진 속 첫인상은 몇 살로 느껴지나요?': 'What age does this first impression suggest?',
+  '사진을 보고 예상 나이를 평가해 주세요.': 'Rate the age you would expect from this photo.',
   '자전거 라이딩 후의 저는\n몇 살로 보여요?': 'How old do I look\nafter this bike ride?',
-  '활동적인 분위기가 주는 첫인상이에요.': 'A first impression with active energy.',
+  '활동적인 분위기를 평가해 주세요.': 'Rate this active mood.',
   '일하다 잠깐 찍은 이 사진,\n몇 살로 보여요?': 'How old do I look\nin this workday photo?',
-  '일하는 순간의 첫인상이에요.': 'A first impression from a moment at work.',
-  '첫 만남이라면\n호감이 가나요?': 'Would this make\na lovely first impression?',
-  '첫 만남에서 느껴지는 인상이에요.': 'A first impression for a first date.',
+  '일하는 모습의 분위기를 평가해 주세요.': 'Rate this workday mood.',
+  '첫 만남이라면\n호감이 가나요?': 'Would you rate this\nfavorably for a first date?',
+  '첫 만남에서 느껴지는 인상이에요.': 'Rate this date setting.',
   '건강하고 매력적인 인상을\n주나요?': 'Does this look feel\nhealthy and confident?',
-  '건강하고 자신감 있는 첫인상이에요.': 'A healthy, confident first impression.',
-  '직장에서 좋은 첫인상을\n줄 것 같나요?': 'Would this make a great\nfirst impression at work?',
-  '직장에서 느껴지는 첫인상이에요.': 'A first impression at work.',
+  '건강하고 자신감 있는 모습으로 보이나요?': 'Does this look healthy and confident?',
+  '직장에서 좋은 평가를\n받을 것 같나요?': 'Would this be rated well\nat work?',
+  '직장에서의 모습을 평가해 주세요.': 'Rate this workday look.',
   '이 사진, SNS 프로필로\n매력적으로 보이나요?': 'Does this work as an\nappealing profile photo?',
-  '프로필 사진으로 남는 첫인상이에요.': 'A first impression that stays in a profile photo.',
+  '프로필 사진을 평가해 주세요.': 'Rate this profile photo.',
   '서울 거리의 자연광과 룩이 잘 어울려요.': 'The Seoul street light works beautifully with this look.',
-  '수영장에서도 생기 있는 첫인상이에요.': 'You look lively even by the pool.',
+  '수영장에서도 생기 있어 보여요.': 'You look lively even by the pool.',
   '건강하고 밝은 에너지가 느껴져요.': 'It gives off healthy, bright energy.',
   '차분하고 자신감 있는 분위기예요.': 'It feels calm and confident.',
   '밝고 다정한 인상이 느껴져요.': 'It feels bright and warm.',
@@ -1141,7 +1141,7 @@ function useEnglishUi(locale) {
     if (locale !== 'en') return undefined;
     const replacements = {
       '셔플': 'Shuffle', '몇 살로 보여?': 'How Old Do I Look?', '오늘의 룩': "Today's Look", '데이트': 'Date', '운동': 'Fitness', '출근': 'Work', 'SNS 프로필': 'Profile',
-      '더 보기': 'More', '다음 사진': 'Next photo', '이전 사진': 'Previous photo', '이전 카드': 'Previous post', '다음 카드': 'Next post', '사진 탐색': 'Photo navigation', '등록된 사진': 'Photos', '유효 평가': 'Valid ratings', '명': '', '평균 예상': 'Average perceived', '평균 예상 나이': 'Average perceived age', '평균 호감도': 'Average approval', '호감도': 'Approval', '호감': 'YES', '비호감': 'NO', '세': ' years', '주관적 첫인상': 'Subjective first impression', '참여자의 주관적': 'Participants’ subjective', '첫인상이에요': 'first impression', '몇 살로 보이나요?': 'How old do I look?', '선택': 'Select',
+      '더 보기': 'More', '다음 사진': 'Next photo', '이전 사진': 'Previous photo', '이전 카드': 'Previous post', '다음 카드': 'Next post', '사진 탐색': 'Photo navigation', '등록된 사진': 'Photos', '유효 평가': 'Valid ratings', '명': '', '평균 예상': 'Average perceived', '평균 예상 나이': 'Average perceived age', '평균 호감도': 'Average approval', '호감도': 'Approval', '호감': 'YES', '비호감': 'NO', '세': ' years', '주관적 평가': 'Subjective evaluation', '참여자의 주관적': 'Participants’ subjective', '평가예요': 'evaluation', '몇 살로 보이나요?': 'How old do I look?', '선택': 'Select',
       '초기 경향': 'Early signal', '현재 결과': 'Current result', '확장 표본': 'Expanded sample', '표본 수집 중': 'Collecting ratings', '100명까지 Boost · ₩1,000': 'Boost to 100 · $1', '나도 평가받기': 'Get feedback too', '아직 평가에 참여한 사람이 없어요. 평가가 시작되면 결과를 알려드릴게요.': 'No one has rated this yet. We’ll show the result when ratings begin.',
       '회원님을 위한 추천': 'Suggested for you', '모두 보기': 'See all', '팔로우': 'Follow', '전환': 'Switch', '나의 Look Book': 'My Look Book', '소개 · 도움말 · 안전 · 개인정보처리방침 · 약관 · 위치 · 언어': 'About · Help · Safety · Privacy · Terms · Location · Language',
       '오늘의 룩과 일상의 순간을 기록하고 있어요.': 'Documenting today’s looks and everyday moments.', '내 업로드': 'My uploads', '받은 투표': 'Ratings received', '내가 업로드한 사진 분석': 'My uploaded photo insights', '새로 업로드': 'New upload', '삭제': 'Delete',

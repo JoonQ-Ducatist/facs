@@ -8,10 +8,10 @@ const MAX_FILE_SIZE = 15 * 1024 * 1024;
 /** 정의: 카테고리별로 항상 네 개를 제공하는 평가 질문 추천 사전이다. */
 const questionSuggestions = {
   Outfit: ['오늘 이 스타일, 괜찮아 보여요?', '새로 산 이 옷, 저와 잘 어울리나요?', '이 룩에서 제 분위기가 잘 느껴지나요?', '오늘의 Look Book, 가장 매력적인 포인트는 무엇인가요?'],
-  PerceivedAge: ['사람들이 보는 저는 몇 살쯤일까요?', '이 사진의 저는 실제보다 어려 보이나요?', '헤어와 메이크업이 만드는 첫인상 나이가 궁금해요.', '이 사진을 보면 사람들은 제 나이를 어떻게 추측할까요?'],
+  PerceivedAge: ['사람들이 보는 저는 몇 살쯤일까요?', '이 사진의 저는 실제보다 어려 보이나요?', '헤어와 메이크업을 보고 예상 나이가 궁금해요.', '이 사진을 보면 사람들은 제 나이를 어떻게 추측할까요?'],
   Date: ['첫 만남이라면 호감이 가나요?', '데이트에서 편안하고 매력적인 인상이 들까요?', '이 스타일이 저와 잘 어울려 보이나요?', '상대가 기억할 만한 분위기로 보이나요?'],
   Fitness: ['건강하고 매력적인 인상을 주나요?', '운동하기에 편안하면서도 스타일 있어 보이나요?', '오늘의 운동 스타일, 자신감 있어 보이나요?', '활기찬 에너지가 사진에서 느껴지나요?'],
-  Work: ['직장에서 좋은 첫인상을 줄 것 같나요?', '오늘의 출근 룩, 깔끔하고 센스 있어 보이나요?', '이 룩에서 신뢰감이 느껴지나요?', '전문적이면서도 친근한 인상인가요?'],
+  Work: ['직장에서 좋은 평가를 받을 것 같나요?', '오늘의 출근 룩, 깔끔하고 센스 있어 보이나요?', '이 룩에서 신뢰감이 느껴지나요?', '전문적이면서도 친근한 인상인가요?'],
   SocialProfile: ['이 사진, SNS 프로필로 매력적으로 보이나요?', '이 사진에서 제 분위기가 잘 드러나나요?', '처음 보는 사람에게 좋은 인상을 줄 것 같나요?', '프로필 첫 화면에서 시선이 머무를 사진인가요?'],
 };
 const englishQuestionSuggestions = {
@@ -44,7 +44,7 @@ function getQuestionSuggestions(category, media, locale) {
     PerceivedAge: `${mediaHint} 사람들은 저를 몇 살쯤으로 느낄까요?`,
     Date: `${mediaHint} 첫 만남에 호감을 줄 것 같나요?`,
     Fitness: `${mediaHint} 건강하고 자신감 있어 보이나요?`,
-    Work: `${mediaHint} 신뢰감 있는 첫인상으로 보이나요?`,
+    Work: `${mediaHint} 신뢰감 있는 모습으로 보이나요?`,
     SocialProfile: `${mediaHint} 프로필 첫 화면에 어울리나요?`,
   };
   return [visualLead[category] ?? visualLead.Outfit, ...base.slice(1)];
@@ -260,7 +260,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     const actualAgeProvided = shareActualAge && Number.isInteger(Number(actualAge));
     setIsPublishing(true);
     try {
-      const result = await onSubmit({ author: publicHandle, category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', visibility, question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '첫인상에서 호감과 신뢰감이 느껴지나요?'), subtext: isAgeEvaluation ? '참여자가 느낀 주관적인 첫인상을 모으고 있어요.' : '실시간 첫인상 피드백을 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
+      const result = await onSubmit({ author: publicHandle, category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', visibility, question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '호감과 신뢰감을 평가해 주세요.'), subtext: isAgeEvaluation ? '참여자의 주관적인 평가를 모으고 있어요.' : '실시간 평가를 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
       if (!result?.ok) {
         setError(result?.message ?? (locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.'));
         return;

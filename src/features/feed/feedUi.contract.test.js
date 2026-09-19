@@ -17,8 +17,8 @@ test('feed preserves the uploaded category selection after publishing', async ()
 test('a server-eligible zero-rating post exposes the recovery Boost request without implying payment', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /if \(total === 0\) return <ResultShell total=\{total\} color=\{color\} onBoost=\{onBoost\}/);
-  assert.match(source, /첫 반응을 기다리고 있어요/);
-  assert.match(source, /더 많은 첫인상 받아보기/);
+  assert.match(source, /평가를 기다리고 있어요/);
+  assert.match(source, /더 많은 평가 받아보기/);
   assert.doesNotMatch(source, /Boost · ₩1,000/);
 });
 
