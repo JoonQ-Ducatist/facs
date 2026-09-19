@@ -32,9 +32,9 @@ async function requireUser(client = supabase) {
 }
 
 /** Fetches aggregate-only Result data. Raw vote rows are never selected by the browser. */
-export async function getSupabaseAggregate(postId) {
-  if (!supabase) return apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.');
-  const { data, error } = await supabase.rpc('get_post_aggregate', { target_post_id: postId });
+export async function getSupabaseAggregate(postId, client = supabase) {
+  if (!client) return apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.');
+  const { data, error } = await client.rpc('get_post_aggregate', { target_post_id: postId });
   if (error) return normalizeSupabaseError(error, '결과를 불러오지 못했어요.');
   const aggregate = Array.isArray(data) ? data[0] : data;
   if (!aggregate) return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
@@ -115,22 +115,24 @@ export async function listSupabaseBoostCandidates({ limit = 20, client = supabas
 }
 
 /** Writes a single immutable vote, then returns the server aggregate. */
-export async function submitSupabaseVote({ postId, evaluationType, value }) {
-  const identity = await requireUser();
+export async function submitSupabaseVote({ postId, evaluationType, value, client = supabase }) {
+  const identity = await requireUser(client);
   if (identity.error) return identity.error;
   const isAge = evaluationType === 'NUMERIC_AGE';
   if (isAge && (!Number.isInteger(value) || value < 18 || value > 99)) return apiFailure(API_ERROR.VALIDATION_FAILED, '예상 나이를 확인해 주세요.', { value: 'invalid_age_vote' });
   if (!isAge && value !== 'yes' && value !== 'no') return apiFailure(API_ERROR.VALIDATION_FAILED, 'YES 또는 NO를 선택해 주세요.', { value: 'invalid_vote' });
-  const { error } = await supabase.from('votes').insert({
+  const { error } = await client.from('votes').insert({
     post_id: postId,
     voter_id: identity.user.id,
     choice: isAge ? null : value,
     perceived_age: isAge ? value : null,
   });
   if (error) return normalizeSupabaseError(error, '의견을 저장하지 못했어요.');
-  const aggregate = await getSupabaseAggregate(postId);
-  if (aggregate.error) return aggregate;
-  return apiSuccess({ vote: { postId, value }, aggregate: aggregate.data });
+  const aggregate = await getSupabaseAggregate(postId, client);
+  // The immutable vote is already stored at this point. A temporary aggregate
+  // read failure must not make the UI offer a duplicate submission.
+  if (aggregate.error) return apiSuccess({ vote: { postId, value }, aggregate: null, aggregatePending: true });
+  return apiSuccess({ vote: { postId, value }, aggregate: aggregate.data, aggregatePending: false });
 }
 
 /** Creates a draft post. Publishing, review, and storage attachment remain separate server steps. */
