@@ -18,15 +18,17 @@ const landscapeMatrix = [
   [915, 412],
 ];
 
-test('landscape phone shell reserves a stable body rail for every target viewport', async () => {
+test('landscape phone keeps the portrait feed contract and scrolls the full-height card', async () => {
   const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
   assert.ok(styles.includes(`${landscapeQuery} {`), 'landscape contract is scoped to the narrow phone query');
-  assert.match(styles, /--landscape-nav-rail: 216px;/);
-  assert.match(styles, /grid-template-columns: calc\(var\(--landscape-nav-rail\) \+ env\(safe-area-inset-left\)\) minmax\(0, 1fr\);/);
-  assert.match(styles, /\.editorial-app > nav \{[\s\S]*?position: absolute !important;[\s\S]*?width: var\(--landscape-nav-collapsed\);/);
-  assert.match(styles, /\.editorial-app > nav:hover,[\s\S]*?\.editorial-app\.editorial-app--landscape-nav-open > nav \{ width: var\(--landscape-nav-expanded\);/);
-  assert.doesNotMatch(styles, /\.editorial-app--landscape-nav-open \{ --landscape-nav-width:/);
-  assert.doesNotMatch(styles, /grid-template-columns: calc\(var\(--landscape-nav-width\)/);
+  const landscapeBlock = styles.slice(styles.indexOf(landscapeQuery), styles.indexOf('/* 정의: 넓은 데스크톱'));
+  assert.match(landscapeBlock, /\.app-canvas \{ width: min\(100%, 430px\); max-width: 430px;/);
+  assert.match(landscapeBlock, /grid-template-rows: calc\(44px \+ env\(safe-area-inset-top\)\) minmax\(0, 1fr\) auto;/);
+  assert.match(landscapeBlock, /\.editorial-app > header \{ display: block; position: static !important; grid-column: 1; grid-row: 1;/);
+  assert.match(landscapeBlock, /\.editorial-main--feed \{ display: block !important; overflow-y: auto;/);
+  assert.match(landscapeBlock, /\.editorial-main--feed \.media-carousel > article \{ display: block; width: 100%; height: 640px; min-height: 640px;/);
+  assert.match(landscapeBlock, /\.editorial-app > nav \{ position: static !important; grid-column: 1; grid-row: 3;/);
+  assert.doesNotMatch(landscapeBlock, /landscape-nav-rail|landscape-nav-collapsed|grid-template-columns: calc\(/);
 
   for (const [width, height] of landscapeMatrix) {
     assert.ok(width >= 600 && width < 1024 && height < 600, `${width}x${height} belongs to the narrow landscape contract`);
@@ -35,7 +37,6 @@ test('landscape phone shell reserves a stable body rail for every target viewpor
 
 test('portrait mobile and desktop keep their original navigation ownership', async () => {
   const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
-  const app = await readFile(resolve(serviceRoot, '../App.jsx'), 'utf8');
 
   // Portrait remains the header/main/bottom-nav grid; no landscape selector
   // may replace its rows or turn the bottom nav into a rail.
@@ -43,8 +44,7 @@ test('portrait mobile and desktop keep their original navigation ownership', asy
   assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
   assert.match(styles, /@media \(min-width: 1024px\) \{[\s\S]*?grid-template-columns: var\(--desktop-nav-width\) minmax\(0, 1fr\);/);
   assert.match(styles, /@media \(min-width: 1024px\) \{[\s\S]*?\.editorial-app > nav \{ position: static;/);
-  assert.match(app, /orientation: landscape.*max-height: 599px.*max-width: 1023px/);
-  assert.match(app, /setIsLandscapeNavExpanded\(Boolean\(landscapePhone\)\)/);
+  assert.doesNotMatch(styles, /editorial-app--landscape-nav-open/);
 
   for (const [width, height] of portraitMatrix) {
     assert.ok(width < 599 && height > width, `${width}x${height} remains a portrait phone viewport`);
