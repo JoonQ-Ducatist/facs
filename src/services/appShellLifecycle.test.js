@@ -47,6 +47,7 @@ test('keyboard, file-picker and fullscreen states retain their existing isolated
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
   assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-main \{ position: absolute; inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 calc\(44px \+ env\(safe-area-inset-bottom\)\) 0;/);
+  assert.match(styles, /\.editorial-main--scroll \{ padding: 8px clamp\(12px, 4vw, 20px\) !important; \}/);
   assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
   assert.match(upload, /visualViewport\?\.height \?\? window\.innerHeight/);
   assert.match(upload, /onPointerDown=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
