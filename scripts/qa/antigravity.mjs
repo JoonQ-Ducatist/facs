@@ -3,7 +3,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -35,7 +35,9 @@ function capture() {
   }
   return { files, hash: hash.digest('hex'), commit: git('rev-parse', 'HEAD'), dirty: git('status', '--porcelain') };
 }
-const output = v.output ? resolve(v.output) : mkdtempSync(join(tmpdir(), 'facs-qa-'));
+const qaRoot = '/private/tmp/facs-qa';
+mkdirSync(qaRoot, { recursive: true });
+const output = v.output ? resolve(v.output) : mkdtempSync(join(qaRoot, 'run-'));
 if (output === repo || output.startsWith(repo + '/')) throw new Error('Store reports outside the source repository.');
 if (v.output) mkdirSync(output);
 const workspace = join(output, 'workspace'); mkdirSync(workspace);
@@ -70,17 +72,41 @@ const schema = { type: 'object', additionalProperties: false, properties: {
 save('schema.json', schema);
 console.log(`QA artifacts: ${output}`);
 if (v['prepare-only']) { save('status.json', { status: 'PREPARED', executed: false }); process.exit(0); }
-const child = spawn(join(homedir(), '.local/bin/agy'), ['--sandbox', '--mode', 'accept-edits', '--print-timeout', '5m', '--output-format', 'json', '--json-schema', join(output, 'schema.json'), '-p', strengthenedPrompt], { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] });
-let stdout = ''; let stderr = ''; let timedOut = false; let killTimer;
-child.stdout.on('data', b => { stdout += b; }); child.stderr.on('data', b => { stderr += b; });
-const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); killTimer = setTimeout(() => child.kill('SIGKILL'), 5000); }, 330000);
-const outcome = await new Promise(done => { child.on('error', e => done({ code: null, error: e.message })); child.on('close', (code, signal) => done({ code, signal })); });
-clearTimeout(timer); clearTimeout(killTimer);
-save('agent-output.json', stdout); save('diagnostics.log', stderr);
-let envelope; let report;
-try { envelope = JSON.parse(stdout); report = envelope.structured_output; if (!report && envelope.response) report = JSON.parse(envelope.response); } catch { /* Malformed reports are blocked. */ }
+const isValidReport = (candidate) => candidate?.taskId === v.task
+  && ['PASS', 'FAIL', 'BLOCKED'].includes(candidate?.verdict)
+  && ['BROWSER_ONLY', 'BROWSER_AND_CODE', 'CODE_REVIEW_ONLY', 'BLOCKED'].includes(candidate?.validationMode)
+  && Array.isArray(candidate?.findings) && Array.isArray(candidate?.coverage) && Array.isArray(candidate?.untested);
+const parseAgentOutput = (stdout) => {
+  try {
+    const envelope = JSON.parse(stdout);
+    const report = envelope.structured_output ?? (envelope.response ? JSON.parse(envelope.response) : null);
+    return { envelope, report };
+  } catch { return { envelope: null, report: null }; }
+};
+const runAgent = (args, timeoutMs) => new Promise((done) => {
+  const child = spawn(join(homedir(), '.local/bin/agy'), args, { cwd: workspace, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = ''; let stderr = ''; let timedOut = false; let killTimer;
+  child.stdout.on('data', b => { stdout += b; }); child.stderr.on('data', b => { stderr += b; });
+  const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); killTimer = setTimeout(() => child.kill('SIGKILL'), 5000); }, timeoutMs);
+  child.on('error', error => { clearTimeout(timer); clearTimeout(killTimer); done({ stdout, stderr, timedOut, outcome: { code: null, error: error.message } }); });
+  child.on('close', (code, signal) => { clearTimeout(timer); clearTimeout(killTimer); done({ stdout, stderr, timedOut, outcome: { code, signal } }); });
+});
+const baseArgs = ['--sandbox', '--mode', 'accept-edits', '--print-timeout', '5m', '--output-format', 'json', '--json-schema', join(output, 'schema.json')];
+const attempts = [await runAgent([...baseArgs, '-p', strengthenedPrompt], 330000)];
+let { envelope, report } = parseAgentOutput(attempts[0].stdout);
+// The CLI can end a first turn with a progress note after delegating work. Continue that
+// conversation once, and only accept an object that satisfies the required report contract.
+if (!isValidReport(report) && envelope?.conversation_id && envelope.status === 'SUCCESS') {
+  const retryPrompt = `Your prior response was not a valid final QA report. Complete the QA now and return only the Korean JSON object required by the supplied schema. Do not delegate, wait, describe future work, or emit prose outside that JSON.`;
+  attempts.push(await runAgent([...baseArgs, '--conversation', envelope.conversation_id, '-p', retryPrompt], 150000));
+  ({ envelope, report } = parseAgentOutput(attempts.at(-1).stdout));
+}
+const timedOut = attempts.some(attempt => attempt.timedOut);
+const outcome = attempts.at(-1).outcome;
+save('agent-output.json', attempts.map(({ stdout, stderr, timedOut: attemptTimedOut, outcome: attemptOutcome }) => ({ stdout, stderr, timedOut: attemptTimedOut, outcome: attemptOutcome })));
+save('diagnostics.log', attempts.map(attempt => attempt.stderr).filter(Boolean).join('\n'));
 const after = capture(); const changed = baseline.hash !== after.hash || baseline.commit !== after.commit;
-const valid = report?.taskId === v.task && ['PASS', 'FAIL', 'BLOCKED'].includes(report?.verdict) && ['BROWSER_ONLY', 'BROWSER_AND_CODE', 'CODE_REVIEW_ONLY', 'BLOCKED'].includes(report?.validationMode) && Array.isArray(report?.findings) && Array.isArray(report?.coverage) && Array.isArray(report?.untested);
+const valid = isValidReport(report);
 let status = timedOut || outcome.code !== 0 || envelope?.status !== 'SUCCESS' || !valid ? 'BLOCKED' : report.verdict;
 if (status === 'PASS' && (!['BROWSER_ONLY', 'BROWSER_AND_CODE'].includes(report.validationMode) || !report.coverage.length || report.untested.length)) status = 'INCOMPLETE';
 if (changed) status = 'STALE_SOURCE';
