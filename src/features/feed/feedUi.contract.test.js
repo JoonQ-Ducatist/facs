@@ -125,8 +125,8 @@ test('browser lifecycle fixes the authenticated shell while preserving isolated 
   assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
   assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0;[\s\S]*?overflow: hidden; overscroll-behavior: none;/);
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
-  assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
-  assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
+  assert.match(styles, /\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
+  assert.match(styles, /\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
   assert.match(source, /window\.addEventListener\('pageshow', scheduleReset\)/);
   assert.match(source, /window\.addEventListener\('orientationchange', scheduleReset\)/);
   assert.match(source, /mainRef\.current\.scrollTop = 0/);

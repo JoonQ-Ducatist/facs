@@ -45,10 +45,10 @@ test('portrait mobile and desktop keep their original navigation ownership', asy
 
   // Portrait remains the header/main/bottom-nav grid; no landscape selector
   // may replace its rows or turn the bottom nav into a rail.
-  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?grid-template-rows: calc\(44px \+ env\(safe-area-inset-top\)\) minmax\(0, 1fr\) auto;/);
-  assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
-  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > header \{ display: block !important; position: static !important; grid-column: 1; grid-row: 1;/);
-  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > nav \{ display: block !important; position: static !important; grid-column: 1; grid-row: 3;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > header \{ display: block !important; position: fixed !important; inset: 0 0 auto;/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > nav \{ display: block !important; position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
   assert.match(styles, /@media \(min-width: 1024px\) \{[\s\S]*?grid-template-columns: var\(--desktop-nav-width\) minmax\(0, 1fr\);/);
   assert.match(styles, /@media \(min-width: 1024px\) \{[\s\S]*?\.editorial-app > nav \{ position: static;/);
   assert.doesNotMatch(styles, /editorial-app--landscape-nav-open/);

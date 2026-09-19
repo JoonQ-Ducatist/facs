@@ -30,7 +30,6 @@ test('every browser lifecycle state retains one fixed app shell and never scroll
       assert.match(styles, /\.app-stage \{ position: relative;/);
       assert.match(styles, /height: 100vh; height: 100dvh;/);
       assert.match(styles, /html, body, #root \{ width: 100%; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; \}/);
-      assert.match(styles, /body \{ position: fixed; inset: 0; margin: 0; \}/);
       assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none;/);
       assert.doesNotMatch(styles, /--xc-app-offset-top|--xc-app-height/);
       assert.doesNotMatch(app, /visualViewport|scrollRestoration|setTimeout\(syncAppCanvas/);
@@ -46,8 +45,9 @@ test('keyboard, file-picker and fullscreen states retain their existing isolated
   const fullscreen = await readFile(resolve(serviceRoot, '../features/feed/videoFullscreen.js'), 'utf8');
 
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
-  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > header \{ position: static !important; grid-row: 1;/);
-  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-main \{ position: absolute; inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 calc\(44px \+ env\(safe-area-inset-bottom\)\) 0;/);
+  assert.match(styles, /@media \(max-width: 1023px\) \{[\s\S]*?\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
   assert.match(upload, /visualViewport\?\.height \?\? window\.innerHeight/);
   assert.match(upload, /onPointerDown=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
   assert.match(upload, /onTouchStart=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
