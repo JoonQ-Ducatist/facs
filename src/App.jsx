@@ -712,7 +712,7 @@ export default function App() {
     });
     setCards((items) => items.map((item) => item.id === currentCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
     trackEvent(ANALYTICS_EVENT.BOOST_REQUESTED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
-    setToast(locale === 'en' ? 'Boost requested. It increases reach and sample size only.' : 'Boost를 요청했어요. 노출과 표본만 늘어납니다.');
+    setToast(locale === 'en' ? 'We will show this post to more people. Its result will not change.' : '더 많은 사람에게 이 게시물을 보여드릴게요. 결과에는 영향을 주지 않아요.');
   }
 
   const saveHandle = useCallback(async (handle) => {

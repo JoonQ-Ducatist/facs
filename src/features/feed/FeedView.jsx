@@ -306,14 +306,14 @@ function Result({ yesPercent, noPercent, total, color, onBoost, onStartUpload, u
   const noColor = '#B42318';
   const sampleStatus = getSampleStatus(total);
   const canOfferBoost = sampleStatus === SAMPLE_STATUS.EARLY_SIGNAL || sampleStatus === SAMPLE_STATUS.BASE_RESULT;
-  if (total === 0) return <ResultShell total={total} color={color} onBoost={onBoost} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><p className="text-[11px] leading-relaxed text-white/80">아직 평가에 참여한 사람이 없어요. 평가가 시작되면 결과를 알려드릴게요.</p></ResultShell>;
+  if (total === 0) return <ResultShell total={total} color={color} onBoost={onBoost} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><p className="text-[11px] leading-relaxed text-white/80">아직 첫인상이 모이지 않았어요. 더 많은 사람에게 보여드려 볼까요?</p></ResultShell>;
   return <ResultShell total={total} color={color} sampleStatus={sampleStatus} onBoost={canOfferBoost ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><div className="mb-1 flex items-center justify-between font-mono text-xs font-bold"><span className="flex items-center gap-1" style={{ color }}><span className="material-symbols-outlined text-[14px]">thumb_up</span> YES {yesPercent}%</span><span className="flex items-center gap-1" style={{ color: noColor }}>NO {noPercent}% <span className="material-symbols-outlined text-[14px]">thumb_down</span></span></div><div className="flex h-2 w-full overflow-hidden rounded-full border border-[#101828] bg-slate-800"><span className="result-bar--yes" style={{ width: `${yesPercent}%`, backgroundColor: color }} /><span className="result-bar--no" style={{ width: `${noPercent}%`, backgroundColor: noColor }} /></div></ResultShell>;
 }
 
 /** 정의: 모든 평가 유형이 같은 표본 상태·다음 탐색·Boost 원칙을 공유하는 Result 외곽이다. */
 function ResultShell({ total, color, sampleStatus, onBoost, onStartUpload, uploadLabel, children }) {
-  const label = sampleStatus === SAMPLE_STATUS.EARLY_SIGNAL ? '초기 경향' : sampleStatus === SAMPLE_STATUS.BASE_RESULT ? '현재 결과' : sampleStatus === SAMPLE_STATUS.EXPANDED_SAMPLE ? '확장 표본' : '표본 수집 중';
-  const boostLabel = total === 0 ? '평가가 없어 Boost 요청' : '100명까지 Boost 요청';
+  const label = total === 0 ? '첫 반응을 기다리고 있어요' : sampleStatus === SAMPLE_STATUS.EARLY_SIGNAL ? '초기 경향' : sampleStatus === SAMPLE_STATUS.BASE_RESULT ? '현재 결과' : sampleStatus === SAMPLE_STATUS.EXPANDED_SAMPLE ? '확장 표본' : '표본 수집 중';
+  const boostLabel = total === 0 ? '더 많은 첫인상 받아보기' : '100명까지 Boost 요청';
   return <div className="feed-result mb-2.5 rounded-xl border border-white/30 bg-[#061225]/42 p-2.5 shadow-[0_8px_24px_rgba(0,0,0,.18)] backdrop-blur-[1px]"><div className="feed-result__meta mb-1.5"><span className="font-mono text-[10px] font-bold" style={{ color }}>{label} <strong className="font-extrabold text-[#fff4bc]">({total.toLocaleString()}명)</strong></span></div>{children}<div className="feed-result__actions mt-1.5 flex items-center"><div className="feed-result__secondary flex items-center gap-2">{onBoost && <button type="button" onClick={onBoost} className="feed-result__boost rounded-md border px-1.5 py-0.5 text-[10px] font-bold" style={{ color, borderColor: `${color}aa`, backgroundColor: `${color}20` }}>{boostLabel}</button>}{onStartUpload && <button type="button" onClick={onStartUpload} className="feed-result__self text-[10px] font-semibold text-white/85 underline decoration-white/35 underline-offset-2">{uploadLabel ?? '나도 평가받기'}</button>}</div></div></div>;
 }
 
@@ -332,7 +332,7 @@ function AgeResult({ card, color, onBoost, onStartUpload, uploadLabel }) {
   const total = card.ageVoteCount ?? 0;
   const sampleStatus = getSampleStatus(total);
   const canOfferBoost = sampleStatus === SAMPLE_STATUS.EARLY_SIGNAL || sampleStatus === SAMPLE_STATUS.BASE_RESULT;
-  if (total === 0) return <ResultShell total={total} color={color} onBoost={onBoost} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><p className="text-[11px] leading-relaxed text-white/80">아직 평가에 참여한 사람이 없어요. 평가가 시작되면 결과를 알려드릴게요.</p></ResultShell>;
+  if (total === 0) return <ResultShell total={total} color={color} onBoost={onBoost} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><p className="text-[11px] leading-relaxed text-white/80">아직 첫인상이 모이지 않았어요. 더 많은 사람에게 보여드려 볼까요?</p></ResultShell>;
   return <ResultShell total={total} color={color} sampleStatus={sampleStatus} onBoost={canOfferBoost ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={uploadLabel}><div className="flex items-end justify-between"><span><span className="block text-[10px] text-white/80">평균 예상 나이</span><strong className="font-mono text-2xl" style={{ color }}>{card.ageEstimate.toFixed(1)}<small className="ml-0.5 text-xs">세</small></strong></span><span className="text-right text-[10px] text-white/80">참여자의 주관적<br />첫인상이에요</span></div></ResultShell>;
 }
 
