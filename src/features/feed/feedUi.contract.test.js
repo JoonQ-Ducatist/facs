@@ -10,6 +10,8 @@ test('feed preserves the uploaded category selection after publishing', async ()
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /setFeaturedPostId\(publishedCard\.id\);\s*\/\/ Keep the uploaded category selected[\s\S]*setActiveCategory\(publishedCard\.category\);/);
   assert.match(source, /boostRequested=\{currentCard\?\.boostStatus === 'active'\}/);
+  assert.match(source, /setBoostCandidateIds\(\(ids\) => new Set\(\[\.\.\.ids, publishedCard\.id\]\)\)/);
+  assert.match(source, /next\.delete\(reaction\.postId\)/);
 });
 
 test('a server-eligible zero-rating post exposes the recovery Boost request without implying payment', async () => {

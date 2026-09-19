@@ -431,6 +431,12 @@ export default function App() {
       const receivedAt = Date.now();
       markLiveReactionSeen(authUser.id, reaction);
       setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
+      setBoostCandidateIds((ids) => {
+        if (!ids.has(reaction.postId)) return ids;
+        const next = new Set(ids);
+        next.delete(reaction.postId);
+        return next;
+      });
       setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt, animationDelayMs, expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS + animationDelayMs }]);
     };
     const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, showReaction));
@@ -665,6 +671,9 @@ export default function App() {
     };
     pendingPublishedCard.current = publishedCard;
     setCards((items) => [publishedCard, ...items]);
+    // A newly published post necessarily starts inside the server's one-hour,
+    // zero-other-rating window. The server revalidates this again on request.
+    setBoostCandidateIds((ids) => new Set([...ids, publishedCard.id]));
     setProfileCards((items) => Array.isArray(items) ? [publishedCard, ...items.filter((item) => item.id !== publishedCard.id)] : items);
     setFeaturedPostId(publishedCard.id);
     // Keep the uploaded category selected after returning to Feed so the
