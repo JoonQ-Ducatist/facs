@@ -119,7 +119,10 @@ export async function listSupabaseBoostCandidates({ limit = 20, client = supabas
     await new Promise((resolve) => globalThis.setTimeout(resolve, 250));
     ({ data, error } = await client.rpc('get_my_boost_candidates', { page_size: pageSize }));
   }
-  if (error) return apiSuccess([], { source: 'degraded' });
+  // Do not turn a temporary RPC failure into an empty successful response.
+  // The caller retains its still-valid local recovery state until the server
+  // can answer authoritatively on the next refresh.
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, 'Boost 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
   return apiSuccess((data ?? []).filter((candidate) => candidate?.post_id).map((candidate) => ({
     postId: candidate.post_id,
     category: fromDatabaseCategory(candidate.category),

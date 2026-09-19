@@ -53,6 +53,24 @@ function markLiveReactionSeen(memberId, reaction) {
   } catch { /* Browser storage can be unavailable in private contexts. */ }
 }
 
+const BOOST_CANDIDATE_CACHE_PREFIX = 'facs_boost_candidates_v1:';
+const BOOST_CANDIDATE_WINDOW_MS = 60 * 60 * 1000;
+function boostCandidateCacheKey(memberId) { return `${BOOST_CANDIDATE_CACHE_PREFIX}${memberId}`; }
+function readBoostCandidateCache(memberId) {
+  if (!memberId) return new Set();
+  try {
+    const cached = JSON.parse(window.sessionStorage.getItem(boostCandidateCacheKey(memberId)) ?? '[]');
+    const now = Date.now();
+    return new Set((Array.isArray(cached) ? cached : [])
+      .filter((candidate) => candidate?.postId && Number.isFinite(Date.parse(candidate.publishedAt)) && now - Date.parse(candidate.publishedAt) < BOOST_CANDIDATE_WINDOW_MS)
+      .map((candidate) => candidate.postId));
+  } catch { return new Set(); }
+}
+function writeBoostCandidateCache(memberId, candidates) {
+  if (!memberId) return;
+  try { window.sessionStorage.setItem(boostCandidateCacheKey(memberId), JSON.stringify(candidates)); } catch { /* Storage can be unavailable in private browsing. */ }
+}
+
 /** 정의: 모바일은 전체 폭, PC·태블릿은 중앙 SNS 콘텐츠 컬럼으로 렌더링하는 반응형 프레임이다. */
 function CanvasStage({ children }) { return <div className="app-stage"><div className="app-canvas">{children}</div></div>; }
 
@@ -319,8 +337,12 @@ export default function App() {
   useEffect(() => {
     let active = true;
     if (!authUser) { setBoostCandidateIds(new Set()); return undefined; }
+    const cachedIds = readBoostCandidateCache(authUser.id);
+    if (cachedIds.size) setBoostCandidateIds(cachedIds);
     listSupabaseBoostCandidates().then((result) => {
-      if (active && result.data) setBoostCandidateIds(new Set(result.data.map((candidate) => candidate.postId)));
+      if (!active || result.error) return;
+      writeBoostCandidateCache(authUser.id, result.data);
+      setBoostCandidateIds(new Set(result.data.map((candidate) => candidate.postId)));
     });
     return () => { active = false; };
   }, [authUser?.id]);
