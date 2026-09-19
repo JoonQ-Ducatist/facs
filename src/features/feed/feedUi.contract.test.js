@@ -14,8 +14,8 @@ test('feed preserves the uploaded category selection after publishing', async ()
 
 test('feed cards render protected media and adjacent multi-photo previews', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /media-peek media-peek--left/);
-  assert.match(source, /media-peek media-peek--right/);
+  assert.match(source, /media-peek media-peek--continuous media-peek--left/);
+  assert.match(source, /media-peek media-peek--continuous media-peek--right/);
   assert.match(source, /onContextMenu=\{protectMedia\}/);
   assert.match(source, /onDragStart=\{protectMedia\}/);
   assert.match(source, /onContextMenu=\{protectMediaEvent\}/);
@@ -59,15 +59,25 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
 });
 
-test('multi-photo media keeps the central photo full width with fixed edge previews', async () => {
+test('multi-photo media keeps a full-width center track with continuous edge previews', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(styles, /\.media-card \.media-primary \{ inset: 0;/);
   assert.match(styles, /\.media-card--multi \.media-primary \{ inset: 0;/);
   assert.match(styles, /\.media-card--multi \{ background: #fff; \}/);
-  assert.match(styles, /\.media-peek \{[^}]*top: 5%; bottom: 5%;[^}]*width: 28px/);
+  assert.match(styles, /\.media-peek--continuous \{[^}]*--media-peek-width: 28px;[^}]*width: 100%/);
   assert.match(styles, /\.media-peek \{[^}]*background: #fff/);
   assert.match(styles, /\.media-peek \{[^}]*filter: saturate\(\.8\) brightness\(\.68\) blur\(\.35px\)/);
-  assert.match(styles, /\.media-peek \{ width: clamp\(24px, 8vw, 32px\); \}/);
+  assert.match(styles, /\.media-peek--continuous \{ --media-peek-width: clamp\(24px, 8vw, 32px\); width: 100%; \}/);
+  assert.match(styles, /\.media-card--dragging \.media-peek--continuous \{ transition: none; \}/);
+  assert.match(source, /const width = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
+  assert.match(source, /deltaX \* 0\.2/);
+  assert.match(source, /function bounceMedia\(direction\)/);
+  assert.match(styles, /\.media-carousel--resist-left/);
+  assert.match(styles, /\.media-carousel--resist-right/);
+  assert.match(source, /const travel = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
+  assert.match(source, /translate3d\(calc\(-100% \+ var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
+  assert.match(source, /translate3d\(calc\(100% - var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
   assert.match(styles, /\.media-card:hover \.media-peek/);
   assert.match(styles, /-webkit-touch-callout: none/);
   assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
@@ -77,19 +87,37 @@ test('multi-photo media keeps the central photo full width with fixed edge previ
 
 test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--left"/);
-  assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--right"/);
+  assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left"/);
+  assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--continuous media-peek--right"/);
 });
 
-test('browser lifecycle keeps the application shell out of a fixed viewport layer', async () => {
+test('feed navigation uses scroll and touch handoff without visible up/down controls', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(source, /className=\{`media-card[^`]*touch-pan-y/);
+  assert.match(source, /if \(event\.pointerType === 'mouse'\) event\.currentTarget\.setPointerCapture/);
+  assert.match(source, /onTouchStart=\{startCardTouch\}/);
+  assert.match(source, /onTouchEnd=\{finishCardTouch\}/);
+  assert.match(source, /function getCardScrollOwner\(element\)/);
+  assert.match(source, /carousel\.scrollHeight > carousel\.clientHeight \+ 2/);
+  assert.match(source, /resolveTouchFeedDirection\(/);
+  assert.match(source, /resolveWheelFeedDirection\(/);
+  assert.doesNotMatch(source, /function ArrowButton/);
+  assert.doesNotMatch(source, /label="이전 카드"/);
+  assert.doesNotMatch(source, /label="다음 카드"/);
+});
+
+test('browser lifecycle fixes the authenticated shell while preserving isolated body scrolling', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.doesNotMatch(html, /scrollRestoration|normalizeInitialViewport|visualViewport/);
   assert.doesNotMatch(source, /syncAppCanvasHeight|settleAppCanvasAfterKeyboardDismissal|visualViewport/);
   assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
-  assert.doesNotMatch(styles, /\.app-stage \{[^}]*position: fixed/);
+  assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0;[\s\S]*?overflow: hidden; overscroll-behavior: none;/);
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
   assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
+  assert.match(source, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(source, /window\.addEventListener\('orientationchange', scheduleReset\)/);
+  assert.match(source, /mainRef\.current\.scrollTop = 0/);
 });
