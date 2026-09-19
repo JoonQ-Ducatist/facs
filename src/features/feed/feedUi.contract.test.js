@@ -22,6 +22,13 @@ test('a server-eligible zero-rating post exposes the recovery Boost request with
   assert.doesNotMatch(source, /Boost · ₩1,000/);
 });
 
+test('sharing stays with the card action row instead of competing with media controls', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(source, /onShare=\{\(\) => onShare\(card\)\}/);
+  assert.match(source, /<Share2 aria-hidden="true" size=\{16\}/);
+  assert.doesNotMatch(source, /ShareRailButton/);
+});
+
 test('feed cards render protected media and adjacent multi-photo previews', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /media-peek media-peek--continuous media-peek--left/);

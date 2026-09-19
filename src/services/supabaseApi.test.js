@@ -184,6 +184,16 @@ test('Boost candidates use the private server-clock RPC and map only safe fields
   assert.deepEqual(result.data[0], { postId: 'post-a', category: 'PerceivedAge', publishedAt: '2026-09-15T00:00:00Z', otherVoteCount: 0, targetVotes: 100 });
 });
 
+test('a failed Boost candidate lookup is not misreported as an empty successful list', async () => {
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => ({ data: null, error: { code: '50000' } }),
+  };
+  const result = await listSupabaseBoostCandidates({ client });
+  assert.equal(result.data, undefined);
+  assert.equal(result.error.message, 'Boost 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+});
+
 function orderedLibraryClient(rpcRows) {
   const calls = [];
   const post = {
