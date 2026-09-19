@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -12,6 +12,35 @@ test('Supabase authorization errors never expose database detail', () => {
   const result = normalizeSupabaseError({ code: '42501' });
   assert.equal(result.error.code, 'FORBIDDEN');
   assert.equal(result.error.message, '이 작업을 수행할 권한이 없어요.');
+});
+
+test('aggregate reads use the supplied authenticated client and expose only aggregate fields', async () => {
+  const calls = [];
+  const result = await getSupabaseAggregate('post-a', {
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: [{ evaluation: 'binary', yes_count: '4', no_count: '2', average_age: null, total_votes: '6', sample_status: 'INSUFFICIENT' }], error: null };
+    },
+  });
+  assert.deepEqual(calls, [{ name: 'get_post_aggregate', args: { target_post_id: 'post-a' } }]);
+  assert.deepEqual(result.data, { evaluationType: 'BINARY', yesCount: 4, noCount: 2, averageAge: null, totalVotes: 6, approvalRate: 67, sampleStatus: 'INSUFFICIENT' });
+});
+
+test('a persisted vote remains successful when the follow-up aggregate read is temporarily unavailable', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    from: () => ({ insert: async (row) => { calls.push({ name: 'insert', row }); return { error: null }; } }),
+    rpc: async (name, args) => { calls.push({ name, args }); return { data: null, error: { code: 'PGRST000' } }; },
+  };
+  const result = await submitSupabaseVote({ postId: 'post-a', evaluationType: 'BINARY', value: 'yes', client });
+  assert.equal(result.error, undefined);
+  assert.equal(result.data.aggregate, null);
+  assert.equal(result.data.aggregatePending, true);
+  assert.deepEqual(calls, [
+    { name: 'insert', row: { post_id: 'post-a', voter_id: 'member-a', choice: 'yes', perceived_age: null } },
+    { name: 'get_post_aggregate', args: { target_post_id: 'post-a' } },
+  ]);
 });
 
 test('missing upload RPCs surface a safe staging configuration message', () => {

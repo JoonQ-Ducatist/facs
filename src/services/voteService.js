@@ -26,5 +26,8 @@ export async function submitCardVote(card, value, votedIds) {
     value: voteValue,
   });
   if (result.error) return result;
-  return apiSuccess({ ...result.data, post: applyAggregateToCard(card, result.data.aggregate) });
+  return apiSuccess({
+    ...result.data,
+    post: result.data.aggregate ? applyAggregateToCard(card, result.data.aggregate) : card,
+  });
 }

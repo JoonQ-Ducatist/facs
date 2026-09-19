@@ -9,13 +9,13 @@ import logoUrl from './assets/facs-snake-logo.png';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
 import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
-import { isSupabasePost, submitCardVote } from './services/voteService.js';
+import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -563,6 +563,8 @@ export default function App() {
           if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
           return next;
         });
+        const aggregate = await getSupabaseAggregate(currentCard.id);
+        if (aggregate.data) setCards((items) => items.map((card) => card.id === currentCard.id ? applyAggregateToCard(card, aggregate.data) : card));
         setToast(locale === 'en' ? 'Your evaluation is already reflected in this result.' : '이미 남긴 평가는 현재 결과에 반영되어 있어요.');
         return;
       }
@@ -571,17 +573,19 @@ export default function App() {
     }
     setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
     const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
-    const receivedAt = Date.now();
-    setLiveReactions((items) => [...items, {
-      id: `local-${currentCard.id}-${Date.now()}`,
-      postId: currentCard.id,
-      kind,
-      value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
-      aggregate: result.data.aggregate,
-      receivedAt,
-      animationDelayMs: 0,
-      expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS,
-    }]);
+    if (result.data.aggregate) {
+      const receivedAt = Date.now();
+      setLiveReactions((items) => [...items, {
+        id: `local-${currentCard.id}-${Date.now()}`,
+        postId: currentCard.id,
+        kind,
+        value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
+        aggregate: result.data.aggregate,
+        receivedAt,
+        animationDelayMs: 0,
+        expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS,
+      }]);
+    }
     setVotedIds((ids) => {
       const next = new Set([...ids, currentCard.id]);
       if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
@@ -589,6 +593,12 @@ export default function App() {
     });
     trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
     trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
+    if (result.data.aggregatePending) {
+      const aggregate = await getSupabaseAggregate(currentCard.id);
+      if (aggregate.data) setCards((items) => items.map((card) => card.id === currentCard.id ? applyAggregateToCard(card, aggregate.data) : card));
+      setToast(locale === 'en' ? 'Your evaluation was saved. Results are refreshing.' : '평가를 저장했어요. 결과를 새로 불러오는 중이에요.');
+      return;
+    }
     setToast(locale === 'en'
       ? (currentCard.evaluationType === 'NUMERIC_AGE' ? `You chose age ${value}.` : value ? 'Your YES vote was recorded.' : 'Your NO vote was recorded.')
       : (currentCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 첫인상을 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
