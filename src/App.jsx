@@ -471,17 +471,33 @@ export default function App() {
   useEnglishUi(locale);
   useEffect(() => { applySeoMetadata(locale); }, [locale]);
 
-  /** Resets a newly mounted screen once, never in response to keyboard viewport events. */
+  /** Restores the shell origin after reload, rotation, tab changes, and feed
+   * changes. Mobile browsers otherwise restore a stale inner scroll offset and
+   * make the header or bottom navigation appear to have disappeared. */
   useLayoutEffect(() => {
     if (isGuest) return undefined;
     const resetScreenStart = () => {
       window.scrollTo(0, 0);
-      mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (mainRef.current) {
+        mainRef.current.scrollTop = 0;
+        mainRef.current.scrollLeft = 0;
+      }
     };
-    resetScreenStart();
-    const frame = window.requestAnimationFrame(resetScreenStart);
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab, isGuest]);
+    let frame = 0;
+    const scheduleReset = () => {
+      resetScreenStart();
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => window.requestAnimationFrame(resetScreenStart));
+    };
+    scheduleReset();
+    window.addEventListener('pageshow', scheduleReset);
+    window.addEventListener('orientationchange', scheduleReset);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('pageshow', scheduleReset);
+      window.removeEventListener('orientationchange', scheduleReset);
+    };
+  }, [activeTab, activeCategory, safeIndex, isGuest]);
 
   /** 정의: 피드 카테고리를 변경하고 새 목록의 첫 카드로 이동한다. @param {string} category 카테고리 식별자 */
   function changeCategory(category) {

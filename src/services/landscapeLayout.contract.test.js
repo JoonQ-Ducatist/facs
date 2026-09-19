@@ -26,10 +26,11 @@ test('landscape phone keeps a PC-style menu beside a fixed-width scrolling feed'
   assert.match(landscapeBlock, /grid-template-columns: 216px minmax\(0, 1fr\);/);
   assert.match(landscapeBlock, /\.editorial-app > header \{ display: none;/);
   assert.match(landscapeBlock, /\.editorial-main \{ grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center;/);
-  assert.match(landscapeBlock, /\.editorial-main--feed \{ display: block !important; overflow-y: auto;/);
+  assert.match(landscapeBlock, /\.editorial-main--feed \{ display: block !important; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; touch-action: pan-y;/);
   assert.match(landscapeBlock, /\.editorial-main--feed \.media-carousel > article \{ display: block; width: 100%; height: 640px; min-height: 640px;/);
   assert.match(landscapeBlock, /\.editorial-app > nav \{ position: static !important; grid-column: 1; grid-row: 1;[\s\S]*?width: 216px;/);
   assert.match(landscapeBlock, /\.editorial-app > nav > \.desktop-nav-items button \{ width: 100%; height: 52px; flex-direction: row;/);
+  assert.match(landscapeBlock, /\.editorial-feed > div:first-child \{ position: sticky; top: 0; z-index: 45;/);
   assert.doesNotMatch(landscapeBlock, /landscape-nav-rail|landscape-nav-collapsed/);
 
   for (const [width, height] of landscapeMatrix) {

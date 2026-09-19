@@ -92,14 +92,14 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    100% 본문을 겹치면 iOS/Android가 키보드·파일 선택 후 이전 visual viewport를 보존해
    헤더가 사라지거나 카드 아래에 빈 공간을 만들 수 있으므로, 각 영역의 높이를 독립시킨다. */
 @media (max-width: 1023px) {
-  .editorial-app { display: grid; grid-template-rows: calc(44px + env(safe-area-inset-top)) minmax(0, 1fr) auto; }
+  .editorial-app { display: grid; grid-template-rows: calc(44px + env(safe-area-inset-top)) minmax(0, 1fr) auto; overflow: hidden; }
   .editorial-app > header { position: static !important; grid-row: 1; inset: auto; z-index: 1 !important; padding-top: env(safe-area-inset-top); }
   .editorial-main { grid-row: 2; height: auto !important; min-height: 0; padding-top: 8px !important; padding-bottom: 8px !important; }
-  .editorial-main--feed { display: flex !important; overflow: hidden; padding-top: 0 !important; padding-bottom: 0 !important; }
+  .editorial-main--feed { display: flex !important; overflow: hidden; overscroll-behavior: none; padding-top: 0 !important; padding-bottom: 0 !important; }
   .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
   .editorial-main--feed .media-carousel { height: 100%; min-height: 0; }
   .editorial-main--feed .media-carousel > article { height: 100%; min-height: 0; }
-  .editorial-app > nav { position: static !important; grid-row: 3; z-index: 1 !important; pointer-events: auto; touch-action: manipulation; }
+  .editorial-app > nav { position: static !important; grid-row: 3; z-index: 50 !important; min-height: calc(44px + env(safe-area-inset-bottom)); flex-shrink: 0; pointer-events: auto; touch-action: manipulation; }
   .editorial-app > nav button { pointer-events: auto; touch-action: manipulation; }
 }
 
@@ -346,7 +346,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .editorial-app > header { display: none; }
   .editorial-main { grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center; padding: 8px 0 !important; }
-  .editorial-main--feed { display: block !important; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+  .editorial-main--feed { display: block !important; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
   .editorial-main--feed > .editorial-feed { display: block; height: auto; min-height: max-content; }
   .editorial-main--feed .media-carousel { display: block; height: auto; min-height: 640px; }
   .editorial-main--feed .media-carousel > article { display: block; width: 100%; height: 640px; min-height: 640px; }
@@ -359,7 +359,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app > nav > .desktop-nav-items button span:last-child { max-width: 88px; opacity: 1; font-size: 13px; }
   .desktop-nav-language { display: inline-flex; margin: 0 0 10px; }
   .desktop-nav-language span:last-child { max-width: 90px; opacity: 1; }
-  .editorial-feed > div:first-child { min-height: 30px; padding: .25rem 0; }
+  .editorial-feed > div:first-child { position: sticky; top: 0; z-index: 45; min-height: 30px; padding: .25rem 0; background: var(--xc-surface); }
 
   /* Landscape phone dialogs use the desktop two-column contract instead of a
      portrait bottom sheet, keeping media and controls inside the viewport. */
@@ -382,8 +382,8 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   .editorial-app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(44px + env(safe-area-inset-top)) minmax(0, 1fr) auto; }
   .editorial-app > header { display: block !important; position: static !important; grid-column: 1; grid-row: 1; }
   .editorial-main { grid-column: 1; grid-row: 2; width: 100%; min-width: 0; max-width: none; justify-self: stretch; }
-  .editorial-main--feed { display: flex !important; overflow: hidden; }
-  .editorial-app > nav { display: block !important; position: static !important; grid-column: 1; grid-row: 3; width: 100%; height: auto; }
+  .editorial-main--feed { display: flex !important; overflow: hidden; overscroll-behavior: none; }
+  .editorial-app > nav { display: block !important; position: static !important; grid-column: 1; grid-row: 3; z-index: 50 !important; width: 100%; height: auto; min-height: calc(44px + env(safe-area-inset-bottom)); }
 }
 /* 정의: 넓은 데스크톱에서는 Instagram처럼 좌측 아이콘 메뉴·중앙 피드·우측 추천 정보를 동시에 배치한다. */
 @media (min-width: 1200px) {

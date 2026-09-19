@@ -95,9 +95,10 @@ test('feed navigation uses scroll and touch handoff without visible up/down cont
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /className=\{`media-card[^`]*touch-pan-y/);
   assert.match(source, /if \(event\.pointerType === 'mouse'\) event\.currentTarget\.setPointerCapture/);
-  assert.match(source, /const canRevealMoreOfThisCard = deltaY < 0/);
-  assert.match(source, /if \(!canRevealMoreOfThisCard\) navigateFeed\(deltaY < 0 \? 1 : -1\);/);
-  assert.match(source, /const canRevealMoreOfThisCard = event\.deltaY > 0/);
+  assert.match(source, /onTouchStart=\{startCardTouch\}/);
+  assert.match(source, /onTouchEnd=\{finishCardTouch\}/);
+  assert.match(source, /resolveTouchFeedDirection\(/);
+  assert.match(source, /resolveWheelFeedDirection\(/);
   assert.doesNotMatch(source, /function ArrowButton/);
   assert.doesNotMatch(source, /label="이전 카드"/);
   assert.doesNotMatch(source, /label="다음 카드"/);
@@ -114,4 +115,7 @@ test('browser lifecycle keeps the application shell out of a fixed viewport laye
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-app > header \{ position: static !important; grid-row: 1;/);
   assert.match(styles, /\.editorial-app > nav \{ position: static !important; grid-row: 3;/);
+  assert.match(source, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(source, /window\.addEventListener\('orientationchange', scheduleReset\)/);
+  assert.match(source, /mainRef\.current\.scrollTop = 0/);
 });

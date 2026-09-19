@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bookmark, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
+import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavigation.js';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
 export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onBoost, onStartUpload, onAddComment }) {
   const [expandedComments, setExpandedComments] = useState(false);
   const [draft, setDraft] = useState('');
   const gestureStart = useRef(null);
+  const touchGestureStart = useRef(null);
   const wheelLocked = useRef(false);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [carouselKick, setCarouselKick] = useState('');
@@ -22,6 +24,10 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
   useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
+  useLayoutEffect(() => {
+    const scroller = mediaCardRef.current?.closest('.editorial-main--feed');
+    if (scroller) scroller.scrollTop = 0;
+  }, [card.id]);
   if (!card) return <section className="mt-4 rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-slate-400">표시할 사진이 없습니다.</section>;
   const theme = categories[card.category];
   const cardMedia = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
@@ -131,31 +137,40 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       return;
     }
     resetDrag();
-    if (start.pointerType === 'mouse') return;
+  }
+  /** Keeps vertical touch navigation independent from Pointer Events. Mobile
+   * browsers may cancel a pointer as soon as native scrolling begins, while
+   * touchend still reports the completed gesture consistently. */
+  function startCardTouch(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { touchGestureStart.current = null; return; }
+    const touch = event.touches[0];
+    if (!touch) return;
     const scroller = event.currentTarget.closest('.editorial-main--feed');
-    const maxScrollTop = Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0));
-    const scrollTop = scroller?.scrollTop ?? 0;
-    const canRevealMoreOfThisCard = deltaY < 0
-      ? scrollTop < maxScrollTop - 2
-      : scrollTop > 2;
-    // Mobile and tablet swipe through feeds only after the visible card cannot
-    // scroll farther in that direction. This is the same scroll-first handoff
-    // users expect from an Instagram-style feed.
-    if (!canRevealMoreOfThisCard) navigateFeed(deltaY < 0 ? 1 : -1);
+    touchGestureStart.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      scrollTop: scroller?.scrollTop ?? 0,
+      maxScrollTop: Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0)),
+    };
+  }
+  function finishCardTouch(event) {
+    const start = touchGestureStart.current;
+    touchGestureStart.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const direction = resolveTouchFeedDirection({ startX: start.x, startY: start.y, endX: touch.clientX, endY: touch.clientY, scrollTop: start.scrollTop, maxScrollTop: start.maxScrollTop });
+    if (direction) navigateFeed(direction);
   }
   /** 정의: 데스크톱 휠의 세로 이동으로 피드를 한 장씩 안전하게 순환한다. @param {WheelEvent} event 마우스 휠 이벤트 */
   function moveCardByWheel(event) {
-    if (Math.abs(event.deltaY) < 12 || wheelLocked.current) return;
+    if (wheelLocked.current) return;
     const scroller = event.currentTarget.closest('.editorial-main--feed');
-    const maxScrollTop = Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0));
-    const scrollTop = scroller?.scrollTop ?? 0;
-    const canRevealMoreOfThisCard = event.deltaY > 0
-      ? scrollTop < maxScrollTop - 2
-      : scrollTop > 2;
-    if (canRevealMoreOfThisCard) return;
+    const direction = resolveWheelFeedDirection({ deltaY: event.deltaY, scrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0 });
+    if (!direction) return;
     event.preventDefault();
     wheelLocked.current = true;
-    navigateFeed(event.deltaY > 0 ? 1 : -1);
+    navigateFeed(direction);
     window.setTimeout(() => { wheelLocked.current = false; }, 420);
   }
 
@@ -187,7 +202,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </div>
 
     <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-pan-y overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
+    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onTouchStart={startCardTouch} onTouchEnd={finishCardTouch} onTouchCancel={() => { touchGestureStart.current = null; }} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-pan-y overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
       {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left" style={{ transform: `translate3d(calc(-100% + var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} className="h-full w-full object-cover object-center" /></button></div>}
       {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--continuous media-peek--right" style={{ transform: `translate3d(calc(100% - var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} className="h-full w-full object-cover object-center" /></button></div>}
       <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translate3d(${dragOffset}px, 0, 0)` }}><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
