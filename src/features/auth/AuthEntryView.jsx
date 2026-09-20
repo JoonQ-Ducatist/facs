@@ -1,27 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import logoUrl from '../../assets/facs-snake-logo.png';
+import MothMark from '../../components/brand/MothMark.jsx';
 import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
 
-/** 정의: 방문마다 무작위로 보여 주는 한·영 가입 유도 문구 목록이다. */
-const splashCopies = [
-  { title: <>오늘 내 모습,<br />어떻게 보여요?</>, english: 'How do I look today?' },
-  { title: <>이 룩, 오늘의 나를<br />더 빛나게 할까요?</>, english: 'Will this look make you shine today?' },
-  { title: <>새로 산 이 옷,<br />나랑 잘 어울릴까?</>, english: 'Does this new outfit feel like you?' },
-  { title: <>오늘의 분위기,<br />내가 원하는 느낌일까?</>, english: 'Is today’s vibe exactly what you wanted?' },
-  { title: <>나답게 예쁜 날,<br />지금 시작해요.</>, english: 'Start a day that feels beautifully you.' },
-  { title: <>거울 앞 3초,<br />오늘은 자신감 있게.</>, english: 'Three seconds in the mirror, then step out with confidence.' },
-];
-
-/** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 전체 화면 스플래시다. */
-export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
+/** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 로그인/인증 화면이다. */
+export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const popularCards = useMemo(
     () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
     [cards],
   );
   const [activeIndex, setActiveIndex] = useState(0);
-  const [copy] = useState(() => splashCopies[Math.floor(Math.random() * splashCopies.length)]);
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('email');
@@ -91,7 +80,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
     setIsCodeVerifying(false);
     if (result?.ok) {
       // Supabase consumes an OTP immediately. Keep this step locked while the
-      // auth-state listener moves the app from Splash to Feed; a second click
+      // The auth-state listener moves this entry screen to Feed; a second click
       // would otherwise submit the already-consumed token and show "invalid".
       setVerificationCompleted(true);
       setEmailNoticeTone('success');
@@ -136,7 +125,7 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
   const activeCard = popularCards[activeIndex] ?? cards[0];
 
   return (
-    <main className="splash-screen relative mx-auto h-full max-w-none overflow-hidden bg-[#051424] text-white shadow-2xl">
+    <main className="auth-entry-screen relative mx-auto h-full max-w-none overflow-hidden bg-[#051424] text-white shadow-2xl">
       <div className="absolute inset-0" aria-hidden="true">
         <img key={activeCard.id} className="splash-media h-full w-full object-cover" style={{ objectPosition: activeCard.objectPosition }} src={activeCard.imageUrl} alt="" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,28,45,0.62)_0%,rgba(14,28,45,0.08)_35%,rgba(14,28,45,0.9)_100%)]" />
@@ -145,28 +134,22 @@ export default function SplashView({ cards, locale = 'ko', onLocaleChange, onPre
 
       <div className="relative z-10 flex h-full flex-col px-5 pb-6 pt-10">
         <LocalQaAccountSwitcher enabled={localQaEnabled} placement="splash" onSelect={onQaAccountSelect} />
-        <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한글'}</button>
-        <header className="flex flex-col items-center text-center">
-          {allowPreviewBypass ? <button type="button" onClick={onPreview} className="group flex flex-col items-center rounded-xl px-3 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>
-            <img src={logoUrl} width="96" height="64" className="h-16 w-24 object-contain drop-shadow-[0_3px_12px_rgba(0,0,0,0.5)] transition-transform duration-200 group-hover:scale-105" alt="FACt.Smack 뱀 로고" />
-            <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
-          </button> : <div className="flex flex-col items-center px-3 py-1">
-            <img src={logoUrl} width="96" height="64" className="h-16 w-24 object-contain drop-shadow-[0_3px_12px_rgba(0,0,0,0.5)]" alt="FACt.Smack 뱀 로고" />
-            <p lang="en" className="mt-1 font-latin text-[25px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
+        <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한국어'}</button>
+        <header className="auth-entry-brand flex items-center justify-start text-left">
+          {allowPreviewBypass ? <button type="button" onClick={onPreview} className="group flex items-center gap-2 rounded-lg px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8]" aria-label={locale === 'en' ? 'Open feed preview without signing in' : '로그인 없이 피드 미리보기 열기'} title={locale === 'en' ? 'Open feed preview' : '피드 미리보기 열기'}>
+            <MothMark width="40" height="28" className="h-7 w-10 object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-transform duration-200 group-hover:scale-105" />
+            <p lang="en" className="font-latin text-[18px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
+          </button> : <div className="flex items-center gap-2 px-1 py-1">
+            <MothMark width="40" height="28" className="h-7 w-10 object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]" />
+            <p lang="en" className="font-latin text-[18px] font-extrabold leading-none tracking-tight"><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</p>
           </div>}
-          <div className="mt-2 flex items-center gap-2">
-            <span className="h-px w-5 bg-[#c5a059]/70" />
-            <p lang="en" className="font-mono text-[9px] font-bold tracking-[0.22em] text-[#ecd8a8]">MORE VIEWS, MORE YOU</p>
-            <span className="h-px w-5 bg-[#c5a059]/70" />
-          </div>
         </header>
 
         <div className="flex-1" />
 
-        <section className="mb-4 text-center drop-shadow-md" aria-live="polite">
-          <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-[#ecd8a8]">TODAY&apos;S LOOK CHECK</p>
-          <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? copy.english : copy.title}</h1>
-          {locale !== 'en' && <p className="mt-2 text-xs text-white/75">{copy.english}</p>}
+        <section className="mb-4 text-center drop-shadow-md">
+          <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-[#ecd8a8]">YOUR LOOK, MORE VIEWS</p>
+          <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? 'Ready to be seen differently?' : '오늘의 나를, 다른 시선으로 만나보세요.'}</h1>
         </section>
 
         <section className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]" style={keyboardOffset ? { transform: `translateY(-${keyboardOffset}px)` } : undefined}>

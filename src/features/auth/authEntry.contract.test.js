@@ -21,6 +21,15 @@ test('preview authentication resumes an existing session unless authPreview expl
   assert.match(source, /const onVisible = \(\) => \{ if \(document\.visibilityState === 'visible'\) void restoreOriginalTab\(\); \}/);
 });
 
+test('brand splash always precedes the resolved authentication or Feed destination', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /import BrandSplashView from '\.\/features\/auth\/BrandSplashView\.jsx'/);
+  assert.match(source, /const \[brandSplashComplete, setBrandSplashComplete\] = useState\(false\)/);
+  assert.match(source, /if \(!brandSplashComplete\) return <CanvasStage locale=\{locale\}><BrandSplashView/);
+  assert.match(source, /if \(!authReady\) return <CanvasStage locale=\{locale\}><StatePanel/);
+  assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
+});
+
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);
