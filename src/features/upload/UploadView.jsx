@@ -17,10 +17,10 @@ const questionSuggestions = {
 const englishQuestionSuggestions = {
   Outfit: ['Does this look work for today?', 'Does this new outfit suit me?', 'Does this look express my vibe?', 'What is the most appealing part of today’s look?'],
   PerceivedAge: ['How old do I look to people?', 'Do I look younger than my age here?', 'What age impression do my hair and makeup create?', 'What age would people guess from this photo?'],
-  Date: ['Would this make a lovely first impression?', 'Do I look comfortable and appealing for a date?', 'Does this style suit me?', 'Would this be a memorable look?'],
+  Date: ['Would this make a lovely first-date look?', 'Do I look comfortable and appealing for a date?', 'Does this style suit me?', 'Would this be a memorable look?'],
   Fitness: ['Does this look feel healthy and confident?', 'Does this workout look feel comfortable and stylish?', 'Does today’s workout look feel confident?', 'Can you feel the active energy in this photo?'],
-  Work: ['Would this make a great first impression at work?', 'Does today’s work look feel polished?', 'Does this look feel trustworthy?', 'Does it feel professional and approachable?'],
-  SocialProfile: ['Does this work as an appealing profile photo?', 'Does this photo express my vibe?', 'Would this make a good first impression?', 'Would this photo stand out on a profile?'],
+  Work: ['Would this make a strong work look?', 'Does today’s work look feel polished?', 'Does this look feel trustworthy?', 'Does it feel professional and approachable?'],
+  SocialProfile: ['Does this work as an appealing profile photo?', 'Does this photo express my vibe?', 'Would this make a good profile impression?', 'Would this photo stand out on a profile?'],
 };
 
 /** Keeps Upload controls out of the root tab-swipe gesture on touch devices. */
@@ -35,7 +35,7 @@ function getQuestionSuggestions(category, media, locale) {
   if (!media.length) return base;
   if (locale === 'en') {
     const mediaHint = media.some((item) => item.type === 'video') ? 'Does my vibe in this short video' : media.length > 1 ? 'Does my vibe across these photos' : 'Does my vibe in this photo';
-    const endings = { Outfit: 'feel fresh and well styled?', PerceivedAge: 'suggest a younger first impression?', Date: 'make a good first impression?', Fitness: 'feel healthy and confident?', Work: 'feel professional and trustworthy?', SocialProfile: 'work for a profile?' };
+    const endings = { Outfit: 'feel fresh and well styled?', PerceivedAge: 'suggest a younger age?', Date: 'feel right for a date?', Fitness: 'feel healthy and confident?', Work: 'feel professional and trustworthy?', SocialProfile: 'work for a profile?' };
     return [`${mediaHint} ${endings[category] ?? endings.Outfit}`, ...base.slice(1)];
   }
   const mediaHint = media.some((item) => item.type === 'video') ? '짧은 영상에서 보이는 제 분위기는' : media.length > 1 ? '여러 장의 사진에서 보이는 제 분위기는' : '이 사진에서 보이는 제 분위기는';

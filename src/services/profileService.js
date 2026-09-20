@@ -1,7 +1,9 @@
 import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { supabase } from './supabaseClient.js';
 
-const HANDLE_PATTERN = /^[a-z0-9_]{3,30}$/;
+export const PUBLIC_HANDLE_MAX_LENGTH = 12;
+const HANDLE_PATTERN = new RegExp(`^[a-z0-9_]{3,${PUBLIC_HANDLE_MAX_LENGTH}}$`);
+const LEGACY_DISPLAY_HANDLE_PATTERN = /^[a-z0-9_]{3,30}$/;
 const HANDLE_PREFIXES = ['mood', 'daily', 'soft', 'bright', 'calm', 'fresh'];
 const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
 // Keep browser read-back compatible with the original profile schema. The
@@ -24,7 +26,7 @@ export function isConfiguredHandle(handle) {
 /** Returns the persisted public handle only; generated placeholders never render as a member ID. */
 export function getPublicHandle(profile) {
   const handle = normalizeHandle(profile?.handle ?? '');
-  return isConfiguredHandle(handle) ? handle : null;
+  return LEGACY_DISPLAY_HANDLE_PATTERN.test(handle) && !handle.startsWith('member_') ? handle : null;
 }
 
 /** The client can submit a syntactically valid handle while availability is unknown; the RPC remains final authority. */
@@ -59,7 +61,7 @@ export function getHandleSuggestions(seed = '') {
     const offset = value + index * 37;
     const prefix = HANDLE_PREFIXES[offset % HANDLE_PREFIXES.length];
     const word = HANDLE_WORDS[Math.floor(offset / HANDLE_PREFIXES.length) % HANDLE_WORDS.length];
-    return `${prefix}_${word}_${String((offset % 90) + 10)}`;
+    return `${prefix.slice(0, 4)}_${word.slice(0, 4)}_${String((offset % 90) + 10)}`;
   });
 }
 
@@ -105,13 +107,13 @@ export async function getHandleSuggestionsWithAvailability(seed) {
 /** Persists the user's chosen public handle and never stores email in the profile. */
 export async function updateMyHandle(rawHandle, { client = supabase } = {}) {
   const handle = normalizeHandle(rawHandle);
-  if (!HANDLE_PATTERN.test(handle) || handle.startsWith('member_')) return apiFailure(API_ERROR.VALIDATION_FAILED, '영문 소문자, 숫자, 밑줄로 3~30자 아이디를 입력해 주세요.');
+  if (!HANDLE_PATTERN.test(handle) || handle.startsWith('member_')) return apiFailure(API_ERROR.VALIDATION_FAILED, '영문 소문자, 숫자, 밑줄로 3~12자 아이디를 입력해 주세요.');
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
   const { data, error } = await client.rpc('set_my_public_handle', { input_handle: handle });
   if (error?.code === '23505') return apiFailure(API_ERROR.VALIDATION_FAILED, '이미 사용 중인 아이디예요. 다른 아이디를 선택해 주세요.');
   if (error?.code === '22023' && error?.message === HANDLE_CHANGE_COOLDOWN_REASON) return apiFailure(API_ERROR.RATE_LIMITED, '공개 아이디는 변경 후 1개월이 지나야 다시 변경할 수 있어요.', { reason: HANDLE_CHANGE_COOLDOWN_REASON });
-  if (error?.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '아이디는 영문 소문자·숫자·밑줄로 3~30자까지 입력해 주세요.');
+  if (error?.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '아이디는 영문 소문자·숫자·밑줄로 3~12자까지 입력해 주세요.');
   if (error?.code === '42501' && error?.message === 'profile_not_ready') return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   if (error?.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '현재 계정에서는 아이디를 저장할 수 없어요. 다시 로그인해 주세요.');
   if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '아이디 저장 중 연결 문제가 발생했어요. 잠시 후 다시 시도해 주세요.');

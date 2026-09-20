@@ -12,7 +12,8 @@
     "dev:local": "node scripts/start-local-auth-dev.mjs",
     "supabase:start": "npx supabase start",
     "supabase:stop": "npx supabase stop",
-    "supabase:status": "npx supabase status"
+    "supabase:status": "npx supabase status",
+    "qa:local-accounts": "node scripts/qa/local-account-e2e.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

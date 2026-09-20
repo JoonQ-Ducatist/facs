@@ -4,8 +4,9 @@ import FeedView from './features/feed/FeedView.jsx';
 import UploadView from './features/upload/UploadView.jsx';
 import RankingView from './features/ranking/RankingView.jsx';
 import ProfileView from './features/profile/ProfileView.jsx';
-import SplashView from './features/auth/SplashView.jsx';
-import logoUrl from './assets/facs-snake-logo.png';
+import BrandSplashView from './features/auth/BrandSplashView.jsx';
+import AuthEntryView from './features/auth/AuthEntryView.jsx';
+import MothMark from './components/brand/MothMark.jsx';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
 import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
@@ -20,10 +21,11 @@ import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWind
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
+import { submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
-import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
+import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -77,10 +79,12 @@ function CanvasStage({ children }) { return <div className="app-stage"><div clas
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
+  const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const previewBypassAllowed = useMemo(() => isPreviewBypassAllowed(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
+  const splashPreview = new URLSearchParams(window.location.search).get('splashPreview') === '1';
   const localQaEnabled = isLocalQaAccountMode();
   const previewMode = new URLSearchParams(window.location.search).has('preview');
   // 정의: preview=1은 실제 Supabase 세션을 복구해 피드 점검을 이어가고,
@@ -106,6 +110,7 @@ export default function App() {
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [blockedMembers, setBlockedMembers] = useState([]);
   const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
+  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -162,11 +167,11 @@ export default function App() {
 
     const finishAuthenticatedEntry = (session, { allowPreviewTransition = false } = {}) => {
       // `preview=1` is a QA entry point that should resume an existing session
-      // after refresh. Only the explicit `authPreview=1` flag keeps the splash
+      // after refresh. Only the explicit `authPreview=1` flag keeps the auth entry
       // locked until a fresh sign-in event (or cross-tab completion signal).
       if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
       // The OTP field can remain focused while Supabase updates the session.
-      // Dismiss its software keyboard before replacing Splash with Feed; the
+      // Dismiss its software keyboard before replacing Auth Entry with Feed; the
       // CSS viewport shell then resolves the next visible size without JS timing.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       setAuthUser(session.user ?? null);
@@ -393,7 +398,7 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, followingIdsKey]);
+  }, [authUser?.id, followingIdsKey, feedRefreshKey]);
 
   /** Loads the public handle only for the authenticated member, never from email. */
   useEffect(() => {
@@ -560,7 +565,7 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.SHARE_REQUESTED, { category: card.category, evaluationType: card.evaluationType, locale });
     const url = buildShareUrl(card.id, locale);
     const shareData = locale === 'en'
-      ? { title: 'FACt.Smack First Impression', text: `Share your first impression of @${card.author}.`, url }
+      ? { title: 'FACt.Smack Feedback', text: `Share your feedback on @${card.author}.`, url }
       : { title: 'FACt.Smack 평가', text: `@${card.author}의 평가에 참여해 보세요.`, url };
     try {
       if (navigator.share) await navigator.share(shareData);
@@ -874,11 +879,28 @@ export default function App() {
       authTransitionConsumed.current = true;
       setIsSharedGuest(false);
       setIsGuest(false);
+      // A QA account has its own feed context. Do not carry the uploader's
+      // category focus or just-published card into the evaluator's session.
+      setFeaturedPostId(null);
+      setActiveCategory('ALL');
+      setCurrentIndex(0);
       setActiveTab('feed');
       setToast(`${result.account.displayName} QA 계정으로 전환했어요.`);
     } else {
       authTransitionPending.current = false;
     }
+    return result;
+  }
+
+  async function resetLocalQaRelationships() {
+    const result = await resetLocalQaAbRelationshipState();
+    if (!result.ok) return result;
+    setBlockedMembers([]);
+    setFollowingIds(new Set());
+    setFeaturedPostId(null);
+    setActiveCategory('ALL');
+    setCurrentIndex(0);
+    setFeedRefreshKey((version) => version + 1);
     return result;
   }
 
@@ -992,6 +1014,16 @@ export default function App() {
     return { ok: true };
   }
 
+  /** Keeps reports private while giving the member a clear, retryable result. */
+  async function reportPost(postId, reason) {
+    if (!authUser) { setIsGuest(true); setToast(locale === 'en' ? 'Sign in to report this post.' : '신고하려면 로그인해 주세요.'); return { ok: false }; }
+    const result = await submitPostReport(postId, reason);
+    if (result.error === 'ALREADY_REPORTED') { setToast(locale === 'en' ? 'You have already reported this post for that reason.' : '이미 같은 사유로 신고한 게시물이에요.'); return { ok: false }; }
+    if (result.error) { setToast(locale === 'en' ? 'Your report could not be sent. Please try again.' : '신고를 접수하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    setToast(locale === 'en' ? 'Your report was received. Thank you.' : '신고가 접수되었어요. 알려주셔서 감사합니다.');
+    return { ok: true };
+  }
+
   async function unblockAuthor(authorId) {
     const result = await unblockMember(authorId);
     if (result.error) { setToast(locale === 'en' ? 'This member could not be unblocked. Please try again.' : '차단을 해제하지 못했어요. 다시 시도해 주세요.'); return; }
@@ -1032,24 +1064,25 @@ export default function App() {
     if (!start || event?.pointerId === undefined || event.pointerId === start.pointerId) tabGestureStart.current = null;
   }
 
+  if (!brandSplashComplete) return <CanvasStage locale={locale}><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><SplashView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><AuthEntryView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
-      <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
-        <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
-          <img src={logoUrl} width="38" height="28" className="h-7 w-9 shrink-0 object-contain" alt="FACt.Smack 뱀 로고" />
-          <span className="flex min-w-0 items-center gap-1.5">
+      <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
+        <button type="button" onClick={() => setActiveTab('feed')} className="app-header__brand flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
+          <MothMark width="38" height="28" className="h-7 w-9 shrink-0 object-contain brightness-[.45] contrast-200" alt="FACt.Smack 로고" />
+          <span className="app-header__wordmark flex min-w-0 items-center gap-1.5">
             <BrandWordmark compact />
             <span aria-label="AI" className="brand-ai-mark hidden shrink-0 md:inline-flex">AI</span>
           </span>
           <span lang="en" className="hidden whitespace-nowrap font-mono text-[8px] leading-none tracking-wide text-[#735c00] lg:inline">MORE VIEWS, MORE YOU</span>
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <LocalQaAccountSwitcher enabled={localQaEnabled} currentUserEmail={authUser?.email} onSelect={switchLocalQaAccount} />
+        <div className="app-header__actions flex shrink-0 items-center gap-1.5">
+          <LocalQaAccountSwitcher enabled={localQaEnabled} currentUserEmail={authUser?.email} onSelect={switchLocalQaAccount} onResetRelationships={resetLocalQaRelationships} />
           <button
             type="button"
             className="flex h-6 min-w-0 items-center justify-center rounded-md border border-[#c5a059]/55 bg-[#fbf9f4] px-1.5 font-latin text-[9px] font-semibold tracking-tight text-[#735c00]/85 hover:bg-surface-container"
@@ -1057,7 +1090,7 @@ export default function App() {
             aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'}
             title={locale === 'ko' ? 'English' : '한국어'}
           >
-            <span aria-hidden="true">{locale === 'ko' ? 'EN' : '한글'}</span>
+            <span aria-hidden="true">{locale === 'ko' ? 'EN' : '한국어'}</span>
             <span className="sr-only">{locale === 'ko' ? 'English' : '한국어'}</span>
           </button>
           <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-container" onClick={() => setToast('새 알림은 없습니다.')} aria-label="알림"><span className="material-symbols-outlined text-[22px] text-on-surface-variant">notifications</span><span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#c5a059] ring-2 ring-background" /></button>
@@ -1068,7 +1101,7 @@ export default function App() {
 
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
@@ -1080,7 +1113,7 @@ export default function App() {
     {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
-      <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><img src={logoUrl} width="30" height="24" alt="" /><BrandWordmark /></button>
+      <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
     </nav>
@@ -1173,7 +1206,7 @@ function useEnglishUi(locale) {
       '현재는 브라우저 목업입니다. 실서비스에서는 권리 동의·검토·안전한 미디어 저장 절차가 적용됩니다.': 'This is a browser mockup. The live service will require rights consent, review, and secure media storage.',
       '이미지 또는 동영상 파일만 선택할 수 있습니다.': 'Choose an image or video file.', '각 파일은 15MB 이하만 선택할 수 있습니다.': 'Each file must be 15 MB or smaller.', '동영상은 1개만 선택할 수 있습니다.': 'Choose no more than one video.', '동영상은 10초 이하만 업로드할 수 있습니다.': 'Videos must be 10 seconds or shorter.', '카메라 촬영은 모바일 환경에서 사용할 수 있는 기능이에요.': 'Camera capture is available on mobile devices.', '닉네임은 2~30자의 한글·영문·숫자·밑줄만 사용할 수 있어요.': 'Use 2–30 letters, numbers, or underscores for the username.', '질문은 4자 이상으로 작성하거나 추천 질문을 선택해 주세요.': 'Write at least 4 characters or choose a suggested question.', '최소·최대 나이는 18~99세 사이며 최소가 최대보다 작아야 해요.': 'The age range must be 18–99 and the minimum must be below the maximum.', '사진 또는 동영상을 선택해 주세요.': 'Choose a photo or video.',
       '룩을 준비하고 있어요.': 'Preparing your looks.', '잠시만 기다리면 새로운 콘텐츠를 보여드릴게요.': 'Fresh content will be ready in a moment.', '아직 보여드릴 룩이 없어요.': 'Nothing to show yet.', '조금 뒤 다시 확인하거나, 오늘의 첫 룩을 직접 공유해 보세요.': 'Check back soon or share today’s first look.', '새로고침': 'Refresh', '화면을 불러오지 못했어요.': 'Could not load this screen.', '연결 상태를 확인한 뒤 다시 시도해 주세요.': 'Check your connection and try again.', '다시 시도': 'Try again', '로그인 후 이용할 수 있어요.': 'Sign in to continue.', 'FACt.Smack에 가입하고 더 많은 시선으로 오늘의 룩을 확인해 보세요.': 'Join FACt.Smack and see today’s look through more perspectives.', '로그인하기': 'Sign in', '게시물을 검토하고 있어요.': 'Your post is under review.', '안전한 커뮤니티를 위해 확인이 끝나면 피드에 공개됩니다.': 'It will appear in the feed after our safety review.', '내 프로필 보기': 'View my profile', '상태 안내': 'status',
-      '본문으로 바로가기': 'Skip to main content', 'FACt.Smack 피드로 이동': 'Go to the FACt.Smack feed', 'FACt.Smack 로고': 'FACt.Smack logo', 'FACt.Smack 뱀 로고': 'FACt.Smack snake logo', '알림': 'Notifications', '프로필': 'Profile', '내 프로필': 'My profile', '주요 메뉴': 'Main navigation', '카메라로 촬영하기': 'Take a photo', '미디어 추가': 'Add media', '랭킹 카드 미리보기': 'Ranking post preview', '미리보기 닫기': 'Close preview', '대화 상자': 'Dialog', '호감도 높은 순으로 정렬': 'Sort by highest approval', '호감도 낮은 순으로 정렬': 'Sort by lowest approval', '호감도 높은 순': 'Highest approval first', '호감도 낮은 순': 'Lowest approval first', '댓글 미리보기': 'Comment preview', '게시물 댓글 상세': 'Post comments', '댓글 상세 닫기': 'Close comments', '댓글 작성': 'Write a comment', '이전 사진 미리보기': 'Previous photo preview', '다음 사진 미리보기': 'Next photo preview',
+      '본문으로 바로가기': 'Skip to main content', 'FACt.Smack 피드로 이동': 'Go to the FACt.Smack feed', 'FACt.Smack 로고': 'FACt.Smack logo', '알림': 'Notifications', '프로필': 'Profile', '내 프로필': 'My profile', '주요 메뉴': 'Main navigation', '카메라로 촬영하기': 'Take a photo', '미디어 추가': 'Add media', '랭킹 카드 미리보기': 'Ranking post preview', '미리보기 닫기': 'Close preview', '대화 상자': 'Dialog', '호감도 높은 순으로 정렬': 'Sort by highest approval', '호감도 낮은 순으로 정렬': 'Sort by lowest approval', '호감도 높은 순': 'Highest approval first', '호감도 낮은 순': 'Lowest approval first', '댓글 미리보기': 'Comment preview', '게시물 댓글 상세': 'Post comments', '댓글 상세 닫기': 'Close comments', '댓글 작성': 'Write a comment', '이전 사진 미리보기': 'Previous photo preview', '다음 사진 미리보기': 'Next photo preview',
     };
     const translateText = (text) => {
       const leading = text.match(/^\s*/)?.[0] ?? '';
@@ -1213,10 +1246,32 @@ function useEnglishUi(locale) {
       if (match) return `${match[1]} status`;
       return value;
     };
+    const originalText = new Map();
+    const translatedText = new Map();
+    const originalAttributes = new Map();
     const translateNode = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) { const replacement = translateText(node.nodeValue); if (replacement !== node.nodeValue) node.nodeValue = replacement; return; }
+      if (node.nodeType === Node.TEXT_NODE) {
+        const current = node.nodeValue;
+        const replacement = translateText(current);
+        if (replacement !== current) {
+          if (!translatedText.has(node) || translatedText.get(node) !== current) originalText.set(node, current);
+          translatedText.set(node, replacement);
+          node.nodeValue = replacement;
+        }
+        return;
+      }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest('[data-no-translate]')) return;
-      ['aria-label', 'title', 'placeholder', 'alt'].forEach((attribute) => { const value = node.getAttribute(attribute); const replacement = translateAttribute(value); if (replacement !== value) node.setAttribute(attribute, replacement); });
+      ['aria-label', 'title', 'placeholder', 'alt'].forEach((attribute) => {
+        const value = node.getAttribute(attribute);
+        const replacement = translateAttribute(value);
+        if (replacement !== value) {
+          let originals = originalAttributes.get(node);
+          if (!originals) { originals = new Map(); originalAttributes.set(node, originals); }
+          const previous = originals.get(attribute);
+          originals.set(attribute, { original: previous?.translated === value ? previous.original : value, translated: replacement });
+          node.setAttribute(attribute, replacement);
+        }
+      });
       node.childNodes.forEach(translateNode);
     };
     translateNode(document.body);
@@ -1225,6 +1280,17 @@ function useEnglishUi(locale) {
       else mutation.addedNodes.forEach(translateNode);
     }));
     observer.observe(document.body, { childList: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'title', 'placeholder', 'alt'], subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      originalText.forEach((original, node) => {
+        if (node.isConnected && node.nodeValue === translatedText.get(node)) node.nodeValue = original;
+      });
+      originalAttributes.forEach((attributes, node) => {
+        if (!node.isConnected) return;
+        attributes.forEach(({ original, translated }, attribute) => {
+          if (node.getAttribute(attribute) === translated) node.setAttribute(attribute, original);
+        });
+      });
+    };
   }, [locale]);
 }

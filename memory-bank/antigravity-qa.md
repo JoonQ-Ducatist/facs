@@ -60,6 +60,15 @@ plan 모드를 쓰고 권한 우회 플래그를 쓰지 않는다. 이 모드는
 
 ## 결과
 
+### 실행 결과 계약
+
+- QA 실행기는 일반 텍스트 진행 메시지를 최종 결과로 취급하지 않는다. 필수 JSON 필드와
+  판정값을 모두 검증한 보고서만 유효한 QA 산출물이다.
+- 첫 응답이 중간 상태이거나 형식이 맞지 않으면 같은 QA 대화를 한 번 이어 최종 보고서를
+  재요청한다. 재시도 뒤에도 유효한 보고서가 없으면 `BLOCKED`로 기록한다.
+- QA 임시 작업 폴더는 `/private/tmp/facs-qa/` 아래에 만들고, 로컬 브라우저 QA는
+  `localhost`와 `127.0.0.1`에서만 허용한다. 이 범위는 소스 검토와 보고서 생성에만 쓴다.
+
 - manifest.json: commit, 선택 소스 fingerprint, dirty 상태, URL, 모드, 복사 파일 목록.
 - report.json / report.md: 관찰과 제안, 파일/라인, 지표, 검증 모드, 미검증 항목.
 - status.json: PASS/FAIL/BLOCKED/INCOMPLETE/STALE_SOURCE 및 실행 실패 원인.

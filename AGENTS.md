@@ -45,11 +45,17 @@ before merge. A blocked or incomplete QA result is not approval. Do not start th
 next ordered task until the current task is approved and merged. Direct pushes to
 `main` are reserved for a user-approved emergency fix and must be documented.
 
-Run `npm test` and `npm run build` for implementation changes. The PM may request
+Follow `memory-bank/team-workflow.md`'s risk-based verification rules: run focused
+tests and checks for the affected behavior during implementation. Low-risk isolated
+UI changes do not require the full suite or a production build. For medium/high-risk
+changes, run `npm test` and `npm run build` once at the fixed review/PR gate, then
+repeat only the affected checks if source changes after that gate. The PM may request
 independent design and review work in parallel, but must check active tasks first.
 Do not recursively send routing requests back to the master; return results once.
-For each screen, UI, or behavior that needs user approval, open the relevant local,
-Preview, or `main` URL in a new external Google Chrome window or tab. Do not use the
-Codex in-app browser or panel as the approval surface. Record the URL, source branch,
-and commit with the approval request. Do not start the next implementation task until
-the user has approved that exact visual-review target in `★ PM ★`.
+For each screen, UI, or behavior that needs user approval, use the relevant local,
+Preview, or `main` URL in external Google Chrome. Reuse an already open task tab with
+refresh or hard refresh; open a new tab only when no suitable tab exists or isolation
+is required. Do not use the Codex in-app browser or panel as the approval surface.
+Record the URL, source branch, and commit with the approval request. Do not start the
+next implementation task until the user has approved that exact visual-review target
+in `★ PM ★`.

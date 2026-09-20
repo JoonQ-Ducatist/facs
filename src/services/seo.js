@@ -4,8 +4,8 @@ const COPY = {
     description: '사진에 대한 사람들의 주관적인 평가를 안전하고 투명하게 확인하는 FACt.Smack 피드백 플랫폼입니다.',
   },
   en: {
-    title: 'FACt.Smack | First impressions, made visible',
-    description: 'FACt.Smack is a transparent feedback platform for understanding people’s subjective first impressions of your photos.',
+    title: 'FACt.Smack | Feedback, made visible',
+    description: 'FACt.Smack is a transparent feedback platform for understanding people’s subjective ratings of your photos.',
   },
 };
 
