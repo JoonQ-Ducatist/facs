@@ -21,10 +21,11 @@ import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWind
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
+import { submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
-import { isLocalQaAccountMode, signInWithLocalQaAccount } from './services/localQaAccounts.js';
+import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
@@ -109,6 +110,7 @@ export default function App() {
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [blockedMembers, setBlockedMembers] = useState([]);
   const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
+  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -396,7 +398,7 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, followingIdsKey]);
+  }, [authUser?.id, followingIdsKey, feedRefreshKey]);
 
   /** Loads the public handle only for the authenticated member, never from email. */
   useEffect(() => {
@@ -877,11 +879,28 @@ export default function App() {
       authTransitionConsumed.current = true;
       setIsSharedGuest(false);
       setIsGuest(false);
+      // A QA account has its own feed context. Do not carry the uploader's
+      // category focus or just-published card into the evaluator's session.
+      setFeaturedPostId(null);
+      setActiveCategory('ALL');
+      setCurrentIndex(0);
       setActiveTab('feed');
       setToast(`${result.account.displayName} QA 계정으로 전환했어요.`);
     } else {
       authTransitionPending.current = false;
     }
+    return result;
+  }
+
+  async function resetLocalQaRelationships() {
+    const result = await resetLocalQaAbRelationshipState();
+    if (!result.ok) return result;
+    setBlockedMembers([]);
+    setFollowingIds(new Set());
+    setFeaturedPostId(null);
+    setActiveCategory('ALL');
+    setCurrentIndex(0);
+    setFeedRefreshKey((version) => version + 1);
     return result;
   }
 
@@ -995,6 +1014,16 @@ export default function App() {
     return { ok: true };
   }
 
+  /** Keeps reports private while giving the member a clear, retryable result. */
+  async function reportPost(postId, reason) {
+    if (!authUser) { setIsGuest(true); setToast(locale === 'en' ? 'Sign in to report this post.' : '신고하려면 로그인해 주세요.'); return { ok: false }; }
+    const result = await submitPostReport(postId, reason);
+    if (result.error === 'ALREADY_REPORTED') { setToast(locale === 'en' ? 'You have already reported this post for that reason.' : '이미 같은 사유로 신고한 게시물이에요.'); return { ok: false }; }
+    if (result.error) { setToast(locale === 'en' ? 'Your report could not be sent. Please try again.' : '신고를 접수하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    setToast(locale === 'en' ? 'Your report was received. Thank you.' : '신고가 접수되었어요. 알려주셔서 감사합니다.');
+    return { ok: true };
+  }
+
   async function unblockAuthor(authorId) {
     const result = await unblockMember(authorId);
     if (result.error) { setToast(locale === 'en' ? 'This member could not be unblocked. Please try again.' : '차단을 해제하지 못했어요. 다시 시도해 주세요.'); return; }
@@ -1043,17 +1072,17 @@ export default function App() {
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
-      <div className="mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
-        <button type="button" onClick={() => setActiveTab('feed')} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
+      <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
+        <button type="button" onClick={() => setActiveTab('feed')} className="app-header__brand flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
           <MothMark width="38" height="28" className="h-7 w-9 shrink-0 object-contain brightness-[.45] contrast-200" alt="FACt.Smack 로고" />
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="app-header__wordmark flex min-w-0 items-center gap-1.5">
             <BrandWordmark compact />
             <span aria-label="AI" className="brand-ai-mark hidden shrink-0 md:inline-flex">AI</span>
           </span>
           <span lang="en" className="hidden whitespace-nowrap font-mono text-[8px] leading-none tracking-wide text-[#735c00] lg:inline">MORE VIEWS, MORE YOU</span>
         </button>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <LocalQaAccountSwitcher enabled={localQaEnabled} currentUserEmail={authUser?.email} onSelect={switchLocalQaAccount} />
+        <div className="app-header__actions flex shrink-0 items-center gap-1.5">
+          <LocalQaAccountSwitcher enabled={localQaEnabled} currentUserEmail={authUser?.email} onSelect={switchLocalQaAccount} onResetRelationships={resetLocalQaRelationships} />
           <button
             type="button"
             className="flex h-6 min-w-0 items-center justify-center rounded-md border border-[#c5a059]/55 bg-[#fbf9f4] px-1.5 font-latin text-[9px] font-semibold tracking-tight text-[#735c00]/85 hover:bg-surface-container"
@@ -1072,7 +1101,7 @@ export default function App() {
 
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
@@ -1217,10 +1246,32 @@ function useEnglishUi(locale) {
       if (match) return `${match[1]} status`;
       return value;
     };
+    const originalText = new Map();
+    const translatedText = new Map();
+    const originalAttributes = new Map();
     const translateNode = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) { const replacement = translateText(node.nodeValue); if (replacement !== node.nodeValue) node.nodeValue = replacement; return; }
+      if (node.nodeType === Node.TEXT_NODE) {
+        const current = node.nodeValue;
+        const replacement = translateText(current);
+        if (replacement !== current) {
+          if (!translatedText.has(node) || translatedText.get(node) !== current) originalText.set(node, current);
+          translatedText.set(node, replacement);
+          node.nodeValue = replacement;
+        }
+        return;
+      }
       if (node.nodeType !== Node.ELEMENT_NODE || node.closest('[data-no-translate]')) return;
-      ['aria-label', 'title', 'placeholder', 'alt'].forEach((attribute) => { const value = node.getAttribute(attribute); const replacement = translateAttribute(value); if (replacement !== value) node.setAttribute(attribute, replacement); });
+      ['aria-label', 'title', 'placeholder', 'alt'].forEach((attribute) => {
+        const value = node.getAttribute(attribute);
+        const replacement = translateAttribute(value);
+        if (replacement !== value) {
+          let originals = originalAttributes.get(node);
+          if (!originals) { originals = new Map(); originalAttributes.set(node, originals); }
+          const previous = originals.get(attribute);
+          originals.set(attribute, { original: previous?.translated === value ? previous.original : value, translated: replacement });
+          node.setAttribute(attribute, replacement);
+        }
+      });
       node.childNodes.forEach(translateNode);
     };
     translateNode(document.body);
@@ -1229,6 +1280,17 @@ function useEnglishUi(locale) {
       else mutation.addedNodes.forEach(translateNode);
     }));
     observer.observe(document.body, { childList: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'title', 'placeholder', 'alt'], subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      originalText.forEach((original, node) => {
+        if (node.isConnected && node.nodeValue === translatedText.get(node)) node.nodeValue = original;
+      });
+      originalAttributes.forEach((attributes, node) => {
+        if (!node.isConnected) return;
+        attributes.forEach(({ original, translated }, attribute) => {
+          if (node.getAttribute(attribute) === translated) node.setAttribute(attribute, original);
+        });
+      });
+    };
   }, [locale]);
 }

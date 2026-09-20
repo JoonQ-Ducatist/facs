@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canSubmitHandle, getHandleSuggestions, getMyProfile, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, normalizeHandle, updateMyHandle } from './profileService.js';
+import { canSubmitHandle, getHandleSuggestions, getMyProfile, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, normalizeHandle, PUBLIC_HANDLE_MAX_LENGTH, updateMyHandle } from './profileService.js';
 
 test('a public handle is normalized without carrying an @ prefix', () => {
   assert.equal(normalizeHandle(' @My_Look '), 'my_look');
@@ -10,6 +10,7 @@ test('a public handle is normalized without carrying an @ prefix', () => {
 test('profile header uses each persisted account handle as its single source of truth', () => {
   assert.equal(getPublicHandle({ handle: '@user_b' }), 'user_b');
   assert.equal(getPublicHandle({ handle: 'account_a' }), 'account_a');
+  assert.equal(getPublicHandle({ handle: 'my_look_daily' }), 'my_look_daily');
   assert.notEqual(getPublicHandle({ handle: 'account_a' }), getPublicHandle({ handle: 'account_b' }));
   assert.equal(getPublicHandle({ handle: 'member_abc123' }), null);
 });
@@ -19,6 +20,9 @@ test('valid handle can be submitted when availability is unknown, but invalid or
   assert.equal(canSubmitHandle({ handle: 'user_b', available: true }), true);
   assert.equal(canSubmitHandle({ handle: 'user_b', available: false }), false);
   assert.equal(canSubmitHandle({ handle: 'ab', available: null }), false);
+  assert.equal(PUBLIC_HANDLE_MAX_LENGTH, 12);
+  assert.equal(canSubmitHandle({ handle: 'twelve_chars', available: null }), true);
+  assert.equal(canSubmitHandle({ handle: 'thirteen_chars', available: null }), false);
   assert.equal(canSubmitHandle({ handle: 'user_b', checking: true, available: null }), false);
 });
 
@@ -36,7 +40,7 @@ test('profile save exposes a localized message for a future one-month handle loc
 
 test('generated member handles never unlock public posting', () => {
   assert.equal(isConfiguredHandle('member_27cf48e1'), false);
-  assert.equal(isConfiguredHandle('my_look_daily'), true);
+  assert.equal(isConfiguredHandle('my_look_24'), true);
   assert.equal(isConfiguredHandle('한글아이디'), false);
 });
 
@@ -74,10 +78,10 @@ test('a saved public handle is confirmed by a server read and survives reload hy
     client.setHandle(args.input_handle);
     return { data: { id: 'member-a', handle: args.input_handle }, error: null };
   };
-  const saved = await updateMyHandle('reload_probe_a', { client });
-  assert.equal(saved.data.handle, 'reload_probe_a');
+  const saved = await updateMyHandle('reload_prb_a', { client });
+  assert.equal(saved.data.handle, 'reload_prb_a');
   const afterReload = await getMyProfile({ client });
-  assert.equal(afterReload.data.handle, 'reload_probe_a');
+  assert.equal(afterReload.data.handle, 'reload_prb_a');
   assert.deepEqual(client.selectedColumns, ['id,handle,display_name', 'id,handle,display_name']);
 });
 
@@ -95,15 +99,15 @@ test('profile sessions remain isolated when handles are saved independently', as
     accountA.setHandle(args.input_handle);
     return { data: { id: 'member-a', handle: args.input_handle }, error: null };
   };
-  const saved = await updateMyHandle('account_a_new', { client: accountA });
+  const saved = await updateMyHandle('acct_a_new', { client: accountA });
   assert.equal(saved.data.id, 'member-a');
-  assert.equal((await getMyProfile({ client: accountA })).data.handle, 'account_a_new');
+  assert.equal((await getMyProfile({ client: accountA })).data.handle, 'acct_a_new');
   assert.equal((await getMyProfile({ client: accountB })).data.handle, 'account_b');
 });
 
 test('a write is not reported as successful when the saved profile cannot be read back', async () => {
   const client = profileClient({ id: 'member-a', handle: 'member_placeholder', profileReadable: false });
-  const result = await updateMyHandle('missing_profile', { client });
+  const result = await updateMyHandle('missing_prof', { client });
   assert.equal(result.error.code, 'NOT_FOUND');
 });
 

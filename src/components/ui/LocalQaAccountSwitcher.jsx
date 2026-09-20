@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogClose } from './Dialog.jsx';
 import { LOCAL_QA_ACCOUNTS } from '../../services/localQaAccounts.js';
 
 /** A deliberately local-only helper for exercising real multi-member rules without email OTP. */
-export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSelect, placement = 'app' }) {
+export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSelect, onResetRelationships, placement = 'app' }) {
   const [open, setOpen] = useState(false);
   const [pendingId, setPendingId] = useState('');
+  const [resetting, setResetting] = useState(false);
   const [notice, setNotice] = useState('');
   if (!enabled) return null;
 
@@ -19,6 +20,19 @@ export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSe
       return;
     }
     setOpen(false);
+  }
+
+  async function resetRelationships() {
+    if (!onResetRelationships) return;
+    setResetting(true);
+    setNotice('');
+    const result = await onResetRelationships();
+    setResetting(false);
+    setNotice(result?.ok
+      ? '현재 QA 계정의 A/B 차단·팔로우 상태를 초기화했어요.'
+      : result?.code === 'LOCAL_QA_COUNTERPART_NOT_READY'
+        ? '먼저 다른 QA 계정으로 한 번 전환한 뒤 다시 초기화해 주세요.'
+        : 'A/B 테스트 상태를 초기화하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
 
   return <>
@@ -37,6 +51,11 @@ export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSe
                 <span className={`font-mono text-[10px] font-bold ${active ? 'text-[#d94c70]' : 'text-[#735c00]'}`}>{active ? '사용 중' : pendingId === account.id ? '전환 중' : '선택'}</span>
               </button>;
             })}
+            {onResetRelationships && <div className="mt-3 rounded-lg border border-dashed border-[#d6caa9] bg-[#fffdf8] p-3">
+              <p className="text-xs font-bold text-[#4a463b]">A/B 테스트 관계</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[#74777d]">현재 QA 계정과 다른 로컬 QA 계정 사이의 차단·팔로우만 초기화합니다.</p>
+              <button type="button" onClick={resetRelationships} disabled={resetting || Boolean(pendingId)} className="mt-2 rounded-md border border-[#c5a059] px-2 py-1 text-[11px] font-bold text-[#735c00] disabled:opacity-50">{resetting ? '초기화 중' : 'A/B 관계 초기화'}</button>
+            </div>}
             {notice && <p role="alert" className="rounded-md bg-[#fff0f2] px-3 py-2 text-xs text-[#9e1740]">{notice}</p>}
           </div>
         </section>

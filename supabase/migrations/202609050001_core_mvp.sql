@@ -12,7 +12,7 @@ create type public.vote_choice as enum ('yes', 'no');
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  handle text not null unique check (handle ~ '^[a-z0-9_]{3,30}$'),
+  handle text not null unique check (handle ~ '^[a-z0-9_]{3,12}$'),
   display_name text check (char_length(display_name) between 1 and 50),
   avatar_path text,
   role public.facs_role not null default 'member',
@@ -122,7 +122,7 @@ declare
 begin
   requested_handle := nullif(lower(trim(new.raw_user_meta_data ->> 'handle')), '');
   generated_handle := case
-    when requested_handle ~ '^[a-z0-9_]{3,30}$' then requested_handle
+    when requested_handle ~ '^[a-z0-9_]{3,12}$' then requested_handle
     else 'member_' || substr(replace(new.id::text, '-', ''), 1, 10)
   end;
   insert into public.profiles (id, handle, display_name)

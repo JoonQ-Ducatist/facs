@@ -17,6 +17,18 @@ test('profile exposes an explicit change flow for an existing public ID', async 
   assert.match(source, /onCancel=\{\(\) => setEditingHandle\(false\)\}/);
 });
 
+test('profile handle typography and uploaded-photo actions stay consistent across locale changes', async () => {
+  const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /data-no-translate className="font-headline text-sm font-bold text-white">\{locale === 'en' \? 'My uploaded photo insights' : '내가 업로드한 사진 분석'\}/);
+  assert.match(source, /<button data-no-translate type="button" onClick=\{onUpload\}[^>]*>.*aria-hidden="true".*\{locale === 'en' \? 'New upload' : '새로 업로드'\}<\/button>/s);
+  assert.match(styles, /\.profile-summary__handle\s*\{[^}]*font-family: 'Pretendard Variable', Pretendard, sans-serif !important;[^}]*font-size: 14px !important;/);
+  assert.match(appSource, /const originalText = new Map\(\);[\s\S]*const originalAttributes = new Map\(\);/);
+  assert.match(appSource, /originalText\.forEach\(\(original, node\) => \{\s*if \(node\.isConnected && node\.nodeValue === translatedText\.get\(node\)\) node\.nodeValue = original;/);
+  assert.match(appSource, /originalAttributes\.forEach\(\(attributes, node\) => \{[\s\S]*if \(node\.getAttribute\(attribute\) === translated\) node\.setAttribute\(attribute, original\);/);
+});
+
 test('a server-rejected public-ID change remains actionable and surfaces its reason', async () => {
   const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const profileSource = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
@@ -58,7 +70,8 @@ test('saving the required public ID resumes the pending Upload flow only on succ
 
 test('profile orders own posts and exposes a keyboard-safe scrap open callback', async () => {
   const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
-  assert.match(source, /sortPostsNewestFirst\(\(profileCards \?\? cards\)\.filter\(\(card\) => card\.isMyUpload\)\)/);
+  assert.match(source, /const profileLibrary = profileCards \?\? \(isAuthenticated \? \[\] : cards\);/);
+  assert.match(source, /sortPostsNewestFirst\(profileLibrary\.filter\(\(card\) => card\.isMyUpload\)\)/);
   assert.match(source, /onOpenScrap/);
   assert.match(source, /event\.key !== 'Enter' && event\.key !== ' '/);
   assert.match(source, /event\.stopPropagation\(\); onRemove\(\)/);
