@@ -563,7 +563,7 @@ export default function App() {
     trackEvent(ANALYTICS_EVENT.SHARE_REQUESTED, { category: card.category, evaluationType: card.evaluationType, locale });
     const url = buildShareUrl(card.id, locale);
     const shareData = locale === 'en'
-      ? { title: 'FACt.Smack First Impression', text: `Share your first impression of @${card.author}.`, url }
+      ? { title: 'FACt.Smack Feedback', text: `Share your feedback on @${card.author}.`, url }
       : { title: 'FACt.Smack 평가', text: `@${card.author}의 평가에 참여해 보세요.`, url };
     try {
       if (navigator.share) await navigator.share(shareData);

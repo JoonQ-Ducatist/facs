@@ -9,12 +9,14 @@ export const LOCAL_QA_ACCOUNTS = Object.freeze([
 ]);
 
 /** True only for an explicit local QA URL; Preview and production can never enable this. */
-export function isLocalQaAccountMode(origin = typeof window === 'undefined' ? '' : window.location.origin, search = typeof window === 'undefined' ? '' : window.location.search, development = import.meta.env?.DEV) {
+export function isLocalQaAccountMode(origin = typeof window === 'undefined' ? '' : window.location.origin, search = typeof window === 'undefined' ? '' : window.location.search, development = import.meta.env?.DEV, supabaseUrl = import.meta.env?.VITE_SUPABASE_URL) {
   try {
     const url = new URL(origin);
+    const databaseUrl = new URL(supabaseUrl);
     return Boolean(development)
       && url.protocol === 'http:'
       && ['127.0.0.1', 'localhost'].includes(url.hostname)
+      && ['127.0.0.1', 'localhost'].includes(databaseUrl.hostname)
       && new URLSearchParams(search).get('qaAccounts') === '1';
   } catch {
     return false;

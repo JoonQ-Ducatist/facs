@@ -1,4 +1,5 @@
 import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
+import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 
 /** Converts PostgREST errors into the API contract without exposing database internals to the UI. */
@@ -316,7 +317,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       ageMax: post.age_max,
       ageEstimate: aggregate?.averageAge ?? 0,
       ageVoteCount: aggregate?.totalVotes ?? 0,
-      timestamp: '방금 전',
+      timestamp: formatRelativePublishedTime(post.published_at) ?? '방금 전',
       publishedAt: post.published_at,
       feedSource: sourceById.get(post.id) ?? 'discovery',
       isMyUpload,

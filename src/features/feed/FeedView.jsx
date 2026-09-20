@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bookmark, Share2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
+import { formatRelativePublishedTime } from '../../services/relativeTime.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavigation.js';
 
@@ -17,6 +18,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const [feedMotion, setFeedMotion] = useState('');
   const [saveNotice, setSaveNotice] = useState('');
+  const [relativeTimeTick, setRelativeTimeTick] = useState(() => Date.now());
   const feedLocked = useRef(false);
   const mediaLocked = useRef(false);
   const mediaCardRef = useRef(null);
@@ -24,6 +26,10 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
   useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
+  useEffect(() => {
+    const interval = window.setInterval(() => setRelativeTimeTick(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
   useLayoutEffect(() => {
     const cardElement = mediaCardRef.current;
     const carousel = cardElement?.closest('.media-carousel');
@@ -41,6 +47,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const yesPercent = isAgeEvaluation ? 0 : Math.round((card.yesVotes / total) * 100);
   const noPercent = 100 - yesPercent;
   const isSaved = savedPostIds?.has(card.id) ?? false;
+  const timestamp = formatRelativePublishedTime(card.publishedAt, locale, relativeTimeTick) ?? card.timestamp;
 
   /** Prevent browser image-save affordances while leaving explicit controls usable. */
   function protectMediaEvent(event) {
@@ -220,14 +227,14 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
       {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
       <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
-      <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{card.timestamp}</span></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
+      <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><span className="font-mono text-[8px] leading-none text-white/75">{timestamp}</span></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
       {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
       <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
         {hasVoted || isOwnPost || (canViewLiveReactions && liveReactions.length) ? <>{isAgeEvaluation ? <AgeResult card={card} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
         {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onShare={() => onShare(card)} onExpand={() => setExpandedComments(true)} />}
       </div>
     </article></div>
-    {card.commentsAllowed && expandedComments && <CommentPanel card={card} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
+    {card.commentsAllowed && expandedComments && <CommentPanel card={card} timestamp={timestamp} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
   </section>;
 }
 
@@ -343,7 +350,7 @@ function CommentPreview({ locale, comments, saved, color, notice, onToggleSave, 
 }
 
 /** 정의: PC에서는 사진과 댓글을 나란히 보여 주는 게시물 상세 모달, 모바일에서는 확장 댓글 영역을 제공한다. */
-function CommentPanel({ card, media, comments, draft, onDraftChange, onClose, onSubmit }) {
+function CommentPanel({ card, timestamp, media, comments, draft, onDraftChange, onClose, onSubmit }) {
   const [visibleCount, setVisibleCount] = useState(10);
   const mediaItems = card.media?.length ? card.media : [media];
   const [mediaIndex, setMediaIndex] = useState(() => Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id)));
@@ -357,7 +364,7 @@ function CommentPanel({ card, media, comments, draft, onDraftChange, onClose, on
       <button type="button" onClick={onClose} className="comment-panel__close" aria-label="댓글 상세 닫기"><span className="material-symbols-outlined">close</span></button>
       <div className="comment-panel__media"><CardMedia card={card} media={mediaItems[mediaIndex]} className="h-full w-full object-contain" muted />{mediaItems.length > 1 && <>{mediaIndex > 0 && <button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className="comment-panel__media-nav comment-panel__media-nav--left"><span className="material-symbols-outlined">chevron_left</span></button>}{mediaIndex < mediaItems.length - 1 && <button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className="comment-panel__media-nav comment-panel__media-nav--right"><span className="material-symbols-outlined">chevron_right</span></button>}<span className="comment-panel__media-count">{mediaIndex + 1} / {mediaItems.length}</span></>}</div>
       <div className="comment-panel__content">
-        <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{card.timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
+        <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
         <div className="comment-panel__comments">{visibleComments.length ? <><div className="mb-4 flex gap-2"><Avatar author={card.author} /><p className="min-w-0 text-xs leading-relaxed text-[#44474c]"><strong className="mr-1 text-[#1b1c19]">@{card.author}</strong>{card.question.replace('\n', ' ')}</p></div>{visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><p className="min-w-0 text-xs leading-relaxed text-[#44474c]"><strong className="mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p></div>{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="min-w-0 text-xs leading-relaxed text-[#55575c]"><strong className="mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>)}</> : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
         {hasMore && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mx-4 flex w-[calc(100%-2rem)] items-center justify-center gap-1 border-t border-[#e4e2dd] py-3 text-xs font-bold text-[#735c00]"><span className="material-symbols-outlined text-base">expand_more</span>댓글 10개 더 보기</button>}
         <form className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><label className="sr-only" htmlFor="comment-draft">댓글 작성</label><span className="material-symbols-outlined text-[23px] text-[#44474c]">sentiment_satisfied</span><input id="comment-draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} maxLength="500" placeholder="댓글 달기..." className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" /><button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">게시</button></form>
