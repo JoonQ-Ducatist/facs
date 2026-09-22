@@ -48,6 +48,7 @@ test('authentication loads real public posts before sign-in and keeps its own vi
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);
+  assert.match(source, /const \{ data \} = await supabase\.auth\.getSession\(\);[\s\S]*?setAuthUser\(data\.session\.user \?\? null\);[\s\S]*?setIsGuest\(false\);[\s\S]*?setIsSharedGuest\(false\);[\s\S]*?setActiveTab\('feed'\);/);
   assert.match(source, /if \(allowPreviewTransition && !authTransitionConsumed\.current\) \{[\s\S]*?setIsSharedGuest\(false\);\s*setActiveTab\('feed'\);\s*\}/);
   assert.match(source, /event\.key === 'facs_auth_completed_at'.*restoreOriginalTab\(true\)/s);
 });

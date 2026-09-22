@@ -855,7 +855,21 @@ export default function App() {
     authTransitionPending.current = true;
     authTransitionConsumed.current = false;
     const result = await verifyEmailCode(email, code, authConfig, remember);
-    if (result.ok) return result;
+    if (result.ok) {
+      // Mobile browsers can deliver the Supabase SIGNED_IN callback after this
+      // promise has already resolved. Confirm the persisted session here too,
+      // so a valid code always leaves the entry screen in the same tab.
+      const { data } = await supabase.auth.getSession();
+      if (data.session && !authTransitionConsumed.current) {
+        authTransitionConsumed.current = true;
+        authTransitionPending.current = false;
+        setAuthUser(data.session.user ?? null);
+        setIsGuest(false);
+        setIsSharedGuest(false);
+        setActiveTab('feed');
+      }
+      return result;
+    }
     authTransitionPending.current = false;
     return {
       ...result,
