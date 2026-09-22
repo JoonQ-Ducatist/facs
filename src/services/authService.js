@@ -57,11 +57,11 @@ export async function requestEmailMagicLink(email, config, remember = true) {
 export async function verifyEmailOtp(client, email, token) {
   const credentials = { email, token: token.trim() };
   const first = await client.auth.verifyOtp({ ...credentials, type: 'email' });
-  if (!first.error) return { ok: true };
+  if (!first.error) return { ok: true, session: first.data?.session ?? null };
   if (first.error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
 
   const legacy = await client.auth.verifyOtp({ ...credentials, type: 'magiclink' });
-  if (!legacy.error) return { ok: true };
+  if (!legacy.error) return { ok: true, session: legacy.data?.session ?? null };
   if (legacy.error.status === 429) return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED };
   return { ok: false, code: AUTH_ACTION_ERROR.EMAIL_CODE_INVALID };
 }

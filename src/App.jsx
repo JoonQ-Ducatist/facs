@@ -856,14 +856,14 @@ export default function App() {
     authTransitionConsumed.current = false;
     const result = await verifyEmailCode(email, code, authConfig, remember);
     if (result.ok) {
-      // Mobile browsers can deliver the Supabase SIGNED_IN callback after this
-      // promise has already resolved. Confirm the persisted session here too,
-      // so a valid code always leaves the entry screen in the same tab.
-      const { data } = await supabase.auth.getSession();
-      if (data.session && !authTransitionConsumed.current) {
+      // Use the session returned by verification itself. Mobile browsers can
+      // delay both their storage update and the SIGNED_IN event, so neither is
+      // allowed to decide whether a valid code opens the Feed.
+      const session = result.session ?? (await supabase.auth.getSession()).data.session;
+      if (session && !authTransitionConsumed.current) {
         authTransitionConsumed.current = true;
         authTransitionPending.current = false;
-        setAuthUser(data.session.user ?? null);
+        setAuthUser(session.user ?? null);
         setIsGuest(false);
         setIsSharedGuest(false);
         setActiveTab('feed');

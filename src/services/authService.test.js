@@ -42,6 +42,14 @@ test('email code verification supports a legacy magic-link code only after the c
   assert.equal(result.ok, true);
 });
 
+test('email code verification returns the successful session for immediate in-tab navigation', async () => {
+  const session = { access_token: 'opaque', user: { id: 'member-id' } };
+  const client = { auth: { verifyOtp: async () => ({ error: null, data: { session } }) } };
+  const result = await verifyEmailOtp(client, 'member@example.com', '12345678');
+  assert.equal(result.ok, true);
+  assert.equal(result.session, session);
+});
+
 test('email code verification never treats an invalid code as valid', async () => {
   const client = { auth: { verifyOtp: async () => ({ error: { status: 400 } }) } };
   const result = await verifyEmailOtp(client, 'member@example.com', '000000');
