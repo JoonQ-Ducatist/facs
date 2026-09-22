@@ -30,6 +30,21 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
 });
 
+test('authentication loads real public posts before sign-in and keeps its own viewport scroll region', async () => {
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const authSource = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(appSource, /if \(!authReady \|\| authUser\)[\s\S]*listSupabaseAuthFeaturedPhotos\(\{ limit: 5, candidatePoolSize: 20 \}\)/);
+  assert.match(appSource, /<AuthEntryView cards=\{authFeaturedCards\}/);
+  assert.match(authSource, /selectAuthFeaturedPosts\(sourceCards\)/);
+  assert.match(authSource, /className="auth-entry-screen relative mx-auto max-w-none/);
+  assert.match(authSource, /const sourceCards = Array\.isArray\(cards\) \? cards : EMPTY_AUTH_CARDS;/);
+  assert.match(authSource, /popularCards\[activeIndex\] \?\? sourceCards\[0\] \?\? null/);
+  assert.match(styles, /\.auth-entry-screen \{ min-height: 100dvh; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; \}/);
+  assert.match(styles, /\.auth-entry-screen__content \{ min-height: 460px; \}/);
+  assert.match(styles, /\.auth-entry-screen \{ width: 100%; height: 100dvh; min-height: 100dvh; margin: 0; box-shadow: none; overflow-y: auto; \}/);
+});
+
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);

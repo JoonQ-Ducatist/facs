@@ -3,13 +3,14 @@ import MothMark from '../../components/brand/MothMark.jsx';
 import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
+import { selectAuthFeaturedPosts } from './authFeaturedPosts.js';
+
+const EMPTY_AUTH_CARDS = [];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 로그인/인증 화면이다. */
 export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
-  const popularCards = useMemo(
-    () => [...cards].sort((a, b) => participationCount(b) - participationCount(a)).slice(0, 5),
-    [cards],
-  );
+  const sourceCards = Array.isArray(cards) ? cards : EMPTY_AUTH_CARDS;
+  const popularCards = useMemo(() => selectAuthFeaturedPosts(sourceCards), [sourceCards]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -97,6 +98,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     return () => window.clearInterval(timer);
   }, [popularCards.length]);
 
+  useEffect(() => setActiveIndex(0), [popularCards]);
+
   useEffect(() => {
     let settleTimer;
     const syncKeyboardOffset = () => {
@@ -122,17 +125,17 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     };
   }, []);
 
-  const activeCard = popularCards[activeIndex] ?? cards[0] ?? null;
+  const activeCard = popularCards[activeIndex] ?? sourceCards[0] ?? null;
 
   return (
-    <main className="auth-entry-screen relative mx-auto h-full max-w-none overflow-hidden bg-[#051424] text-white shadow-2xl">
+    <main className="auth-entry-screen relative mx-auto max-w-none bg-[#051424] text-white shadow-2xl">
       <div className="absolute inset-0" aria-hidden="true">
         {activeCard && <img key={activeCard.id} className="splash-media h-full w-full object-cover" style={{ objectPosition: activeCard.objectPosition }} src={activeCard.imageUrl} alt="" />}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,28,45,0.62)_0%,rgba(14,28,45,0.08)_35%,rgba(14,28,45,0.9)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(197,160,89,0.18),transparent_30%),radial-gradient(circle_at_84%_30%,rgba(255,255,255,0.1),transparent_26%)]" />
       </div>
 
-      <div className="relative z-10 flex h-full flex-col px-5 pb-6 pt-10">
+      <div className="auth-entry-screen__content relative z-10 flex min-h-full flex-col px-5 pb-6 pt-10">
         <LocalQaAccountSwitcher enabled={localQaEnabled} placement="splash" onSelect={onQaAccountSelect} />
         <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한국어'}</button>
         <header className="auth-entry-brand flex items-center justify-start text-left">
@@ -191,9 +194,6 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     </main>
   );
 }
-
-/** 정의: 평가 방식이 달라도 스플래시 인기 콘텐츠를 일관되게 정렬하는 참여 수 계산기다. */
-function participationCount(card) { return card.evaluationType === 'NUMERIC_AGE' ? card.ageVoteCount ?? 0 : (card.yesVotes ?? 0) + (card.noVotes ?? 0); }
 
 /** 정의: 인증 제공자별 진입 행동을 일관된 크기·접근성으로 렌더링하는 버튼이다. */
 function ProviderButton({ label, icon, onClick, compact = false, selected = false, disabled = false }) {

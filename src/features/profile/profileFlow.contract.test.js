@@ -24,6 +24,9 @@ test('profile handle typography and uploaded-photo actions stay consistent acros
   assert.match(source, /data-no-translate className="font-headline text-sm font-bold text-white">\{locale === 'en' \? 'My uploaded photo insights' : '내가 업로드한 사진 분석'\}/);
   assert.match(source, /<button data-no-translate type="button" onClick=\{onUpload\}[^>]*>.*aria-hidden="true".*\{locale === 'en' \? 'New upload' : '새로 업로드'\}<\/button>/s);
   assert.match(styles, /\.profile-summary__handle\s*\{[^}]*font-family: 'Pretendard Variable', Pretendard, sans-serif !important;[^}]*font-size: 14px !important;/);
+  assert.match(source, /function focusHandleInput\(\) \{[\s\S]*?inputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(source, /className="profile-handle-input min-w-0 flex-1/);
+  assert.doesNotMatch(source, /onTouchStart=\{focusHandleInput\}/);
   assert.match(appSource, /const originalText = new Map\(\);[\s\S]*const originalAttributes = new Map\(\);/);
   assert.match(appSource, /originalText\.forEach\(\(original, node\) => \{\s*if \(node\.isConnected && node\.nodeValue === translatedText\.get\(node\)\) node\.nodeValue = original;/);
   assert.match(appSource, /originalAttributes\.forEach\(\(attributes, node\) => \{[\s\S]*if \(node\.getAttribute\(attribute\) === translated\) node\.setAttribute\(attribute, original\);/);
@@ -53,9 +56,9 @@ test('public ID input can focus on touch and keeps save errors in the profile fo
   const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(source, /const inputRef = useRef\(null\)/);
-  assert.match(source, /ref=\{inputRef\}.*onPointerDown=\{focusHandleInput\}/s);
+  assert.match(source, /ref=\{inputRef\}.*onPointerDown=\{focusHandleInput\} onClick=\{focusHandleInput\}/s);
   assert.match(source, /requestAnimationFrame\(\(\) => inputRef\.current\?\.focus\(\{ preventScroll: true \}\)\)/);
-  assert.match(source, /onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\}/);
+  assert.doesNotMatch(source, /onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\}/);
   assert.match(source, /catch \{\s*setNotice\(/s);
   assert.match(styles, /\.editorial-profile input \{ touch-action: manipulation; \}/);
 });

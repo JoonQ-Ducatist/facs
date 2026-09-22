@@ -6,12 +6,13 @@ The actual repository is this directory, not the old vercel-vercel or product-te
 
 The operating roles are: `★ PM ★` for requirements, task routing, release decisions,
 and user reporting; `(00) 에이전트 세팅` for collaboration rules and independent
-review; `(01) Code 개발` for implementation, tests, fixes, and documentation;
+review; `(01) 프론트엔드 작업` for implementation, tests, fixes, and documentation;
 `(02) 디자인 시스템` for visual UI, components, readability, responsive presentation,
 and interaction expression; `(03) 서비스 설계` for journeys, requirements, product
-policy, priorities, cash flow, and metrics. Antigravity is report-only browser QA,
-and GitHub CI runs repeatable checks. The PM must re-check available tasks and their
-actual scope before routing new work because the project spaces can change.
+policy, priorities, cash flow, and metrics; `(04) 백엔드 작업` for Supabase schema,
+RLS, Storage, server contracts, and data-path verification. Antigravity is report-only
+browser QA, and GitHub CI runs repeatable checks. The PM must re-check available tasks
+and their actual scope before routing new work because the project spaces can change.
 
 Read the current user request, then `memory-bank/service-design-rule.md`,
 `memory-bank/TECH-AGENTS.md`, and relevant API/result contracts. Product decisions

@@ -16,7 +16,7 @@ import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePublishedPost, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -99,6 +99,7 @@ export default function App() {
   const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const [cards, setCards] = useState(initialCards);
+  const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
   const [scrapCards, setScrapCards] = useState(null);
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
@@ -300,6 +301,20 @@ export default function App() {
     });
     return () => { active = false; };
   }, [authUser?.id]);
+
+  /** Loads only the global public-photo contract needed by the authentication screen. */
+  useEffect(() => {
+    let active = true;
+    if (!authReady || authUser) {
+      setAuthFeaturedCards([]);
+      return undefined;
+    }
+    listSupabaseAuthFeaturedPhotos({ limit: 5, candidatePoolSize: 20 }).then((result) => {
+      if (!active || result.error) return;
+      setAuthFeaturedCards(result.data ?? []);
+    });
+    return () => { active = false; };
+  }, [authReady, authUser?.id]);
 
   /** Hydrates complete private profile libraries independently of the Feed page limit. */
   useEffect(() => {
@@ -1075,7 +1090,7 @@ export default function App() {
 
   if (!brandSplashComplete) return <CanvasStage locale={locale}><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><AuthEntryView cards={cards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
+  if (isGuest) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">

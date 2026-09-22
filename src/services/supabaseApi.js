@@ -267,6 +267,36 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
   return listSupabaseCardsInServerOrder(orderedPosts, { client, source: 'supabase' });
 }
 
+/**
+ * Reads the anonymous login hero's intentionally small public-photo contract.
+ * This must never reuse the signed-in member's personalized feed RPC.
+ */
+export async function listSupabaseAuthFeaturedPhotos({ limit = 5, candidatePoolSize = 20, client = supabase } = {}) {
+  if (!client) return apiSuccess([], { source: 'unavailable' });
+  if (typeof client.rpc !== 'function' || !client.storage?.from) return apiSuccess([], { source: 'degraded' });
+  const pageSize = Math.min(Math.max(limit, 1), 10);
+  const poolSize = Math.min(Math.max(candidatePoolSize, pageSize), 30);
+  const { data, error } = await client.rpc('get_auth_featured_public_photos', {
+    page_size: pageSize,
+    candidate_pool_size: poolSize,
+  });
+  if (error) return apiSuccess([], { source: 'degraded' });
+
+  const featured = await Promise.all((data ?? []).map(async (item) => {
+    if (!item?.post_id || !item?.storage_path) return null;
+    const { data: signed, error: signedError } = await client.storage
+      .from('facs-media')
+      .createSignedUrl(item.storage_path, 60 * 10);
+    if (signedError || !signed?.signedUrl) return null;
+    return {
+      id: item.post_id,
+      imageUrl: signed.signedUrl,
+      participationCount: Number(item.participation_count ?? 0),
+    };
+  }));
+  return apiSuccess(featured.filter(Boolean), { source: 'supabase-auth-featured' });
+}
+
 /** Converts an already-authorized ordered ID RPC response into protected Feed cards. */
 async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = 'supabase', isMyUpload = false } = {}) {
   const postIds = (orderedPosts ?? []).map((item) => item.post_id).filter(Boolean);
