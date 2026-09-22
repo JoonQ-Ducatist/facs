@@ -340,7 +340,8 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
    그대로 사용해 불필요한 마스킹이나 색상 변형 없이 브랜드 형태를 보존한다. */
 .brand-splash { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: #f8f7f3; color: #172235; padding: max(24px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom)); }
 .brand-splash__identity { display: flex; width: min(100%, 340px); flex: 0 0 auto; flex-direction: column; align-items: center; text-align: center; transform: translateY(-4vh); }
-.brand-splash__moth { display: block; width: min(100%, 250px); height: auto; object-fit: contain; }
+.brand-splash__moth { display: block; width: min(100%, 250px); height: auto; object-fit: contain; filter: invert(1); mix-blend-mode: multiply; }
+.moth-mark { filter: invert(1); mix-blend-mode: multiply; }
 .brand-splash__wordmark { margin: 20px 0 0; color: #172235; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: clamp(30px, 9vw, 42px); font-weight: 850; line-height: 1; letter-spacing: 0; }
 .brand-splash__wordmark span { color: var(--xc-brand-red); }
 .brand-splash__tagline { margin: 9px 0 0; max-width: 276px; color: #74787f; font-size: 11px; font-weight: 400; line-height: 1.45; word-break: keep-all; }

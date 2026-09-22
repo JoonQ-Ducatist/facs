@@ -30,6 +30,15 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
 });
 
+test('brand entry never performs synchronous pixel conversion before its timed transition', async () => {
+  const splashSource = await readFile(resolve(featureRoot, 'BrandSplashView.jsx'), 'utf8');
+  const markSource = await readFile(resolve(featureRoot, '../../components/brand/MothMark.jsx'), 'utf8');
+  assert.doesNotMatch(splashSource, /getImageData|toDataURL|new Image\(/);
+  assert.doesNotMatch(markSource, /getImageData|toDataURL|new Image\(/);
+  assert.match(splashSource, /window\.setTimeout\(complete, BRAND_SPLASH_DURATION_MS\)/);
+  assert.match(markSource, /src=\{mothLogoUrl\}/);
+});
+
 test('authentication loads real public posts before sign-in and keeps its own viewport scroll region', async () => {
   const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const authSource = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
