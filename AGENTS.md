@@ -52,6 +52,16 @@ UI changes do not require the full suite or a production build. For medium/high-
 changes, run `npm test` and `npm run build` once at the fixed review/PR gate, then
 repeat only the affected checks if source changes after that gate. The PM may request
 independent design and review work in parallel, but must check active tasks first.
+
+Gemini is an opt-in research specialist for FACS, not a per-task implementation
+step. Use it only for time-sensitive external research, broad competitor or market
+comparison, large or multimodal source analysis, a material product-policy choice,
+or an architecture decision with credible alternatives. Do not invoke it for a
+specified implementation, local bug reproduction, styling adjustment, test/build/CI,
+Git operation, deployment procedure, or repeated QA. One bounded pass may support
+one decision packet; later edits and checks under the same decision reuse that result.
+If unavailable, record the reason once for that decision packet and continue without
+retrying it.
 Do not recursively send routing requests back to the master; return results once.
 For each screen, UI, or behavior that needs user approval, use the relevant local,
 Preview, or `main` URL in external Google Chrome. Reuse an already open task tab with
