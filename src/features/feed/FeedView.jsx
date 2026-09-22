@@ -4,6 +4,7 @@ import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { formatRelativePublishedTime } from '../../services/relativeTime.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavigation.js';
+import MothMark from '../../components/brand/MothMark.jsx';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
 export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment }) {
@@ -26,7 +27,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const carouselKickTimer = useRef(null);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
-  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card.id]);
+  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card?.id]);
   useEffect(() => {
     const interval = window.setInterval(() => setRelativeTimeTick(Date.now()), 60_000);
     return () => window.clearInterval(interval);
@@ -37,8 +38,8 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     const main = cardElement?.closest('.editorial-main--feed');
     if (carousel) carousel.scrollTop = 0;
     if (main) main.scrollTop = 0;
-  }, [card.id]);
-  if (!card) return <section className="mt-4 rounded-xl border border-surface-container-high bg-surface-container-low p-6 text-center text-slate-400">표시할 사진이 없습니다.</section>;
+  }, [card?.id]);
+  if (!card) return <EmptyFeed locale={locale} onStartUpload={onStartUpload} />;
   const theme = categories[card.category];
   const cardMedia = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
   const hasMultipleMedia = cardMedia.length > 1;
@@ -237,6 +238,18 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
     </article></div>
     {card.commentsAllowed && expandedComments && <CommentPanel card={card} timestamp={timestamp} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
     {reportOpen && <ReportDialog author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => { onReportPost?.(card.id, reason); setReportOpen(false); }} />}
+  </section>;
+}
+
+/** First-use Feed state: explain the absence and offer one clear next action. */
+function EmptyFeed({ locale, onStartUpload }) {
+  const korean = locale !== 'en';
+  return <section className="editorial-feed feed-empty" aria-labelledby="empty-feed-title">
+    <MothMark width="92" height="64" className="feed-empty__mark" alt="" />
+    <p className="feed-empty__eyebrow">FACt.Smack</p>
+    <h1 id="empty-feed-title">{korean ? '첫 피드의 주인공이 되어 보세요.' : 'Be the first to share a look.'}</h1>
+    <p>{korean ? '첫 번째 룩을 공유하고, 다양한 시선으로 평가를 받아보세요.' : 'Share your first look and receive thoughtful ratings from different perspectives.'}</p>
+    <button type="button" onClick={onStartUpload} className="feed-empty__action"><span className="material-symbols-outlined" aria-hidden="true">add_a_photo</span>{korean ? '첫 피드 올리기' : 'Share the first post'}</button>
   </section>;
 }
 

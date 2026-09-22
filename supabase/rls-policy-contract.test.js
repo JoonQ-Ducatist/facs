@@ -41,3 +41,12 @@ test('private media and scraps remain owner-scoped', async () => {
   assert.match(scrapSql, /user_id = auth\.uid\(\)/i);
   assert.match(scrapSql, /members remove own scraps/i);
 });
+
+test('profile library RPC returns only the authenticated member published posts', async () => {
+  const sql = await migration('202609220001_my_published_profile_posts.sql');
+  assert.match(sql, /p\.author_id\s*=\s*auth\.uid\(\)/i);
+  assert.match(sql, /p\.status\s*=\s*'published'/i);
+  assert.match(sql, /order by p\.published_at desc nulls last/i);
+  assert.match(sql, /revoke all on function public\.get_my_published_profile_post_ids\(integer\) from public/i);
+  assert.match(sql, /grant execute on function public\.get_my_published_profile_post_ids\(integer\) to authenticated/i);
+});
