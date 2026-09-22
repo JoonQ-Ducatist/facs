@@ -411,12 +411,14 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .app-canvas { width: 100%; max-width: none; box-shadow: none; }
   .editorial-app { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .editorial-app > header { display: none; }
-  .editorial-main { grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; justify-self: center; padding: 0 !important; }
+  /* Header and bottom navigation are hidden in landscape, so their portrait
+     insets must not remain reserved above and below the actual Feed. */
+  .editorial-main { position: relative !important; inset: auto !important; grid-column: 2; grid-row: 1; width: 430px; min-width: 430px; max-width: 430px; height: 100% !important; justify-self: center; padding: 0 !important; }
   .editorial-main--feed { display: block !important; overflow: hidden; overscroll-behavior: none; }
   .editorial-main--feed > .editorial-feed { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
   .editorial-main--feed > .feed-empty { display: flex; grid-template-rows: none; overflow: hidden; }
   .editorial-main--feed .media-carousel { display: block; grid-row: 2; height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
-  .editorial-main--feed .media-carousel > article { display: block; width: 100%; height: 640px; min-height: 640px; }
+  .editorial-main--feed .media-carousel > article { display: block; width: 100%; height: 100%; min-height: 100%; }
   .editorial-app > nav { position: static !important; grid-column: 1; grid-row: 1; z-index: 50; width: 216px; height: 100%; overflow: hidden; box-sizing: border-box; border: 0; border-right: 1px solid var(--xc-outline); padding: 24px 14px; box-shadow: 12px 0 28px rgba(14,28,45,.10); }
   .desktop-nav-brand { display: flex; align-items: center; gap: 9px; width: 100%; margin: 0 0 28px; padding: 4px 8px; color: var(--xc-text); text-align: left; white-space: nowrap; }
   .desktop-nav-brand span { max-width: 160px; opacity: 1; transform: none; }

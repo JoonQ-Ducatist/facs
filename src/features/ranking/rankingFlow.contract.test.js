@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url';
 
 const featureRoot = dirname(fileURLToPath(import.meta.url));
 
-test('ranking rows retain the source card id when navigating to Feed', async () => {
+test('ranking uses each published card once and retains its source id when navigating to Feed', async () => {
   const source = await readFile(resolve(featureRoot, 'RankingView.jsx'), 'utf8');
-  assert.match(source, /return \{ \.\.\.source, rankId:/);
-  assert.match(source, /<li key=\{card\.rankId\}>/);
+  assert.match(source, /const pageCards = ranked\.slice\(page \* 10, page \* 10 \+ 10\);/);
+  assert.match(source, /<li key=\{card\.id\}>/);
   assert.match(source, /onOpen\(\{ id: card\.id \}\)/);
-  assert.doesNotMatch(source, /id: `\$\{source\.id\}-rank-/);
+  assert.doesNotMatch(source, /Array\.from\(\{ length: 100 \}/);
+  assert.match(source, /\/ \{ranked\.length\}/);
 });

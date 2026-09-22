@@ -11,6 +11,7 @@
     "test": "node --test",
     "test:auth": "node --test src/features/auth/*.test.js src/services/authConfig.test.js src/services/authService.test.js src/services/locale.test.js",
     "test:feed": "node --test src/features/feed/*.test.js src/services/feedSelection.test.js src/services/followsApi.test.js src/services/liveReactionService.test.js src/services/relativeTime.test.js src/services/share.test.js src/services/supabaseApi.test.js src/services/voteService.test.js",
+    "test:ranking": "node --test src/features/ranking/*.test.js",
     "test:profile": "node --test src/features/profile/*.test.js src/services/profileService.test.js",
     "test:upload": "node --test src/features/upload/*.test.js src/services/storageContract.test.js",
     "test:safety": "node --test src/services/reportsApi.test.js src/services/scrapsApi.test.js src/services/followsApi.test.js",
