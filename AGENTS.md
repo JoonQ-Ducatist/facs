@@ -48,9 +48,10 @@ next ordered task until the current task is approved and merged. Direct pushes t
 
 Follow `memory-bank/team-workflow.md`'s risk-based verification rules: run focused
 tests and checks for the affected behavior during implementation. Low-risk isolated
-UI changes do not require the full suite or a production build. For medium/high-risk
-changes, run `npm test` and `npm run build` once at the fixed review/PR gate, then
-repeat only the affected checks if source changes after that gate. The PM may request
+UI changes do not require the full suite or a production build. A full suite or
+production build is never automatic, including for a release: the PM must first
+state why it is necessary and receive the user's explicit approval for that exact
+full check. Then repeat only the affected checks if source changes after that gate. The PM may request
 independent design and review work in parallel, but must check active tasks first.
 
 Gemini is an opt-in research specialist for FACS, not a per-task implementation

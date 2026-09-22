@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
+    "test:release": "node --test --test-reporter=dot",
     "test:auth": "node --test src/features/auth/*.test.js src/services/authConfig.test.js src/services/authService.test.js src/services/locale.test.js",
     "test:feed": "node --test src/features/feed/*.test.js src/services/feedSelection.test.js src/services/followsApi.test.js src/services/liveReactionService.test.js src/services/relativeTime.test.js src/services/share.test.js src/services/supabaseApi.test.js src/services/voteService.test.js",
     "test:ranking": "node --test src/features/ranking/*.test.js",
