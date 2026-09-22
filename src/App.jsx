@@ -124,12 +124,9 @@ export default function App() {
   const pendingPublishedCard = useRef(null);
   const receivedLiveReactionIds = useRef(new Set());
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
-  const followingIdsKey = [...followingIds].sort().join('|');
-  const orderedCards = useMemo(() => cards.filter((card) => !blockedMembers.some((member) => member.id === (card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`))).sort((left, right) => {
-    const leftFollowed = followingIds.has(getFollowTargetKey(left.authorId, left.author));
-    const rightFollowed = followingIds.has(getFollowTargetKey(right.authorId, right.author));
-    return Number(rightFollowed) - Number(leftFollowed);
-  }), [cards, followingIdsKey, blockedMembers]);
+  // Following changes are visual state for the current session. Reordering the
+  // list here would replace the card under a member immediately after a tap.
+  const orderedCards = useMemo(() => cards.filter((card) => !blockedMembers.some((member) => member.id === (card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`))), [cards, blockedMembers]);
   const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
   const displayProfileCards = useMemo(() => profileCards?.map((card) => localizeCard(card, locale)) ?? null, [profileCards, locale]);
   const displayScrapCards = useMemo(() => scrapCards?.map((card) => localizeCard(card, locale)) ?? null, [scrapCards, locale]);
@@ -398,7 +395,7 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, followingIdsKey, feedRefreshKey]);
+  }, [authUser?.id, feedRefreshKey]);
 
   /** Loads the public handle only for the authenticated member, never from email. */
   useEffect(() => {
@@ -979,7 +976,7 @@ export default function App() {
     return { ok: true, saved: result.data.saved };
   }
 
-  /** Updates an explicit follow, then refreshes the server-ranked feed order. */
+  /** Updates one follow in place; it must never replace the visible Feed card. */
   async function toggleFollowing(authorId) {
     if (!authUser) {
       setIsGuest(true);
@@ -987,8 +984,20 @@ export default function App() {
       return { ok: false };
     }
     const wasFollowing = followingIds.has(authorId);
+    // Reflect the tap immediately. If persistence fails, restore exactly the
+    // previous state without replacing the current Feed card.
+    setFollowingIds((ids) => {
+      const next = new Set(ids);
+      if (wasFollowing) next.delete(authorId); else next.add(authorId);
+      return next;
+    });
     const result = await toggleMyFollow(authorId, wasFollowing);
     if (result.error) {
+      setFollowingIds((ids) => {
+        const next = new Set(ids);
+        if (wasFollowing) next.add(authorId); else next.delete(authorId);
+        return next;
+      });
       setToast(locale === 'en' ? 'Follow could not be updated. Please try again.' : '팔로우를 변경하지 못했어요. 다시 시도해 주세요.');
       return { ok: false };
     }
@@ -1094,7 +1103,7 @@ export default function App() {
             <span className="sr-only">{locale === 'ko' ? 'English' : '한국어'}</span>
           </button>
           <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-container" onClick={() => setToast('새 알림은 없습니다.')} aria-label="알림"><span className="material-symbols-outlined text-[22px] text-on-surface-variant">notifications</span><span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#c5a059] ring-2 ring-background" /></button>
-          <button type="button" onClick={() => setActiveTab('profile')} className="h-9 w-9 overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필"><img className="h-full w-full rounded-full object-cover" src={initialCards[0].imageUrl} alt="내 프로필" /></button>
+          <button type="button" onClick={() => setActiveTab('profile')} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필">{profileCards?.[0]?.imageUrl ? <img className="h-full w-full rounded-full object-cover" src={profileCards[0].imageUrl} alt="내 프로필" /> : <span className="material-symbols-outlined text-[22px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}</button>
         </div>
       </div>
     </header>
@@ -1127,6 +1136,7 @@ function BrandWordmark({ compact = false }) {
 
 /** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
 function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUserId, onToggleFollow }) {
+  if (!cards.length) return null;
   const suggestions = cards.slice(1, 6);
   return <aside className="desktop-recommendations" aria-label="회원님을 위한 추천">
     <button type="button" onClick={onProfile} className="mb-7 flex w-full items-center gap-3 text-left">
