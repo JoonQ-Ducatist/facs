@@ -828,7 +828,6 @@ export default function App() {
   }
 
   function openTab(id) {
-    setIsLandscapeNavExpanded(false);
     if (id === 'upload') { openUpload(); return; }
     if (id !== 'profile') setResumeUploadAfterHandle(false);
     if (id !== 'profile') setProfileNotice('');
@@ -1108,7 +1107,7 @@ export default function App() {
   if (isGuest) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
 
-  return <CanvasStage locale={locale}><div className={`editorial-app h-full bg-background text-on-background font-body${isLandscapeNavExpanded ? ' editorial-app--landscape-nav-open' : ''}`}>
+  return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">

@@ -30,6 +30,11 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
 });
 
+test('the post-splash application shell has no removed landscape-navigation state reference', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.doesNotMatch(source, /isLandscapeNavExpanded|setIsLandscapeNavExpanded/);
+});
+
 test('brand entry never performs synchronous pixel conversion before its timed transition', async () => {
   const splashSource = await readFile(resolve(featureRoot, 'BrandSplashView.jsx'), 'utf8');
   const markSource = await readFile(resolve(featureRoot, '../../components/brand/MothMark.jsx'), 'utf8');
