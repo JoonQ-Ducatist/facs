@@ -54,6 +54,11 @@ state why it is necessary and receive the user's explicit approval for that exac
 full check. Then repeat only the affected checks if source changes after that gate. The PM may request
 independent design and review work in parallel, but must check active tasks first.
 
+For a reported production defect, once concrete runtime evidence, its direct cause,
+and focused regression checks are complete, the user has pre-approved the fix through
+commit, main merge, and production deployment. Do not wait for a second deployment
+approval. This does not authorize a full suite or production build.
+
 Gemini is an opt-in research specialist for FACS, not a per-task implementation
 step. Use it only for time-sensitive external research, broad competitor or market
 comparison, large or multimodal source analysis, a material product-policy choice,
