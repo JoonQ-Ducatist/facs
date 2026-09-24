@@ -30,6 +30,16 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
 });
 
+test('brand surfaces use the static transparent moth asset without color inversion', async () => {
+  const splashSource = await readFile(resolve(featureRoot, 'BrandSplashView.jsx'), 'utf8');
+  const markSource = await readFile(resolve(featureRoot, '../../components/brand/MothMark.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(splashSource, /facs-moth-logo-transparent\.png/);
+  assert.match(markSource, /facs-moth-logo-transparent\.png/);
+  assert.doesNotMatch(styles, /\.brand-splash__moth[^}]*filter:/);
+  assert.doesNotMatch(styles, /\.moth-mark[^}]*filter:/);
+});
+
 test('the post-splash application shell has no removed landscape-navigation state reference', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.doesNotMatch(source, /isLandscapeNavExpanded|setIsLandscapeNavExpanded/);

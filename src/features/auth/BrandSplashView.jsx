@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import mothLogoUrl from '../../assets/facs-moth-logo.png';
+import mothLogoUrl from '../../assets/facs-moth-logo-transparent.png';
 import { BRAND_SPLASH_DURATION_MS, selectBrandTagline } from './brandSplash.js';
 
 /** The brand-only entry screen: it never contains login controls or content navigation. */
