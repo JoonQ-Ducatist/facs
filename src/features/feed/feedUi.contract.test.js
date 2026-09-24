@@ -6,6 +6,16 @@ import { fileURLToPath } from 'node:url';
 
 const featureRoot = dirname(fileURLToPath(import.meta.url));
 
+test('feed videos expose a centered play affordance without stealing carousel gestures', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /const \[isPlaying, setIsPlaying\] = useState\(false\)/);
+  assert.match(source, /data-video-play-button/);
+  assert.match(source, /void video\.play\(\)\.catch/);
+  assert.match(source, /!isPlaying && <button[^>]*className="video-card-play-button"/);
+  assert.match(styles, /\.video-card-play-button \{[\s\S]*?left: 50%; top: 50%;[\s\S]*?z-index: 35/);
+});
+
 test('feed preserves the uploaded category selection after publishing', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /setFeaturedPostId\(publishedCard\.id\);\s*\/\/ Keep the uploaded category selected[\s\S]*setActiveCategory\(publishedCard\.category\);/);

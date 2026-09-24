@@ -223,6 +223,35 @@ test('profile library reads its own newest-first RPC, not the limited personaliz
   assert.equal(result.data[0].isMyUpload, true);
 });
 
+test('profile library falls back to an owner-scoped posts query while its RPC migration rolls out', async () => {
+  const calls = [];
+  const post = {
+    id: 'post-b', author_id: 'member-a', category: 'outfit', evaluation: 'binary', question: '새 사진', age_min: null, age_max: null,
+    published_at: '2026-09-16T09:00:00Z', profiles: { handle: 'member_a' },
+    post_media: [{ position: 0, media_assets: { id: 'asset-b', storage_path: 'uploads/b', media_type: 'image' } }],
+  };
+  let selectedColumns = '';
+  const query = {
+    select(columns) { selectedColumns = columns; return query; },
+    eq(column, value) { calls.push({ name: 'eq', column, value }); return query; },
+    order(column, options) { calls.push({ name: 'order', column, options }); return query; },
+    limit: async () => ({ data: [{ id: 'post-b', published_at: post.published_at }], error: null }),
+    in: async () => ({ data: selectedColumns === 'id,published_at' ? [] : [post], error: null }),
+  };
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name) => name === 'get_my_published_profile_post_ids'
+      ? ({ data: null, error: { code: 'PGRST202' } })
+      : ({ data: [], error: null }),
+    from: () => query,
+    storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/b.jpg' }, error: null }) }) },
+  };
+  const result = await listSupabaseMyPublishedProfileCards({ client });
+  assert.ok(calls.some((call) => call.name === 'eq' && call.column === 'author_id' && call.value === 'member-a'));
+  assert.equal(result.data[0].id, 'post-b');
+  assert.equal(result.data[0].isMyUpload, true);
+});
+
 test('Scrap library preserves private saved order and includes popup-ready protected media', async () => {
   const client = orderedLibraryClient([{ post_id: 'post-b', saved_at: '2026-09-16T10:00:00Z' }]);
   const result = await listSupabaseMyScrapFeedCards({ client });

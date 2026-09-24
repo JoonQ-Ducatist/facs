@@ -65,6 +65,9 @@ test('media preview controls remain visible and touch-safe over dark images', as
   assert.match(styles, /\.upload-media-control \{[\s\S]*?width: 32px; height: 32px;[\s\S]*?border: 1px solid rgba\(255,255,255,\.78\);[\s\S]*?backdrop-filter: blur\(8px\)/);
   assert.match(styles, /\.upload-media-control--move \{ background: rgba\(16,34,55,\.88\); \}/);
   assert.match(styles, /\.upload-media-control--remove \{ background: rgba\(224,48,83,\.94\); \}/);
+  assert.match(source, /className="upload-media-order-controls"/);
+  assert.match(styles, /\.upload-media-order-controls \{[^}]*left: 4px; bottom: 4px;[^}]*display: flex/);
+  assert.match(styles, /\.upload-video-duration \{[^}]*left: 4px; top: 4px;/);
   assert.match(styles, /\.upload-media-control:focus-visible \{ outline: 2px solid #fff/);
 });
 
@@ -104,6 +107,29 @@ test('video upload input targets browser-compatible MP4 and iPhone MOV sources',
   assert.match(source, /H\.264 MP4 또는 iPhone MOV/);
 });
 
+test('media limits keep accepted files and show a localized warning tooltip', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /const \[limitNotice, setLimitNotice\] = useState\(null\)/);
+  assert.match(source, /candidateTypes\.filter\(\(type\) => type === 'video'\)\.length > MAX_VIDEOS/);
+  assert.match(source, /candidateTypes\.filter\(\(type\) => type === 'image'\)\.length > MAX_IMAGES/);
+  assert.match(source, /You can select up to \$\{MAX_IMAGES\} photos\./);
+  assert.match(source, /사진은 최대 \$\{MAX_IMAGES\}개까지만 선택할 수 있어요\./);
+  assert.match(source, /locale === 'en' \? `You can select up to \$\{MAX_VIDEOS\} video\.`/);
+  assert.match(source, /if \(accepted\.length\) setMedia/);
+  assert.match(source, /setError\(nextMessage\)/);
+  assert.match(source, /key=\{limitNotice\.id\} role="alert" aria-live="assertive" className="upload-limit-tooltip"/);
+  assert.match(styles, /\.upload-limit-tooltip \{[\s\S]*?position: fixed;[\s\S]*?background: rgba\(52,31,5,\.94\)/);
+});
+
+test('Upload content owns vertical scrolling between the fixed app bars', async () => {
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(appSource, /activeTab === 'feed' \? 'editorial-main--feed' : 'editorial-main--scroll'/);
+  assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
+  assert.match(styles, /\.editorial-upload, \.editorial-ranking \{ min-height: max-content; flex: 0 0 auto; \}/);
+});
+
 test('a just-published card is retained and kept canonical during feed hydration', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const pendingPublishedCard = useRef\(null\)/);
@@ -111,7 +137,7 @@ test('a just-published card is retained and kept canonical during feed hydration
   assert.match(source, /const justPublished = pendingPublishedCard\.current/);
   assert.match(source, /card\.id !== justPublished\?\.id/);
   assert.match(source, /category: justPublished\.category/);
-  assert.match(source, /serverIds\.has\(justPublished\.id\).*pendingPublishedCard\.current = null/);
+  assert.doesNotMatch(source, /serverIds\.has\(justPublished\.id\).*pendingPublishedCard\.current = null/);
 });
 
 test('profile hydration does not erase a post while server publication is settling', async () => {
@@ -119,4 +145,7 @@ test('profile hydration does not erase a post while server publication is settli
   assert.match(source, /const hydratedProfileCards = profileResult\.data \?\? \[\];/);
   assert.match(source, /justPublished && !hydratedProfileCards\.some\(\(card\) => card\.id === justPublished\.id\)/);
   assert.match(source, /\[justPublished, \.\.\.hydratedProfileCards\]/);
+  assert.match(source, /hydratedProfileCards\.some\(\(card\) => card\.id === justPublished\.id\)\) pendingPublishedCard\.current = null/);
+  assert.match(source, /setProfileRefreshKey\(\(key\) => key \+ 1\)/);
+  assert.match(source, /setProfileCards\(\(items\) => \[publishedCard, \.\.\.\(Array\.isArray\(items\) \? items : \[\]\)/);
 });

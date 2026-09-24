@@ -364,8 +364,19 @@ export async function listSupabaseMyPublishedProfileCards({ limit = 100, client 
   if (identity.error) return identity.error;
   const pageSize = Math.min(Math.max(limit, 1), 100);
   const { data, error } = await client.rpc('get_my_published_profile_post_ids', { page_size: pageSize });
-  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '내 업로드를 불러오지 못했어요.');
-  return listSupabaseCardsInServerOrder(data, { client, source: 'supabase-profile', isMyUpload: true });
+  if (!error) return listSupabaseCardsInServerOrder(data, { client, source: 'supabase-profile', isMyUpload: true });
+
+  // Keep the profile library usable while the owner-scoped RPC migration is
+  // rolling out. RLS plus the explicit author filter preserve the same scope.
+  const { data: ownedPosts, error: fallbackError } = await client
+    .from('posts')
+    .select('id,published_at')
+    .eq('author_id', identity.user.id)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(pageSize);
+  if (fallbackError) return apiFailure(API_ERROR.INTERNAL_ERROR, '내 업로드를 불러오지 못했어요.');
+  return listSupabaseCardsInServerOrder((ownedPosts ?? []).map((post) => ({ post_id: post.id, published_at: post.published_at })), { client, source: 'supabase-profile-fallback', isMyUpload: true });
 }
 
 /** Reads the current member's still-accessible Scraps in saved-time order for a Feed-detail popup. */

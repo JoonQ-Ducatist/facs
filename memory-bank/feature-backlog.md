@@ -53,7 +53,7 @@
 
 | ID | 기능·결정 | Cash Loop 영향 | 완료 기준 | 상태 |
 | --- | --- | --- | --- | --- |
-| CL-06 | Supabase Auth·DB·Storage·RLS | Engagement·Data | 실제 사용자·미디어·권한·투표 데이터를 안전하게 영구 저장 | 진행 중 — 이메일 Auth UI·SDK 연결과 Core MVP SQL 마이그레이션/RLS 초안을 준비. 프로젝트 적용·Storage 정책·실계정 E2E는 다음 검증 단위 |
+| CL-06 | Supabase Auth·DB·Storage·RLS | Engagement·Data | 실제 사용자·미디어·권한·투표 데이터를 안전하게 영구 저장 | 진행 중 — 이메일 Auth UI·SDK 연결과 Core MVP SQL 마이그레이션/RLS 초안을 준비. 프로젝트 적용·Storage 정책·실계정 E2E는 다음 검증 단위. 다음 실제 스마트폰 QA에서 업로드 후 피드·프로필 반영과 모바일 가로모드 상·하단 고정영역·스크롤·미디어 재생을 함께 확인 |
 | CL-07 | 검토·신고·미디어 안전 흐름 | Data | 게시물 공개 전 상태·신고·예외 사람 검토·감사 기록 제공 | 대기 |
 | CL-08 | Closed Beta Seed Group 운영 | Acquisition·Engagement | 100명+ 실제 사용자와 Vote→Upload→Result 행동 검증 | 대기 |
 

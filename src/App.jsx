@@ -4,6 +4,7 @@ import FeedView from './features/feed/FeedView.jsx';
 import UploadView from './features/upload/UploadView.jsx';
 import RankingView from './features/ranking/RankingView.jsx';
 import ProfileView from './features/profile/ProfileView.jsx';
+import ModerationView, { canAccessModeration } from './features/moderation/ModerationView.jsx';
 import BrandSplashView from './features/auth/BrandSplashView.jsx';
 import AuthEntryView from './features/auth/AuthEntryView.jsx';
 import MothMark from './components/brand/MothMark.jsx';
@@ -112,6 +113,8 @@ export default function App() {
   const [blockedMembers, setBlockedMembers] = useState([]);
   const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [handleProfileRefreshKey, setHandleProfileRefreshKey] = useState(0);
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -131,6 +134,7 @@ export default function App() {
   const displayCards = useMemo(() => orderedCards.map((card) => localizeCard(card, locale)), [orderedCards, locale]);
   const displayProfileCards = useMemo(() => profileCards?.map((card) => localizeCard(card, locale)) ?? null, [profileCards, locale]);
   const displayScrapCards = useMemo(() => scrapCards?.map((card) => localizeCard(card, locale)) ?? null, [scrapCards, locale]);
+  const canModerate = canAccessModeration(profile?.role);
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
@@ -316,31 +320,30 @@ export default function App() {
     return () => { active = false; };
   }, [authReady, authUser?.id]);
 
+  /** Clears private libraries only when the signed-in account changes. */
+  useEffect(() => {
+    setProfileCards(null);
+    setScrapCards(null);
+  }, [authUser?.id]);
+
   /** Hydrates complete private profile libraries independently of the Feed page limit. */
   useEffect(() => {
     let active = true;
-    if (!authUser) {
-      setProfileCards(null);
-      setScrapCards(null);
-      return undefined;
-    }
-    setProfileCards(null);
-    setScrapCards(null);
+    if (!authUser) return undefined;
     Promise.all([listSupabaseMyPublishedProfileCards(), listSupabaseMyScrapFeedCards()]).then(([profileResult, scrapResult]) => {
       if (!active) return;
-      if (profileResult.error) {
-        setProfileCards(null);
-      } else {
+      if (!profileResult.error) {
         const hydratedProfileCards = profileResult.data ?? [];
         const justPublished = pendingPublishedCard.current;
         setProfileCards(justPublished && !hydratedProfileCards.some((card) => card.id === justPublished.id)
           ? [justPublished, ...hydratedProfileCards]
           : hydratedProfileCards);
+        if (justPublished && hydratedProfileCards.some((card) => card.id === justPublished.id)) pendingPublishedCard.current = null;
       }
-      setScrapCards(scrapResult.error ? null : (scrapResult.data ?? []));
+      if (!scrapResult.error) setScrapCards(scrapResult.data ?? []);
     });
     return () => { active = false; };
-  }, [authUser?.id]);
+  }, [authUser?.id, profileRefreshKey]);
 
   /** Restores only the signed-in member's own block list for immediate feed filtering. */
   useEffect(() => {
@@ -399,10 +402,6 @@ export default function App() {
               : hydratedServerCards;
             return [...(featured ? [featured] : []), ...remainingServerCards, ...localOnly];
           });
-          // Once the server has acknowledged the UUID, its aggregates and
-          // signed media are authoritative while the local category remains
-          // canonical for the current Feed filter.
-          if (justPublished && serverIds.has(justPublished.id)) pendingPublishedCard.current = null;
         }
       } finally {
         if (active) setFeedHydrated(true);
@@ -429,7 +428,7 @@ export default function App() {
       setProfileLoading(false);
     });
     return () => { active = false; };
-  }, [authUser?.id]);
+  }, [authUser?.id, handleProfileRefreshKey]);
 
   /** Restores only this member's completed server evaluations on this device. */
   useEffect(() => {
@@ -713,7 +712,8 @@ export default function App() {
     // A newly published post necessarily starts inside the server's one-hour,
     // zero-other-rating window. The server revalidates this again on request.
     setBoostCandidateIds((ids) => new Set([...ids, publishedCard.id]));
-    setProfileCards((items) => Array.isArray(items) ? [publishedCard, ...items.filter((item) => item.id !== publishedCard.id)] : items);
+    setProfileCards((items) => [publishedCard, ...(Array.isArray(items) ? items : []).filter((item) => item.id !== publishedCard.id)]);
+    setProfileRefreshKey((key) => key + 1);
     setFeaturedPostId(publishedCard.id);
     // Keep the uploaded category selected after returning to Feed so the
     // category rail reflects the card the member just published.
@@ -905,6 +905,13 @@ export default function App() {
       authTransitionConsumed.current = true;
       setIsSharedGuest(false);
       setIsGuest(false);
+      // Supabase emits SIGNED_IN before the local QA helper finishes repairing
+      // an older placeholder handle. Use the server-confirmed profile returned
+      // by that helper so Upload never sees the stale placeholder snapshot.
+      setProfile(result.profile);
+      setProfileLoading(false);
+      setProfileNotice('');
+      setHandleProfileRefreshKey((key) => key + 1);
       // A QA account has its own feed context. Do not carry the uploader's
       // category focus or just-published card into the evaluator's session.
       setFeaturedPostId(null);
@@ -1141,8 +1148,9 @@ export default function App() {
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
-        {activeTab === 'ranking' && <RankingView cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} onBack={() => setActiveTab('profile')} />}
       </>}
     </main>
 

@@ -52,6 +52,14 @@ test('the app wires the upload ID CTA to the profile tab', async () => {
   assert.match(source, /activeTab === 'upload'.*onOpenProfile=\{\(\) => setActiveTab\('profile'\)\}/s);
 });
 
+test('QA account switch installs the confirmed public profile before Upload guard runs', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /const result = await signInWithLocalQaAccount\(accountId\)/);
+  assert.match(source, /if \(result\.ok\) \{[\s\S]*?setProfile\(result\.profile\);[\s\S]*?setProfileLoading\(false\);[\s\S]*?setProfileNotice\(''\);[\s\S]*?setHandleProfileRefreshKey\(\(key\) => key \+ 1\)/);
+  assert.match(source, /\[authUser\?\.id, handleProfileRefreshKey\]/);
+  assert.match(source, /if \(profileLoading\) \{[\s\S]*?return;[\s\S]*?if \(!profileLoading && !isConfiguredHandle\(profile\?\.handle\)\)/);
+});
+
 test('public ID input can focus on touch and keeps save errors in the profile form', async () => {
   const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
@@ -86,6 +94,8 @@ test('the app hydrates private profile libraries and passes scrap open targets t
   assert.match(source, /listSupabaseMyPublishedProfileCards/);
   assert.match(source, /listSupabaseMyScrapFeedCards/);
   assert.match(source, /Promise\.all\(\[listSupabaseMyPublishedProfileCards\(\), listSupabaseMyScrapFeedCards\(\)\]\)/);
+  assert.match(source, /\[authUser\?\.id, profileRefreshKey\]/);
+  assert.match(source, /if \(!profileResult\.error\) \{/);
   assert.match(source, /profileCards=\{displayProfileCards\} scrapCards=\{displayScrapCards\}/);
   assert.match(source, /onOpenScrap=\{openScrapCard\}/);
   assert.match(source, /setCards\(\(items\) => items\.some\(\(item\) => item\.id === card\.id\)/);

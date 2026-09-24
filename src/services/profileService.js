@@ -10,7 +10,7 @@ const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
 // server-only handle cooldown column is not rendered by the client, and an
 // older deployed database must not turn a successful handle save into a
 // generic profile-read failure merely because that optional column is absent.
-const PROFILE_READ_COLUMNS = 'id,handle,display_name';
+const PROFILE_READ_COLUMNS = 'id,handle,display_name,role';
 export const HANDLE_CHANGE_COOLDOWN_REASON = 'public_handle_change_cooldown';
 export const HANDLE_CHANGE_LOCK_ERROR_CODES = Object.freeze([API_ERROR.RATE_LIMITED]);
 

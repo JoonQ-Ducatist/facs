@@ -7,6 +7,9 @@ export const LOCAL_QA_ACCOUNTS = Object.freeze([
   { id: 'uploader', email: 'qa.uploader@local.facts.test', handle: 'qa_uploader', displayName: '민아', role: '업로더' },
   { id: 'evaluator', email: 'qa.evaluator@local.facts.test', handle: 'qa_evaluator', displayName: '지우', role: '평가자' },
   { id: 'safety', email: 'qa.safety@local.facts.test', handle: 'qa_safety', displayName: 'Alex', role: '안전 점검' },
+  // This is a local-fixture expectation only. The database fixture, not this
+  // browser metadata, assigns the actual moderator role.
+  { id: 'moderator', email: 'qa.moderator@local.facts.test', handle: 'qa_moderator', displayName: '현우', role: 'moderator' },
 ]);
 
 function readRememberedMemberIds() {
@@ -38,6 +41,30 @@ export function isLocalQaAccountMode(origin = typeof window === 'undefined' ? ''
   }
 }
 
+/** Ensures an existing disposable QA member has the same configured handle as the switcher contract. */
+export async function ensureLocalQaProfile(account, userId, client = supabase) {
+  if (!account || !userId || !client) return { ok: false, code: 'LOCAL_QA_PROFILE_UNAVAILABLE' };
+  // Return the server-owned role too. App applies this profile immediately
+  // after a QA session switch, before its normal profile hydration finishes.
+  const readProfile = () => client.from('profiles').select('id,handle,display_name,role').eq('id', userId).maybeSingle();
+  const current = await readProfile();
+  if (current.error || !current.data) return { ok: false, code: 'LOCAL_QA_PROFILE_UNAVAILABLE' };
+  if (current.data.handle === account.handle) return { ok: true, profile: current.data };
+
+  const updated = await client.rpc('set_my_public_handle', { input_handle: account.handle });
+  if (updated.error) return { ok: false, code: 'LOCAL_QA_PROFILE_SYNC_FAILED' };
+  const confirmed = await readProfile();
+  if (confirmed.error || confirmed.data?.handle !== account.handle) return { ok: false, code: 'LOCAL_QA_PROFILE_SYNC_FAILED' };
+  return { ok: true, profile: confirmed.data };
+}
+
+async function completeLocalQaSignIn(account, user, client) {
+  const profileResult = await ensureLocalQaProfile(account, user?.id, client);
+  if (!profileResult.ok) return profileResult;
+  rememberMemberId(account.id, user.id);
+  return { ok: true, account, profile: profileResult.profile };
+}
+
 /** Creates three disposable local accounts on first use, then switches the real Supabase session. */
 export async function signInWithLocalQaAccount(accountId) {
   if (!isLocalQaAccountMode() || !supabase) return { ok: false, code: 'LOCAL_QA_UNAVAILABLE' };
@@ -46,8 +73,7 @@ export async function signInWithLocalQaAccount(accountId) {
 
   const signIn = await supabase.auth.signInWithPassword({ email: account.email, password: LOCAL_QA_PASSWORD });
   if (!signIn.error) {
-    rememberMemberId(account.id, signIn.data.user?.id);
-    return { ok: true, account };
+    return completeLocalQaSignIn(account, signIn.data.user, supabase);
   }
 
   const signUp = await supabase.auth.signUp({
@@ -61,8 +87,7 @@ export async function signInWithLocalQaAccount(accountId) {
   // created by a previous browser session without exposing a real credential.
   const retry = await supabase.auth.signInWithPassword({ email: account.email, password: LOCAL_QA_PASSWORD });
   if (retry.error) return { ok: false, code: 'LOCAL_QA_SIGN_IN_FAILED' };
-  rememberMemberId(account.id, retry.data.user?.id);
-  return { ok: true, account };
+  return completeLocalQaSignIn(account, retry.data.user, supabase);
 }
 
 /** Resets only the current local QA member's A/B follow and block state. */

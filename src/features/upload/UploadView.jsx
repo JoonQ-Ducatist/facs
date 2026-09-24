@@ -64,6 +64,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const [ageMin, setAgeMin] = useState('25');
   const [ageMax, setAgeMax] = useState('45');
   const [error, setError] = useState('');
+  const [limitNotice, setLimitNotice] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDragActive, setIsDragActive] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -80,6 +81,17 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const canAddMedia = canAddImage || canAddVideo;
   const canOpenDropzone = !media.length && canAddMedia;
   const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/quicktime'].filter(Boolean).join(',');
+  const limitNoticeMessage = limitNotice?.kind === 'image'
+    ? (locale === 'en' ? `You can select up to ${MAX_IMAGES} photos.` : `사진은 최대 ${MAX_IMAGES}개까지만 선택할 수 있어요.`)
+    : limitNotice?.kind === 'video'
+      ? (locale === 'en' ? `You can select up to ${MAX_VIDEOS} video.` : '동영상은 최대 1개까지만 선택할 수 있어요.')
+      : '';
+
+  useEffect(() => {
+    if (!limitNotice) return undefined;
+    const timer = window.setTimeout(() => setLimitNotice(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [limitNotice]);
 
   /** 정의: 파일 형식·용량·개수·영상 길이를 확인해 미리보기 가능한 미디어 목록에 추가한다. @param {FileList|File[]} fileList 선택 또는 드롭된 파일 */
   async function addFiles(fileList) {
@@ -88,21 +100,28 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     const accepted = [];
     let nextImages = imageCount;
     let nextVideos = videoCount;
+    let rejectedMessage = '';
+    const candidateTypes = candidates.map((file) => detectMediaType(file) ?? (file.size > 0 ? 'image' : null));
+    let limitWarningKind = videoCount + candidateTypes.filter((type) => type === 'video').length > MAX_VIDEOS
+      ? 'video'
+      : imageCount + candidateTypes.filter((type) => type === 'image').length > MAX_IMAGES
+        ? 'image'
+        : '';
     for (const file of candidates) {
       // Some mobile file providers omit both MIME and an extension. The input
       // is already constrained by `accept`, so keep a non-empty file as an
       // image candidate instead of silently dropping the user's selection.
       const type = detectMediaType(file) ?? (file.size > 0 ? 'image' : null);
-      if (!type) { setError('이미지 또는 동영상 파일만 선택할 수 있습니다.'); continue; }
-      if (file.size > MAX_FILE_SIZE) { setError('각 파일은 15MB 이하만 선택할 수 있습니다.'); continue; }
-      if (type === 'image' && nextImages >= MAX_IMAGES) { setError(`이미지는 최대 ${MAX_IMAGES}개까지 선택할 수 있습니다.`); continue; }
-      if (type === 'video' && nextVideos >= MAX_VIDEOS) { setError('동영상은 1개만 선택할 수 있습니다.'); continue; }
-      if (type === 'video' && !supportsVideoFile(file)) { setError('이 동영상 형식은 현재 브라우저에서 재생할 수 없어요. H.264 MP4 또는 iPhone MOV를 선택해 주세요.'); continue; }
+      if (!type) { rejectedMessage = locale === 'en' ? 'Select image or video files only.' : '이미지 또는 동영상 파일만 선택할 수 있습니다.'; continue; }
+      if (file.size > MAX_FILE_SIZE) { rejectedMessage = locale === 'en' ? 'Each file must be 15 MB or smaller.' : '각 파일은 15MB 이하만 선택할 수 있습니다.'; continue; }
+      if (type === 'image' && nextImages >= MAX_IMAGES) { limitWarningKind ||= 'image'; continue; }
+      if (type === 'video' && nextVideos >= MAX_VIDEOS) { limitWarningKind = 'video'; continue; }
+      if (type === 'video' && !supportsVideoFile(file)) { rejectedMessage = locale === 'en' ? 'This browser cannot play that video. Choose an H.264 MP4 or iPhone MOV.' : '이 동영상 형식은 현재 브라우저에서 재생할 수 없어요. H.264 MP4 또는 iPhone MOV를 선택해 주세요.'; continue; }
       const url = type === 'image' ? await getImagePreviewUrl(file) : URL.createObjectURL(file);
-      if (!url) { setError(`${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`); continue; }
+      if (!url) { rejectedMessage = `${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`; continue; }
       if (type === 'video') {
         const duration = await getVideoDuration(url);
-        if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); setError('동영상은 10초 이하만 업로드할 수 있습니다.'); continue; }
+        if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); rejectedMessage = locale === 'en' ? 'Videos must be 10 seconds or shorter.' : '동영상은 10초 이하만 업로드할 수 있습니다.'; continue; }
         nextVideos += 1;
         accepted.push(makeItem(file, url, type, duration));
       } else {
@@ -110,8 +129,15 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
         accepted.push(makeItem(file, url, type));
       }
     }
-    if (accepted.length) { setMedia((items) => [...items, ...accepted]); setError(''); }
-    else if (candidates.length) setError('선택한 파일을 읽지 못했어요. JPG, PNG, GIF, HEIC 또는 동영상 파일을 다시 선택해 주세요.');
+    if (accepted.length) setMedia((items) => [...items, ...accepted]);
+    const limitMessage = limitWarningKind === 'video'
+      ? (locale === 'en' ? `You can select up to ${MAX_VIDEOS} video.` : '동영상은 최대 1개까지만 선택할 수 있어요.')
+      : limitWarningKind === 'image'
+        ? (locale === 'en' ? `You can select up to ${MAX_IMAGES} photos.` : `사진은 최대 ${MAX_IMAGES}개까지만 선택할 수 있어요.`)
+        : '';
+    const nextMessage = limitMessage || rejectedMessage || (!accepted.length && candidates.length ? (locale === 'en' ? 'Those files could not be read. Try JPG, PNG, GIF, HEIC, MP4, or MOV.' : '선택한 파일을 읽지 못했어요. JPG, PNG, GIF, HEIC 또는 동영상 파일을 다시 선택해 주세요.') : '');
+    setError(nextMessage);
+    if (limitWarningKind) setLimitNotice({ kind: limitWarningKind, id: Date.now() });
     if (inputRef.current) inputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   }
@@ -273,6 +299,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   }
 
   return <section className="editorial-upload w-full pb-3 pt-1">
+    {limitNotice && <div key={limitNotice.id} role="alert" aria-live="assertive" className="upload-limit-tooltip"><span className="material-symbols-outlined" aria-hidden="true">warning</span><span>{limitNoticeMessage}</span></div>}
     <PageHeading eyebrow="CREATE A LOOKBOOK" title="새로운 룩 공유하기" description="사진 최대 5개와 10초 이하 동영상 1개를 함께 선택할 수 있습니다." action={<button type="button" onClick={openCamera} aria-label="카메라로 촬영하기" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#fbf9f4] text-cyan-glow"><span className="material-symbols-outlined text-lg">add_a_photo</span></button>} />
     <form className="flex flex-col gap-3.5" onSubmit={submit} onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch}>
       <div role={canOpenDropzone ? 'button' : undefined} tabIndex={canOpenDropzone ? 0 : undefined} onClick={() => canOpenDropzone && inputRef.current?.click()} onKeyDown={(event) => { if (canOpenDropzone && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canOpenDropzone ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
@@ -347,7 +374,7 @@ function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, c
   }
   return <div data-upload-media-id={item.id} draggable onPointerDown={(event) => onTouchStart(item.id, event)} onPointerMove={onTouchMove} onPointerUp={onTouchEnd} onPointerCancel={onTouchCancel} onTouchStart={(event) => onTouchStart(item.id, event)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => onNativeDragStart(item.id, event)} onDragOver={(event) => onNativeDragOver(item.id, event)} onDrop={(event) => onNativeDrop(item.id, event)} onDragEnd={onNativeDragEnd} className={`media-preview relative aspect-square overflow-hidden rounded-xl border bg-black/30${isDragging ? ' media-preview--dragging' : ''}${isDragOver ? ' media-preview--drag-over' : ''}`} style={{ borderColor: `${color}66` }}>
     {previewError && item.type === 'image' ? <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#f5f3ee] px-2 text-center text-[#74777d]"><span className="material-symbols-outlined text-2xl">insert_photo</span><span className="max-w-full truncate text-[9px]">{item.name}</span></div> : item.type === 'video' ? <video className="h-full w-full object-cover" src={item.url} poster={videoPoster || undefined} muted playsInline preload="metadata" draggable="false" onError={() => {}} /> : <img className="h-full w-full object-cover" src={item.url} alt={`${index + 1}번째 선택 이미지`} draggable="false" onError={() => setPreviewError(true)} />}
-    {item.type === 'video' && <time dateTime={`PT${Math.max(0, Number(item.duration) || 0).toFixed(1)}S`} className="upload-video-duration">{formatVideoDuration(item.duration)}</time>}<div className="absolute left-1 top-1 z-20 flex gap-1"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1 z-20"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
+    {item.type === 'video' && <time dateTime={`PT${Math.max(0, Number(item.duration) || 0).toFixed(1)}S`} className="upload-video-duration">{formatVideoDuration(item.duration)}</time>}<div className="upload-media-order-controls"><button type="button" disabled={!canMovePrevious} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(-1); }} aria-label={`${item.name} 순서 앞으로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_left</span></button><button type="button" disabled={!canMoveNext} onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onMove(1); }} aria-label={`${item.name} 순서 뒤로`} className="upload-media-control upload-media-control--move disabled:opacity-25"><span className="material-symbols-outlined text-[17px]">chevron_right</span></button></div><button type="button" onPointerDown={isolateMediaControlTouch} onPointerUp={isolateMediaControlTouch} onPointerCancel={isolateMediaControlTouch} onClick={(event) => { event.stopPropagation(); onRemove(); }} aria-label={`${item.name} 제거`} className="upload-media-control upload-media-control--remove absolute right-1 top-1 z-20"><span className="material-symbols-outlined text-[17px]">close</span></button></div>;
 }
 /** 정의: 비디오 메타데이터를 비동기로 읽어 10초 제한 검증에 사용할 재생 시간을 반환한다. @param {string} url object URL */
 function getVideoDuration(url) { return new Promise((resolve) => { const video = document.createElement('video'); let settled = false; const finish = (duration) => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(duration); }; const timeout = window.setTimeout(() => finish(Number.NaN), 6000); video.preload = 'metadata'; video.onloadedmetadata = () => finish(Number.isFinite(video.duration) ? video.duration : Number.NaN); video.onerror = () => finish(Number.NaN); video.src = url; video.load(); }); }
