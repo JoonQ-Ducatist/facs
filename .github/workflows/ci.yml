@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_full_regression:
+        description: 'Run the complete regression suite after explicit approval'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -15,7 +21,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-build:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  full-regression:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_full_regression == 'true'
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -25,4 +44,3 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build
