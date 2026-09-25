@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -88,6 +88,20 @@ test('server feed preserves the private personalized order returned by the RPC',
   const result = await listSupabasePublishedPosts({ limit: 20, client });
   assert.deepEqual(calls, [{ name: 'get_personalized_feed_post_ids', args: { page_size: 20, category_filter: null } }]);
   assert.deepEqual(result.data.map((post) => post.id), ['post-a', 'post-b']);
+});
+
+test('feed cards retain an RPC failure instead of reporting an empty successful feed', async () => {
+  const result = await listSupabasePublishedFeedCards({ client: { rpc: async () => ({ data: null, error: { code: 'PGRST000' } }) } });
+  assert.equal(result.data, undefined);
+  assert.equal(result.error.code, 'INTERNAL_ERROR');
+  assert.equal(result.meta.source, 'feed-order');
+});
+
+test('feed cards keep a normal empty personalized result as a successful empty feed', async () => {
+  const result = await listSupabasePublishedFeedCards({ client: { rpc: async () => ({ data: [], error: null }) } });
+  assert.deepEqual(result.data, []);
+  assert.equal(result.error, undefined);
+  assert.equal(result.meta.source, 'supabase');
 });
 
 test('feed aggregate reads a page in one aggregate-only RPC without raw vote rows', async () => {

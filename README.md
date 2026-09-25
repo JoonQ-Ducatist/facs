@@ -266,6 +266,16 @@ npm run dev
 
 터미널에 표시된 로컬 URL로 접속합니다.
 
+### Docker 없이 staging 기능 점검하기
+
+`python3 -m http.server`는 Vite가 변환하는 React 모듈, 환경 설정, CSS 처리를 제공하지 못하므로 FACS 화면 점검에 사용하지 않습니다.
+
+```bash
+npm run dev
+```
+
+`npm run dev`와 `npm run dev:staging`은 같은 Dockerless staging 실행입니다. Docker·Supabase CLI·마이그레이션·seed를 호출하지 않고 `http://127.0.0.1:4173`에서 실제 기능을 점검합니다. `.env.local`에는 운영과 다른 승인된 HTTPS staging Supabase 주소가 있어야 하며, 운영 fallback 주소나 local URL이면 시작하지 않습니다. 실제 계정·업로드·평가처럼 데이터를 바꾸는 점검은 이 주소에서만 수행합니다. 시작 전 staging Supabase의 **Authentication > URL Configuration**에 정확히 `http://127.0.0.1:4173/auth/callback`을 허용 URL로 등록해야 합니다.
+
 ---
 
 ## 📁 Current Prototype Structure

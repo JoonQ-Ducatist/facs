@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { listModerationReports, reviewModerationReport } from './moderationApi.js';
+import { getModerationPostPreview, listModerationReports, reviewModerationReport } from './moderationApi.js';
 
 function client({ rpcData = [], rpcError = null } = {}) {
   const calls = [];
@@ -43,4 +43,20 @@ test('moderation service reviews only allowed next states and maps permission er
   assert.deepEqual(fake.calls, [{ name: 'review_report', args: { target_report_id: 'report-a', next_status: 'triaged' } }]);
   assert.deepEqual(await reviewModerationReport('report-a', 'received', { client: fake }), { error: 'VALIDATION_FAILED' });
   assert.deepEqual(await reviewModerationReport('report-a', 'triaged', { client: client({ rpcError: { code: '42501' } }) }), { error: 'FORBIDDEN' });
+});
+
+test('moderation post preview signs only the reported asset and omits reporter identity', async () => {
+  const fake = client({ rpcData: [{
+    report_id: 'report-a', post_id: 'post-a', question: 'Is this work-ready?', category: 'work',
+    author_handle: 'author_a', visibility: 'followers', published_at: '2026-09-25T00:00:00.000Z',
+    preview_asset_id: 'asset-a', preview_storage_path: 'uploads/asset-a', preview_media_type: 'image', reporter_id: 'member-a',
+  }] });
+  fake.storage = { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.test/asset-a' }, error: null }) }) };
+  const result = await getModerationPostPreview('report-a', { client: fake });
+  assert.deepEqual(fake.calls, [{ name: 'get_moderation_post_preview', args: { target_report_id: 'report-a' } }]);
+  assert.deepEqual(result, { data: {
+    reportId: 'report-a', postId: 'post-a', question: 'Is this work-ready?', category: 'work', authorHandle: 'author_a',
+    visibility: 'followers', publishedAt: '2026-09-25T00:00:00.000Z', media: { id: 'asset-a', type: 'image', url: 'https://signed.test/asset-a' },
+  } });
+  assert.equal('reporterId' in result.data, false);
 });

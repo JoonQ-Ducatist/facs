@@ -45,6 +45,34 @@ export async function listModerationReports({ status = null, limit = 50, client 
   return { data: (data ?? []).map(mapReport) };
 }
 
+/** Returns one reported post's staff-only review preview with a short-lived media URL. */
+export async function getModerationPostPreview(reportId, { client = supabase } = {}) {
+  if (!reportId) return { error: 'VALIDATION_FAILED' };
+  const identity = await requireUser(client);
+  if (identity.error) return identity;
+  const { data, error } = await client.rpc('get_moderation_post_preview', { target_report_id: reportId });
+  if (error) return moderationError(error);
+  const preview = Array.isArray(data) ? data[0] : data;
+  if (!preview) return { error: 'NOT_FOUND' };
+  let media = null;
+  if (preview.preview_asset_id && preview.preview_storage_path && preview.preview_media_type && client.storage?.from) {
+    const { data: signed, error: signedError } = await client.storage.from('facs-media').createSignedUrl(preview.preview_storage_path, 60 * 10);
+    if (!signedError && signed?.signedUrl) media = { id: preview.preview_asset_id, type: preview.preview_media_type, url: signed.signedUrl };
+  }
+  return {
+    data: {
+      reportId: preview.report_id,
+      postId: preview.post_id,
+      question: preview.question,
+      category: preview.category,
+      authorHandle: preview.author_handle,
+      visibility: preview.visibility,
+      publishedAt: preview.published_at,
+      media,
+    },
+  };
+}
+
 /** Applies one server-validated report transition and returns the last reviewer metadata. */
 export async function reviewModerationReport(reportId, nextStatus, { client = supabase } = {}) {
   if (!reportId || !REVIEW_NEXT_STATUSES.has(nextStatus)) return { error: 'VALIDATION_FAILED' };

@@ -27,7 +27,10 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /const \[brandSplashComplete, setBrandSplashComplete\] = useState\(false\)/);
   assert.match(source, /if \(!brandSplashComplete\) return <CanvasStage locale=\{locale\}><BrandSplashView/);
   assert.match(source, /if \(!authReady\) return <CanvasStage locale=\{locale\}><StatePanel/);
-  assert.match(source, /if \(isGuest\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
+  assert.match(source, /const mustEnterAuth = isGuest \|\| \(!authUser && !sharedPostId\);/);
+  assert.match(source, /if \(mustEnterAuth\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
+  assert.match(source, /if \(!session\) \{[\s\S]*?setAuthUser\(null\);[\s\S]*?if \(!sharedPostId\) setIsGuest\(true\);/);
+  assert.match(source, /localQaEnabled=\{localQaEnabled\}[\s\S]*?allowPreviewBypass=\{false\}/);
 });
 
 test('brand surfaces use the static transparent moth asset without color inversion', async () => {

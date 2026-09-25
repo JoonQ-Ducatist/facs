@@ -23,7 +23,7 @@ import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { submitPostReport } from './services/reportsApi.js';
-import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './services/authConfig.js';
+import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
@@ -82,7 +82,6 @@ export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
   const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
-  const previewBypassAllowed = useMemo(() => isPreviewBypassAllowed(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   const splashPreview = new URLSearchParams(window.location.search).get('splashPreview') === '1';
@@ -104,6 +103,7 @@ export default function App() {
   const [profileCards, setProfileCards] = useState(null);
   const [scrapCards, setScrapCards] = useState(null);
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
+  const [feedLoadError, setFeedLoadError] = useState(false);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [featuredPostId, setFeaturedPostId] = useState(null);
@@ -123,6 +123,7 @@ export default function App() {
   const mainRef = useRef(null);
   const authCallbackHandled = useRef(false);
   const authCallbackExchange = useRef(null);
+
   const authTransitionPending = useRef(false);
   const authTransitionConsumed = useRef(false);
   const pendingPublishedCard = useRef(null);
@@ -224,6 +225,9 @@ export default function App() {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         setAuthUser(null);
+        // Feed is member-only. Preserve the separate shared-post route, but
+        // return every ordinary local QA/session-loss path to authentication.
+        if (!sharedPostId) setIsGuest(true);
         return;
       }
       finishAuthenticatedEntry(session, {
@@ -382,11 +386,16 @@ export default function App() {
     let active = true;
     if (!authUser) { setFeedHydrated(true); return undefined; }
     setFeedHydrated(false);
+    setFeedLoadError(false);
     async function hydrateFeed() {
       try {
         const result = await listSupabasePublishedFeedCards();
         if (!active) return;
-        const serverCards = result.error ? [] : (result.data ?? []);
+        if (result.error) {
+          setFeedLoadError(true);
+          return;
+        }
+        const serverCards = result.data ?? [];
         if (serverCards.length) {
           const serverIds = new Set(serverCards.map((card) => card.id));
           const hydratedServerCards = serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
@@ -888,8 +897,8 @@ export default function App() {
       return {
         ...result,
         message: locale === 'en'
-          ? 'Google sign-in is being set up. Please use email for now.'
-          : 'Google 로그인을 설정하고 있어요. 지금은 이메일로 계속해 주세요.',
+          ? 'Google sign-in is available after the staging authentication provider is configured.'
+          : 'Google 로그인은 스테이징 인증 제공자 설정 후 사용할 수 있습니다.',
       };
     }
     window.location.assign(result.url);
@@ -1111,8 +1120,10 @@ export default function App() {
 
   if (!brandSplashComplete) return <CanvasStage locale={locale}><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (isGuest) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={previewBypassAllowed} onPreview={previewBypassAllowed ? () => { setIsGuest(false); setIsSharedGuest(false); setActiveTab('feed'); setToast(locale === 'en' ? 'Preview mode opened the feed.' : '미리보기 모드로 피드를 열었습니다.'); } : undefined} /></CanvasStage>;
+  const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
+  if (mustEnterAuth) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} /></CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
+  if (feedLoadError) return <CanvasStage locale={locale}><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
   return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />

@@ -39,6 +39,15 @@ test('sharing stays with the card action row instead of competing with media con
   assert.doesNotMatch(source, /ShareRailButton/);
 });
 
+test('signed-in viewers can report another author with every approved reason and immediate submission state', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  for (const reason of ['spam', 'hate', 'harassment', 'sexual_content', 'privacy', 'defamation', 'social_norm_violation', 'other']) assert.match(source, new RegExp(`\\['${reason}'`));
+  assert.match(source, /canReport=\{Boolean\(currentUserId && card\.authorId\) && card\.authorId !== currentUserId\}/);
+  assert.match(source, /const result = await onSubmit\(reason\)/);
+  assert.match(source, /setNotice\(korean \? '신고가 접수됐어요\.'/);
+  assert.match(source, /higher-layer dialog[\s\S]*?onClose\(\);/);
+});
+
 test('feed cards render protected media and adjacent multi-photo previews', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /media-peek media-peek--continuous media-peek--left/);

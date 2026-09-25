@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/start-local-auth-dev.mjs",
+    "dev": "node scripts/start-staging-dev.mjs",
     "dev:vite": "vite",
+    "dev:staging": "node scripts/start-staging-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
@@ -16,12 +17,7 @@
     "test:profile": "node --test src/features/profile/*.test.js src/services/profileService.test.js",
     "test:upload": "node --test src/features/upload/*.test.js src/services/storageContract.test.js",
     "test:safety": "node --test src/services/reportsApi.test.js src/services/scrapsApi.test.js src/services/followsApi.test.js",
-    "test:shell": "node --test src/services/appShellLifecycle.test.js src/services/landscapeLayout.contract.test.js",
-    "dev:local": "node scripts/start-local-auth-dev.mjs",
-    "supabase:start": "npx supabase start",
-    "supabase:stop": "npx supabase stop",
-    "supabase:status": "npx supabase status",
-    "qa:local-accounts": "node scripts/qa/local-account-e2e.mjs"
+    "test:shell": "node --test src/services/appShellLifecycle.test.js src/services/landscapeLayout.contract.test.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

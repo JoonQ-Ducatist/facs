@@ -263,8 +263,13 @@ export async function listSupabasePublishedFeedCards({ limit = 20, client = supa
   if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
   const pageSize = Math.min(Math.max(limit, 1), 50);
   const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_ids', { page_size: pageSize, category_filter: null });
-  if (orderError) return apiSuccess([], { source: 'degraded' });
+  if (orderError) return feedReadFailure('feed-order');
   return listSupabaseCardsInServerOrder(orderedPosts, { client, source: 'supabase' });
+}
+
+function feedReadFailure(source) {
+  const result = apiFailure(API_ERROR.INTERNAL_ERROR, '피드를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+  return { ...result, meta: { ...result.meta, source } };
 }
 
 /**
@@ -306,7 +311,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
     .select('id,author_id,category,evaluation,question,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
     .eq('status', 'published')
     .in('id', postIds);
-  if (error) return apiSuccess([], { source: 'degraded' });
+  if (error) return feedReadFailure('feed-posts');
 
   const aggregateResult = await getSupabaseFeedAggregates((data ?? []).map((post) => post.id), client);
   // A temporary aggregate failure must not hide otherwise readable feed cards.
@@ -323,9 +328,11 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
     if (!assets.length) return null;
     const signedMedia = await Promise.all(assets.map(async (asset) => {
       const { data: signed, error: signedError } = await client.storage.from('facs-media').createSignedUrl(asset.storage_path, 60 * 60);
-      return signedError ? null : { id: asset.id, type: asset.media_type, url: signed.signedUrl, storagePath: asset.storage_path, objectPosition: 'center 20%' };
+      return signedError || !signed?.signedUrl
+        ? { failed: true }
+        : { id: asset.id, type: asset.media_type, url: signed.signedUrl, storagePath: asset.storage_path, objectPosition: 'center 20%' };
     }));
-    if (signedMedia.some((item) => !item)) return null;
+    if (signedMedia.some((item) => item?.failed)) return { failed: true };
     const media = signedMedia;
     const evaluationType = post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY';
     const aggregate = aggregates.get(post.id);
@@ -355,6 +362,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       comments: [],
     };
   }));
+  if (cards.some((card) => card?.failed)) return feedReadFailure('feed-media');
   return apiSuccess(cards.filter(Boolean), { source });
 }
 

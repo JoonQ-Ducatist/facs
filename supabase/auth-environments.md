@@ -1,30 +1,24 @@
 # FACS authentication environments
 
-## Development: local Supabase + Mailpit
+## Development: Dockerless remote staging
 
-Local authentication never sends a real email. Supabase CLI captures Magic
-Links in Mailpit at `http://127.0.0.1:54324`.
+FACS development uses an approved remote staging Supabase project. Docker,
+Supabase CLI, local Auth, and Mailpit are not development commands.
 
-1. Install Docker Desktop once. It is started automatically by `npm run dev:local`.
-2. Run `npm run supabase:status` and copy the local API URL and anon key into
-   an ignored `.env.local` file as `VITE_SUPABASE_URL` and
-   `VITE_SUPABASE_ANON_KEY`.
-3. Set `VITE_APP_ORIGIN=http://127.0.0.1:5173` and
-   `VITE_AUTH_REDIRECT_URL=http://127.0.0.1:5173/auth/callback`.
-4. Run `npm run dev:local`. It starts Docker Desktop when needed, then local
-   Supabase, Mailpit, and FACS in that order.
-5. Request a Magic Link and open Mailpit to complete it.
+1. Put the staging URL and publishable key in the ignored `.env.local` file.
+2. Run `npm run dev` and open `http://127.0.0.1:4173`.
+3. Register `http://127.0.0.1:4173/auth/callback` in the staging project's
+   Supabase Auth URL Configuration before testing email or OAuth.
 
-The local project permits a 1 second resend interval and a high test-mail
-limit. Those settings live only in `supabase/config.toml` and never affect
-production.
+`supabase/config.toml` and migrations remain repository references for
+deployment and schema work; they do not start a local development service.
 
 ## RLS QA: isolated remote staging project
 
 Use this path when RLS, Auth, follow, or visibility behavior must be tested
-against Supabase Postgres rather than the local emulator. It is a local-only
-browser configuration: do not put these values in Vercel, `main`, a preview
-environment, or a committed file.
+against the approved staging Supabase Postgres project. It is a local-browser
+configuration: do not put these values in Vercel, `main`, a preview environment,
+or a committed file.
 
 ### Approval gate and project readiness
 
