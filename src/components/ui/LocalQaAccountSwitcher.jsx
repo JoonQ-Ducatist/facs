@@ -16,7 +16,9 @@ export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSe
     const result = await onSelect(account.id);
     setPendingId('');
     if (!result?.ok) {
-      setNotice('로컬 QA 계정을 전환하지 못했어요. Docker와 로컬 Supabase 상태를 확인해 주세요.');
+      setNotice(result?.code === 'LOCAL_QA_NOT_CONFIGURED'
+        ? 'QA 계정 설정이 아직 준비되지 않았어요. 로컬 개발 설정을 확인해 주세요.'
+        : 'QA 계정을 전환하지 못했어요. 잠시 후 다시 시도해 주세요.');
       return;
     }
     setOpen(false);
@@ -31,18 +33,18 @@ export default function LocalQaAccountSwitcher({ enabled, currentUserEmail, onSe
     setNotice(result?.ok
       ? '현재 QA 계정의 A/B 차단·팔로우 상태를 초기화했어요.'
       : result?.code === 'LOCAL_QA_COUNTERPART_NOT_READY'
-        ? '먼저 다른 QA 계정으로 한 번 전환한 뒤 다시 초기화해 주세요.'
+      ? '먼저 다른 QA 계정으로 한 번 전환한 뒤 다시 초기화해 주세요.'
         : 'A/B 테스트 상태를 초기화하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
 
   return <>
     <button type="button" onClick={() => setOpen(true)} className={placement === 'splash'
       ? 'absolute left-5 top-10 z-20 rounded-md border border-[#ecd8a8]/60 bg-[#132438]/65 px-2 py-1 font-mono text-[9px] font-bold text-[#ecd8a8] backdrop-blur'
-      : 'flex h-6 items-center justify-center rounded-md border border-dashed border-[#c5a059]/60 px-1.5 font-mono text-[8px] font-bold text-[#735c00] hover:bg-surface-container'} aria-label="로컬 QA 계정 전환">QA 계정</button>
+      : 'flex h-6 items-center justify-center rounded-md border border-dashed border-[#c5a059]/60 px-1.5 font-mono text-[8px] font-bold text-[#735c00] hover:bg-surface-container'} aria-label="QA 계정 전환">QA 계정</button>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent title="로컬 QA 계정 전환">
+      <DialogContent title="QA 계정 전환">
         <section className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" aria-describedby="local-qa-account-description">
-          <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="text-base font-extrabold text-[#1b1c19]">로컬 QA 계정 전환</h2><p id="local-qa-account-description" className="mt-1 text-xs leading-relaxed text-[#74777d]">이 로컬 브라우저에서만 실제 테스트 세션을 바꿉니다. 이메일 발송과 운영 데이터 변경은 없습니다.</p></div><DialogClose className="text-lg leading-none text-[#74777d]" aria-label="닫기">×</DialogClose></div>
+          <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="text-base font-extrabold text-[#1b1c19]">QA 계정 전환</h2><p id="local-qa-account-description" className="mt-1 text-xs leading-relaxed text-[#74777d]">이 로컬 브라우저에서만 실제 테스트 세션을 바꿉니다. 이메일 발송과 운영 데이터 변경은 없습니다.</p></div><DialogClose className="text-lg leading-none text-[#74777d]" aria-label="닫기">×</DialogClose></div>
           <div className="space-y-2">
             {LOCAL_QA_ACCOUNTS.map((account) => {
               const active = currentUserEmail === account.email;
