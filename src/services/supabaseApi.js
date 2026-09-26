@@ -2,10 +2,22 @@ import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 
+export const RIGHTS_CONSENT_DOCUMENT_VERSION = 'photo-rights-v1';
+
+/** Returns whether the signed-in member must accept the current rights notice before an upload. */
+export async function getMyRightsConsentStatus(client = supabase) {
+  if (!client?.rpc) return apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.');
+  const { data, error } = await client.rpc('get_my_rights_consent_status');
+  if (error) return normalizeSupabaseError(error, '권리 확인 상태를 불러오지 못했어요.');
+  const record = Array.isArray(data) ? data[0] : data;
+  return apiSuccess({ required: !record, documentVersion: record?.document_version ?? null, consentedAt: record?.consented_at ?? null });
+}
+
 /** Converts PostgREST errors into the API contract without exposing database internals to the UI. */
 export function normalizeSupabaseError(error, fallback = '요청을 처리하지 못했어요.') {
   if (!error) return null;
   if (error.code === '23505') return apiFailure(API_ERROR.ALREADY_VOTED, '이미 의견을 남긴 게시물이에요.');
+  if (error.code === '22023' && error.message === 'rights consent required') return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 권리 보유 동의가 필요해요.');
   if (error.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '이 작업을 수행할 권한이 없어요.');
   if (error.code === 'PGRST116') return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
   if (error.code === 'PGRST202' || error.code === '42883') return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
@@ -178,9 +190,13 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
  * the post only after every object is present in Storage. The browser never
  * chooses an account-identifying storage path or writes a ready asset state.
  */
-export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media, client = supabase }) {
+export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media, rightsConsent, client = supabase }) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
+  const submitsCurrentRightsConsent = rightsConsent?.confirmed === true && rightsConsent.documentVersion === RIGHTS_CONSENT_DOCUMENT_VERSION;
+  if (rightsConsent && !submitsCurrentRightsConsent) {
+    return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 권리 보유 동의가 필요해요.');
+  }
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
   const inputMedia = media.map((item) => ({
     type: item.type,
@@ -196,6 +212,8 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     input_age_max: evaluationType === 'NUMERIC_AGE' ? ageMax : null,
     input_media: inputMedia,
     input_visibility: visibility,
+    input_rights_confirmed: submitsCurrentRightsConsent,
+    input_rights_document_version: submitsCurrentRightsConsent ? rightsConsent.documentVersion : null,
   });
   if (prepareError || !prepared?.length) return normalizeSupabaseError(prepareError, '업로드를 준비하지 못했어요.');
 

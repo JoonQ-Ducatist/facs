@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getMyRightsConsentStatus, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, RIGHTS_CONSENT_DOCUMENT_VERSION, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -304,7 +304,7 @@ test('published upload performs prepare, storage upload, publish, and signed rea
       createSignedUrl: async (path, expiry) => { calls.push({ name: 'storage.signedUrl', path, expiry }); return { data: { signedUrl: 'https://signed.example/look.jpg' }, error: null }; },
     }) },
   };
-  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file, duration: 0 }], client });
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', rightsConsent: { confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION }, media: [{ type: 'image', file, duration: 0 }], client });
   assert.equal(result.data.post.id, 'post-a');
   assert.equal(result.data.media[0].url, 'https://signed.example/look.jpg');
   assert.deepEqual(calls.map((item) => item.name), ['create_post_upload_with_visibility', 'storage.upload', 'publish_post_upload', 'storage.signedUrl']);
@@ -316,7 +316,30 @@ test('published upload performs prepare, storage upload, publish, and signed rea
     input_age_max: null,
     input_media: [{ type: 'image', mimeType: 'image/jpeg', byteSize: 12, durationMs: null }],
     input_visibility: 'public',
+    input_rights_confirmed: true,
+    input_rights_document_version: RIGHTS_CONSENT_DOCUMENT_VERSION,
   });
+});
+
+test('published upload lets the server reuse a current member consent without a fresh checkbox assertion', async () => {
+  const calls = [];
+  const client = { auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) }, rpc: async (name, args) => { calls.push({ name, args }); return { data: null, error: { code: '22023', message: 'rights consent required' } }; } };
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file: { name: 'look.jpg', type: 'image/jpeg', size: 12 } }], client });
+  assert.equal(result.error.code, 'VALIDATION_FAILED');
+  assert.equal(result.error.message, '사진 권리 보유 동의가 필요해요.');
+  assert.deepEqual(calls, [{ name: 'create_post_upload_with_visibility', args: {
+    input_category: 'outfit', input_evaluation: 'binary', input_question: '괜찮아 보여요?', input_age_min: null, input_age_max: null,
+    input_media: [{ type: 'image', mimeType: 'image/jpeg', byteSize: 12, durationMs: null }], input_visibility: 'public',
+    input_rights_confirmed: false, input_rights_document_version: null,
+  } }]);
+});
+
+test('rights consent status exposes only whether the current version needs confirmation', async () => {
+  const calls = [];
+  const client = { rpc: async (name) => { calls.push(name); return { data: [{ document_version: RIGHTS_CONSENT_DOCUMENT_VERSION, consented_at: '2026-09-26T00:00:00Z' }], error: null }; } };
+  const result = await getMyRightsConsentStatus(client);
+  assert.deepEqual(calls, ['get_my_rights_consent_status']);
+  assert.deepEqual(result.data, { required: false, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION, consentedAt: '2026-09-26T00:00:00Z' });
 });
 
 test('missing upload preparation RPC stops before Storage and keeps a safe configuration error', async () => {
@@ -329,7 +352,7 @@ test('missing upload preparation RPC stops before Storage and keeps a safe confi
     },
     storage: { from: () => ({ upload: async () => { throw new Error('Storage must not be called'); } }) },
   };
-  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file: { name: 'look.jpg', type: 'image/jpeg', size: 12 }, duration: 0 }], client });
+  const result = await createSupabasePublishedPost({ category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', rightsConsent: { confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION }, media: [{ type: 'image', file: { name: 'look.jpg', type: 'image/jpeg', size: 12 }, duration: 0 }], client });
   assert.equal(result.error.code, 'INTERNAL_ERROR');
   assert.equal(result.error.message, '업로드 기능이 아직 활성화되지 않았어요. 잠시 후 다시 시도해 주세요.');
   assert.deepEqual(calls, ['create_post_upload_with_visibility']);
@@ -357,7 +380,7 @@ test('Storage failure stops publish and a retry starts a fresh prepare cycle', a
       createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/look.jpg' }, error: null }),
     }) },
   };
-  const payload = { category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', media: [{ type: 'image', file, duration: 0 }], client };
+  const payload = { category: 'Outfit', evaluationType: 'BINARY', question: '괜찮아 보여요?', rightsConsent: { confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION }, media: [{ type: 'image', file, duration: 0 }], client };
   const first = await createSupabasePublishedPost(payload);
   assert.equal(first.error.message, '사진을 안전하게 저장하지 못했어요.');
   const second = await createSupabasePublishedPost(payload);

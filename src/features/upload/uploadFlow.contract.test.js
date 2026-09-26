@@ -33,7 +33,23 @@ test('upload keeps its form on an upload failure and exposes a retryable error',
   assert.match(source, /const result = await onSubmit\(/);
   assert.match(source, /if \(!result\?\.ok\) \{\s*setError\(result\?\.message/s);
   assert.match(source, /catch \{\s*setError\(/s);
-  assert.match(source, /disabled=\{isPublishing\}/);
+  assert.match(source, /disabled=\{isPublishing \|\| \(rightsConsentRequired && !rightsConfirmed\)\}/);
+});
+
+test('upload requests rights confirmation only until the current member has accepted the current version', async () => {
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /import \{ getMyRightsConsentStatus, RIGHTS_CONSENT_DOCUMENT_VERSION \} from '\.\.\/\.\.\/services\/supabaseApi\.js';/);
+  assert.match(source, /const \[rightsConfirmed, setRightsConfirmed\] = useState\(false\)/);
+  assert.match(source, /const \[rightsConsentRequired, setRightsConsentRequired\] = useState\(true\)/);
+  assert.match(source, /getMyRightsConsentStatus\(\)\.then/);
+  assert.match(source, /if \(rightsConsentRequired && !rightsConfirmed\) nextFieldErrors\.rightsConsent = locale === 'en'/);
+  assert.match(source, /I confirm I own the rights to this photo or video, or have the necessary permission\./);
+  assert.match(source, /게시할 사진·영상에 대한 권리를 보유하거나 필요한 허가를 받았음을 확인합니다\./);
+  assert.match(source, /rightsConsent: rightsConsentRequired \? \{ confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION \} : undefined/);
+  assert.match(source, /\{rightsConsentRequired && <fieldset/);
+  assert.match(source, /disabled=\{isPublishing \|\| \(rightsConsentRequired && !rightsConfirmed\)\}/);
+  assert.match(appSource, /media: card\.media,[\s\S]*?rightsConsent: card\.rightsConsent,/);
 });
 
 test('only a successful upload switches from Upload to Feed', async () => {

@@ -694,6 +694,7 @@ export default function App() {
       ageMin: card.ageMin ?? null,
       ageMax: card.ageMax ?? null,
       media: card.media,
+      rightsConsent: card.rightsConsent,
     });
     if (result.error) {
       const message = locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.';

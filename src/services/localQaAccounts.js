@@ -25,14 +25,17 @@ function rememberMemberId(accountId, userId) {
   } catch { /* Private browsing may deny Storage; the account switch still works. */ }
 }
 
-/** True only for an explicit local QA URL; Preview and production can never enable this. */
+/** True only for local development origins; Preview and production can never enable this. */
 export function isLocalQaAccountMode(origin = typeof window === 'undefined' ? '' : window.location.origin, search = typeof window === 'undefined' ? '' : window.location.search, development = import.meta.env?.DEV) {
+  // Retain the injected location argument for callers and tests. Local
+  // development is the sole gate, so the default local URL exposes the
+  // switcher without a hidden query parameter.
+  void search;
   try {
     const url = new URL(origin);
     return Boolean(development)
       && url.protocol === 'http:'
-      && ['127.0.0.1', 'localhost'].includes(url.hostname)
-      && new URLSearchParams(search).get('qaAccounts') === '1';
+      && ['127.0.0.1', 'localhost'].includes(url.hostname);
   } catch {
     return false;
   }
