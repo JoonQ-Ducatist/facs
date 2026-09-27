@@ -45,6 +45,14 @@ test('moderation service reviews only allowed next states and maps permission er
   assert.deepEqual(await reviewModerationReport('report-a', 'triaged', { client: client({ rpcError: { code: '42501' } }) }), { error: 'FORBIDDEN' });
 });
 
+test('moderation service turns a dropped queue request into a recoverable unavailable result', async () => {
+  const result = await listModerationReports({ client: {
+    auth: { getUser: async () => ({ data: { user: { id: 'staff-a' } }, error: null }) },
+    rpc: async () => { throw new Error('network dropped'); },
+  } });
+  assert.deepEqual(result, { error: 'UNAVAILABLE' });
+});
+
 test('moderation post preview signs only the reported asset and omits reporter identity', async () => {
   const fake = client({ rpcData: [{
     report_id: 'report-a', post_id: 'post-a', question: 'Is this work-ready?', category: 'work',

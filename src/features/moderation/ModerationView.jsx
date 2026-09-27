@@ -9,7 +9,7 @@ export function canAccessModeration(role) {
 }
 
 /** Minimal staff-only report workflow. Server RPCs remain the authority for every read and transition. */
-export default function ModerationView({ locale = 'ko', onBack }) {
+export default function ModerationView({ locale = 'ko', sessionKey = '', onBack }) {
   const korean = locale !== 'en';
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +26,34 @@ export default function ModerationView({ locale = 'ko', onBack }) {
       setLoading(false);
     });
     return () => { active = false; };
-  }, [korean]);
+  }, [korean, sessionKey]);
 
   async function transition(report, nextStatus) {
     setPendingId(report.id);
     setNotice('');
-    const result = await reviewModerationReport(report.id, nextStatus);
+    // The server contract keeps an audit step between `received` and a final
+    // decision. Keep that transition internal so staff can decide immediately
+    // on entry without an extra "start review" click.
+    let result;
+    if (report.status === 'received' && ['resolved', 'dismissed'].includes(nextStatus)) {
+      const triaged = await reviewModerationReport(report.id, 'triaged');
+      if (triaged.error) {
+        setPendingId('');
+        setNotice(errorMessage(triaged.error, korean));
+        return;
+      }
+      result = await reviewModerationReport(report.id, nextStatus);
+      if (result.error) {
+        setReports((items) => items.map((item) => item.id === report.id ? {
+          ...item,
+          status: triaged.data.status,
+          reviewedBy: triaged.data.reviewedBy,
+          reviewedAt: triaged.data.reviewedAt,
+        } : item));
+      }
+    } else {
+      result = await reviewModerationReport(report.id, nextStatus);
+    }
     setPendingId('');
     if (result.error) { setNotice(errorMessage(result.error, korean)); return; }
     setReports((items) => items.map((item) => item.id === report.id ? {
@@ -62,10 +84,9 @@ export default function ModerationView({ locale = 'ko', onBack }) {
 }
 
 function ReportItem({ report, korean, pending, onTransition, onPreview }) {
-  const received = report.status === 'received';
-  const triaged = report.status === 'triaged';
+  const actionable = report.status === 'received' || report.status === 'triaged';
   const previewHref = `?post=${encodeURIComponent(report.targetId)}`;
-  return <SurfaceCard as="article" className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-[10px] font-bold text-[#c52a52]">{statusLabel(report.status, korean)}</p><h2 className="mt-1 text-sm font-bold text-white">{reasonLabel(report.reason, korean)}</h2>{report.targetType === 'post' ? <a href={previewHref} onClick={(event) => { event.preventDefault(); onPreview(); }} className="mt-1 inline-flex max-w-full break-all text-[10px] text-cyan-glow underline underline-offset-2">{korean ? '게시물 미리보기' : 'Preview post'} · {report.targetId}</a> : <p className="mt-1 break-all text-[10px] text-slate-400">{report.targetType} · {report.targetId}</p>}{report.detail && <p className="mt-2 text-xs leading-relaxed text-slate-300">{report.detail}</p>}</div><time className="shrink-0 text-[9px] text-slate-500">{formatTime(report.createdAt, korean)}</time></div>{(received || triaged) && <div className="mt-3 flex flex-wrap gap-1.5">{received && <ActionButton disabled={pending} onClick={() => onTransition(report, 'triaged')}>{korean ? '검토 시작' : 'Triage'}</ActionButton>}{triaged && <><ActionButton disabled={pending} onClick={() => onTransition(report, 'resolved')}>{korean ? '신고 적용' : 'Apply report'}</ActionButton><ActionButton muted disabled={pending} onClick={() => onTransition(report, 'dismissed')}>{korean ? '신고 반려' : 'Dismiss report'}</ActionButton></>}</div>}</SurfaceCard>;
+  return <SurfaceCard as="article" className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-[10px] font-bold text-[#c52a52]">{statusLabel(report.status, korean)}</p><h2 className="mt-1 text-sm font-bold text-white">{reasonLabel(report.reason, korean)}</h2>{report.targetType === 'post' ? <a href={previewHref} onClick={(event) => { event.preventDefault(); onPreview(); }} className="mt-1 inline-flex max-w-full break-all text-[10px] text-cyan-glow underline underline-offset-2">{korean ? '게시물 미리보기' : 'Preview post'} · {report.targetId}</a> : <p className="mt-1 break-all text-[10px] text-slate-400">{report.targetType} · {report.targetId}</p>}{report.detail && <p className="mt-2 text-xs leading-relaxed text-slate-300">{report.detail}</p>}</div><time className="shrink-0 text-[9px] text-slate-500">{formatTime(report.createdAt, korean)}</time></div>{actionable && <div className="mt-3 flex flex-wrap gap-1.5"><ActionButton disabled={pending} onClick={() => onTransition(report, 'resolved')}>{korean ? '신고 적용' : 'Apply report'}</ActionButton><ActionButton muted disabled={pending} onClick={() => onTransition(report, 'dismissed')}>{korean ? '신고 반려' : 'Dismiss report'}</ActionButton></div>}</SurfaceCard>;
 }
 
 function ReportPostPreviewDialog({ locale, report, preview, loading, error, onClose }) {

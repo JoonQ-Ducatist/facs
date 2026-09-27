@@ -5,8 +5,12 @@ const REVIEW_NEXT_STATUSES = new Set(['triaged', 'resolved', 'dismissed']);
 
 async function requireUser(client) {
   if (!client) return { error: 'AUTH_REQUIRED' };
-  const { data, error } = await client.auth.getUser();
-  return error || !data.user ? { error: 'AUTH_REQUIRED' } : { user: data.user };
+  try {
+    const { data, error } = await client.auth.getUser();
+    return error || !data.user ? { error: 'AUTH_REQUIRED' } : { user: data.user };
+  } catch {
+    return { error: 'UNAVAILABLE' };
+  }
 }
 
 function moderationError(error) {
@@ -37,10 +41,16 @@ export async function listModerationReports({ status = null, limit = 50, client 
   const identity = await requireUser(client);
   if (identity.error) return identity;
   const pageSize = Math.min(Math.max(Number(limit) || 50, 1), 100);
-  const { data, error } = await client.rpc('get_moderation_report_queue', {
-    status_filter: status,
-    page_size: pageSize,
-  });
+  let data;
+  let error;
+  try {
+    ({ data, error } = await client.rpc('get_moderation_report_queue', {
+      status_filter: status,
+      page_size: pageSize,
+    }));
+  } catch {
+    return { error: 'UNAVAILABLE' };
+  }
   if (error) return moderationError(error);
   return { data: (data ?? []).map(mapReport) };
 }
@@ -50,7 +60,13 @@ export async function getModerationPostPreview(reportId, { client = supabase } =
   if (!reportId) return { error: 'VALIDATION_FAILED' };
   const identity = await requireUser(client);
   if (identity.error) return identity;
-  const { data, error } = await client.rpc('get_moderation_post_preview', { target_report_id: reportId });
+  let data;
+  let error;
+  try {
+    ({ data, error } = await client.rpc('get_moderation_post_preview', { target_report_id: reportId }));
+  } catch {
+    return { error: 'UNAVAILABLE' };
+  }
   if (error) return moderationError(error);
   const preview = Array.isArray(data) ? data[0] : data;
   if (!preview) return { error: 'NOT_FOUND' };
@@ -78,10 +94,16 @@ export async function reviewModerationReport(reportId, nextStatus, { client = su
   if (!reportId || !REVIEW_NEXT_STATUSES.has(nextStatus)) return { error: 'VALIDATION_FAILED' };
   const identity = await requireUser(client);
   if (identity.error) return identity;
-  const { data, error } = await client.rpc('review_report', {
-    target_report_id: reportId,
-    next_status: nextStatus,
-  });
+  let data;
+  let error;
+  try {
+    ({ data, error } = await client.rpc('review_report', {
+      target_report_id: reportId,
+      next_status: nextStatus,
+    }));
+  } catch {
+    return { error: 'UNAVAILABLE' };
+  }
   if (error) return moderationError(error);
   const reviewed = Array.isArray(data) ? data[0] : data;
   if (!reviewed) return { error: 'UNAVAILABLE' };

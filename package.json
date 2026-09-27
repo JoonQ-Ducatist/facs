@@ -7,6 +7,7 @@
     "dev": "node scripts/start-staging-dev.mjs",
     "dev:vite": "vite",
     "dev:staging": "node scripts/start-staging-dev.mjs",
+    "check:staging-schema": "node scripts/check-staging-schema.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",

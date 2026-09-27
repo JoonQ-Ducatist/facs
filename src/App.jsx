@@ -22,7 +22,7 @@ import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWind
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
-import { submitPostReport } from './services/reportsApi.js';
+import { reportDeduplicationKey, submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
@@ -122,6 +122,8 @@ export default function App() {
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
   const authCallbackHandled = useRef(false);
+  const signupAnalyticsTracked = useRef(false);
+  const reportedPostReasons = useRef(new Set());
   const authCallbackExchange = useRef(null);
 
   const authTransitionPending = useRef(false);
@@ -179,6 +181,13 @@ export default function App() {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       setAuthUser(session.user ?? null);
       setIsGuest(false);
+      // Auth providers intentionally reveal no registration state here. For
+      // the product funnel, count this browser session's first completed entry
+      // once, without adding an account identifier to analytics.
+      if (!signupAnalyticsTracked.current) {
+        signupAnalyticsTracked.current = true;
+        trackEvent(ANALYTICS_EVENT.SIGNUP_COMPLETED);
+      }
 
       // A direct OTP verification does not carry a callback URL. Treat the
       // explicit unlock event as a complete sign-in once. Session restoration
@@ -644,8 +653,8 @@ export default function App() {
       if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
       return next;
     });
-    trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
-    trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
+    trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { postId: currentCard.id, category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
+    trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { postId: currentCard.id, category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
     if (result.data.aggregatePending) {
       const aggregate = await getSupabaseAggregate(currentCard.id);
       if (aggregate.data) setCards((items) => items.map((card) => card.id === currentCard.id ? applyAggregateToCard(card, aggregate.data) : card));
@@ -734,7 +743,7 @@ export default function App() {
       window.scrollTo(0, 0);
       mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     });
-    trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
+    trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { postId: publishedCard.id, category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
     return { ok: true, data: publishedCard };
   }
@@ -915,6 +924,9 @@ export default function App() {
       authTransitionConsumed.current = true;
       setIsSharedGuest(false);
       setIsGuest(false);
+      // `setSession` has completed, so make the new identity visible before
+      // profile-only routes can request their staff-gated data.
+      setAuthUser(result.user);
       // Supabase emits SIGNED_IN before the local QA helper finishes repairing
       // an older placeholder handle. Use the server-confirmed profile returned
       // by that helper so Upload never sees the stale placeholder snapshot.
@@ -1072,9 +1084,20 @@ export default function App() {
   /** Keeps reports private while giving the member a clear, retryable result. */
   async function reportPost(postId, reason) {
     if (!authUser) { setIsGuest(true); setToast(locale === 'en' ? 'Sign in to report this post.' : '신고하려면 로그인해 주세요.'); return { ok: false }; }
+    const reportKey = reportDeduplicationKey(authUser.id, postId, reason);
+    if (!reportKey) { setToast(locale === 'en' ? 'Your report could not be sent. Please try again.' : '신고를 접수하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    if (reportedPostReasons.current.has(reportKey)) {
+      setToast(locale === 'en' ? 'You have already reported this post for that reason.' : '이미 같은 사유로 신고한 게시물이에요.');
+      return { ok: false };
+    }
     const result = await submitPostReport(postId, reason);
-    if (result.error === 'ALREADY_REPORTED') { setToast(locale === 'en' ? 'You have already reported this post for that reason.' : '이미 같은 사유로 신고한 게시물이에요.'); return { ok: false }; }
+    if (result.error === 'ALREADY_REPORTED') {
+      reportedPostReasons.current.add(reportKey);
+      setToast(locale === 'en' ? 'You have already reported this post for that reason.' : '이미 같은 사유로 신고한 게시물이에요.');
+      return { ok: false };
+    }
     if (result.error) { setToast(locale === 'en' ? 'Your report could not be sent. Please try again.' : '신고를 접수하지 못했어요. 다시 시도해 주세요.'); return { ok: false }; }
+    reportedPostReasons.current.add(reportKey);
     setToast(locale === 'en' ? 'Your report was received. Thank you.' : '신고가 접수되었어요. 알려주셔서 감사합니다.');
     return { ok: true };
   }
@@ -1162,7 +1185,7 @@ export default function App() {
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onUnblock={unblockAuthor} onSignOut={signOut} />}
-        {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} onBack={() => setActiveTab('profile')} />}
+        {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
       </>}
     </main>
 

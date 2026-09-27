@@ -2,6 +2,16 @@
 
 이 문서는 `facs-rls-test`처럼 운영과 분리된 Supabase 프로젝트에 저장소의 migration을 적용하기 위한 절차다. 운영 프로젝트에는 사용하지 않는다. `service_role`, DB 비밀번호, OAuth secret은 필요하지 않으며 요청·기록하지 않는다.
 
+## 0. UI QA 전 스키마 가드
+
+migration을 적용하거나 staging을 새로 만든 뒤에는 먼저 저장소 루트에서 아래 명령을 실행한다.
+
+```bash
+npm run check:staging-schema
+```
+
+가드는 `.env.local`의 staging URL이 `.env`의 운영 URL과 다른지 확인하고, 이번 moderation/media 회귀와 관련된 migration 계약 및 staging PostgREST OpenAPI의 신고 큐·게시물 미리보기 RPC를 읽기 전용으로 점검한다. 누락 파일·계약 토큰·RPC가 있으면 0이 아닌 코드로 종료하므로 UI QA를 시작하지 않는다. 이 명령은 migration을 실행하거나 데이터를 변경하지 않는다.
+
 ## 1. 어떤 세트를 실행할지
 
 ### Core-only: 핵심 RLS만 확인

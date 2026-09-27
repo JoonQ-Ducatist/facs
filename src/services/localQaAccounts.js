@@ -62,7 +62,7 @@ async function completeLocalQaSignIn(account, user, client) {
   const profileResult = await ensureLocalQaProfile(account, user?.id, client);
   if (!profileResult.ok) return profileResult;
   rememberMemberId(account.id, user.id);
-  return { ok: true, account, profile: profileResult.profile };
+  return { ok: true, account, user, profile: profileResult.profile };
 }
 
 /** Requests a disposable QA session from the local Vite process; no QA password enters the browser bundle. */

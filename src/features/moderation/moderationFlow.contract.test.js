@@ -10,8 +10,8 @@ test('moderation queue uses only the review contract and exposes permitted trans
   const source = await readFile(resolve(featureRoot, 'ModerationView.jsx'), 'utf8');
   assert.match(source, /listModerationReports\(\)/);
   assert.match(source, /reviewModerationReport\(report\.id, nextStatus\)/);
-  assert.match(source, /received && <ActionButton[\s\S]*?'triaged'/);
-  assert.match(source, /triaged && <><ActionButton[\s\S]*?'resolved'[\s\S]*?'dismissed'/);
+  assert.match(source, /report\.status === 'received' && \['resolved', 'dismissed'\]/);
+  assert.match(source, /actionable && <div[\s\S]*?'resolved'[\s\S]*?'dismissed'/);
   assert.match(source, /const staffRoles = new Set\(\['moderator', 'admin'\]\)/);
 });
 
@@ -19,8 +19,14 @@ test('moderation entry stays gated by the persisted staff role', async () => {
   const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const profileSource = await readFile(resolve(featureRoot, '../profile/ProfileView.jsx'), 'utf8');
   assert.match(appSource, /const canModerate = canAccessModeration\(profile\?\.role\)/);
-  assert.match(appSource, /activeTab === 'moderation' && canModerate && <ModerationView/);
+  assert.match(appSource, /activeTab === 'moderation' && canModerate && <ModerationView locale=\{locale\} sessionKey=\{authUser\?\.id \?\? ''\}/);
   assert.match(profileSource, /canModerate && <button type="button" onClick=\{onOpenModeration\}/);
+});
+
+test('moderation queue reloads when the signed-in QA session changes', async () => {
+  const source = await readFile(resolve(featureRoot, 'ModerationView.jsx'), 'utf8');
+  assert.match(source, /function ModerationView\(\{ locale = 'ko', sessionKey = ''/);
+  assert.match(source, /\}, \[korean, sessionKey\]\);/);
 });
 
 test('moderation previews reported posts without leaving the review row and preserves server transitions', async () => {
