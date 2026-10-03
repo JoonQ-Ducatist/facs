@@ -6,6 +6,7 @@ import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavi
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
 import ResultCard from './ResultCard.jsx';
+import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
 export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment }) {
@@ -21,6 +22,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const [feedMotion, setFeedMotion] = useState('');
   const [saveNotice, setSaveNotice] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
+  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const feedLocked = useRef(false);
   const mediaLocked = useRef(false);
@@ -28,7 +30,7 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   const carouselKickTimer = useRef(null);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
-  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); }, [card?.id]);
+  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); setSharePreviewOpen(false); }, [card?.id]);
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
@@ -62,6 +64,14 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   async function toggleSavedCard() {
     const result = await onToggleSave(card.id);
     if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨'));
+  }
+
+  function handleShare() {
+    setSharePreviewOpen(true);
+  }
+
+  function confirmShare() {
+    onShare?.(card);
   }
 
   /** Clears every part of a card gesture so native media controls cannot leave a stale pointer behind. */
@@ -234,11 +244,12 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
       {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
       <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
         {hasVoted || isOwnPost || (canViewLiveReactions && liveReactions.length) ? <>{isAgeEvaluation ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
-        {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onShare={() => onShare(card)} onExpand={() => setExpandedComments(true)} />}
+        {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onShare={handleShare} onExpand={() => setExpandedComments(true)} />}
       </div>
     </article></div>
     {card.commentsAllowed && expandedComments && <CommentPanel card={card} timestamp={publishedTime} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
     {reportOpen && <ReportDialog locale={locale} author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => onReportPost?.(card.id, reason)} />}
+    {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} total={total} yesPercent={yesPercent} noPercent={noPercent} onClose={() => setSharePreviewOpen(false)} onShare={confirmShare} />}
   </section>;
 }
 
