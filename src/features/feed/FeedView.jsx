@@ -1,222 +1,23 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Bookmark, Share2, UserCheck, UserPlus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
-import { resolveTouchFeedDirection, resolveWheelFeedDirection } from './feedNavigation.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
 import ResultCard from './ResultCard.jsx';
 import ShareResultCard from './ShareResultCard.jsx';
 
-/** 정의: 카테고리 필터, 카드 제스처, 투표와 댓글 요약을 제공하는 콘텐츠 중심 피드 화면이다. */
-export default function FeedView({ locale = 'ko', categories, cards, card, currentIndex, activeCategory, hasVoted, isOwnPost = false, boostEligible = false, boostRequested = false, canViewLiveReactions = false, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onPrevious, onNext, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment }) {
-  const [expandedComments, setExpandedComments] = useState(false);
+/** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
+export default function FeedView({ locale = 'ko', categories, cards, activeCategory, votedIds, boostCandidateIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+  const [expandedPost, setExpandedPost] = useState(null);
   const [draft, setDraft] = useState('');
-  const gestureStart = useRef(null);
-  const touchGestureStart = useRef(null);
-  const wheelLocked = useRef(false);
-  const [mediaIndex, setMediaIndex] = useState(0);
-  const [carouselKick, setCarouselKick] = useState('');
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
-  const [feedMotion, setFeedMotion] = useState('');
-  const [saveNotice, setSaveNotice] = useState('');
-  const [reportOpen, setReportOpen] = useState(false);
-  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
-  const feedLocked = useRef(false);
-  const mediaLocked = useRef(false);
-  const mediaCardRef = useRef(null);
-  const carouselKickTimer = useRef(null);
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
-  useEffect(() => { setExpandedComments(false); setDraft(''); setMediaIndex(0); setSaveNotice(''); setSharePreviewOpen(false); }, [card?.id]);
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-  useLayoutEffect(() => {
-    const cardElement = mediaCardRef.current;
-    const carousel = cardElement?.closest('.media-carousel');
-    const main = cardElement?.closest('.editorial-main--feed');
-    if (carousel) carousel.scrollTop = 0;
-    if (main) main.scrollTop = 0;
-  }, [card?.id]);
-  if (!card) return <EmptyFeed locale={locale} onStartUpload={onStartUpload} />;
-  const theme = categories[card.category];
-  const cardMedia = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
-  const hasMultipleMedia = cardMedia.length > 1;
-  const activeMedia = cardMedia[mediaIndex];
-  const isAgeEvaluation = card.evaluationType === 'NUMERIC_AGE';
-  const total = isAgeEvaluation ? card.ageVoteCount : card.yesVotes + card.noVotes;
-  const yesPercent = isAgeEvaluation ? 0 : Math.round((card.yesVotes / total) * 100);
-  const noPercent = 100 - yesPercent;
-  const isSaved = savedPostIds?.has(card.id) ?? false;
-  const publishedTime = formatPublishedTime(card.publishedAt, { locale, now: clockNow }) || card.timestamp;
-
-  /** Prevent browser image-save affordances while leaving explicit controls usable. */
-  function protectMediaEvent(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('button, input, textarea, select, a, [role="dialog"]')) return;
-    event.preventDefault();
-  }
-
-  async function toggleSavedCard() {
-    const result = await onToggleSave(card.id);
-    if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨'));
-  }
-
-  function handleShare() {
-    setSharePreviewOpen(true);
-  }
-
-  function confirmShare() {
-    onShare?.(card);
-  }
-
-  /** Clears every part of a card gesture so native media controls cannot leave a stale pointer behind. */
-  function resetCardGesture() {
-    gestureStart.current = null;
-    setIsDraggingMedia(false);
-    setDragOffset(0);
-  }
-  function cancelCapturedCardGesture() { if (gestureStart.current) resetCardGesture(); }
-
-  /** The landscape carousel owns body scrolling below the fixed category row;
-   * portrait keeps the main feed as its zero-range gesture boundary. */
-  function getCardScrollOwner(element) {
-    const carousel = element.closest('.media-carousel');
-    if (carousel && carousel.scrollHeight > carousel.clientHeight + 2) return carousel;
-    return element.closest('.editorial-main--feed');
-  }
-
-  /** 정의: 카드 표면의 시작 좌표를 기록해 가로 앨범·세로 피드 제스처를 구분한다. @param {PointerEvent} event 포인터 이벤트 */
-  function startCardGesture(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { resetCardGesture(); return; }
-    if (event.target instanceof HTMLVideoElement) {
-      const bounds = event.target.getBoundingClientRect();
-      // Native iOS video controls live along the bottom edge. Keep that strip
-      // dedicated to playhead/volume interactions while the rest of the video
-      // remains part of the card swipe surface.
-      if (event.clientY >= bounds.bottom - 58) { resetCardGesture(); return; }
-    }
-    gestureStart.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType, pointerId: event.pointerId };
-    // Touch must keep its native vertical scroll path. Capturing it here made
-    // landscape cards switch feeds instead of revealing their lower content.
-    if (event.pointerType === 'mouse') event.currentTarget.setPointerCapture?.(event.pointerId);
-  }
-  /** 정의: 가로 이동 거리를 중앙 사진에 반영해 손으로 잡고 넘기는 앨범 전환 감각을 제공한다. @param {PointerEvent} event 포인터 이벤트 */
-  function moveCardGesture(event) {
-    if (!gestureStart.current || gestureStart.current.pointerId !== event.pointerId || cardMedia.length < 2) return;
-    const deltaX = event.clientX - gestureStart.current.x;
-    const deltaY = event.clientY - gestureStart.current.y;
-    if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
-    const width = Math.max(1, mediaCardRef.current?.clientWidth ?? window.innerWidth ?? 320);
-    const atStartBoundary = mediaIndex === 0 && deltaX > 0;
-    const atEndBoundary = mediaIndex === cardMedia.length - 1 && deltaX < 0;
-    const resistedDelta = (atStartBoundary || atEndBoundary) ? deltaX * 0.2 : deltaX;
-    const travelLimit = Math.max(120, width * 0.96);
-    setIsDraggingMedia(true);
-    setDragOffset(Math.max(-travelLimit, Math.min(travelLimit, resistedDelta)));
-  }
-  /** 같은 카드 안에서만 사진을 부드럽게 교체한다. 양옆 미리보기·가로 스와이프·데스크톱 화살표가 같은 전환을 사용한다. */
-  function navigateMedia(direction) {
-    if (mediaLocked.current) return;
-    const nextIndex = Math.max(0, Math.min(cardMedia.length - 1, mediaIndex + direction));
-    if (nextIndex === mediaIndex) return;
-    mediaLocked.current = true;
-    const movingLeft = direction > 0;
-    const travel = Math.max(1, mediaCardRef.current?.clientWidth ?? window.innerWidth ?? 320);
-    setCarouselKick(`media-carousel--kick-${movingLeft ? 'left' : 'right'}`);
-    setIsDraggingMedia(false);
-    setDragOffset(movingLeft ? -travel : travel);
-    window.setTimeout(() => {
-      setMediaIndex(nextIndex);
-      setDragOffset(movingLeft ? travel * 0.08 : -travel * 0.08);
-      window.requestAnimationFrame(() => setDragOffset(0));
-    }, 130);
-    window.clearTimeout(carouselKickTimer.current);
-    carouselKickTimer.current = window.setTimeout(() => { setCarouselKick(''); mediaLocked.current = false; }, 300);
-  }
-  function bounceMedia(direction) {
-    setIsDraggingMedia(false);
-    setDragOffset(0);
-    setCarouselKick(`media-carousel--resist-${direction}`);
-    window.clearTimeout(carouselKickTimer.current);
-    carouselKickTimer.current = window.setTimeout(() => setCarouselKick(''), 220);
-  }
-  /** 정의: 가로 스와이프는 같은 카드의 미디어를, 세로 터치 스와이프는 이전·다음 카드를 표시한다. @param {PointerEvent} event 포인터 이벤트 */
-  function finishCardGesture(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { resetCardGesture(); return; }
-    if (!gestureStart.current || gestureStart.current.pointerId !== event.pointerId) { resetCardGesture(); return; }
-    const start = gestureStart.current;
-    gestureStart.current = null;
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-    const resetDrag = () => { setIsDraggingMedia(false); setDragOffset(0); };
-    if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 42) { resetDrag(); return; }
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      const atStartBoundary = mediaIndex === 0 && deltaX > 0;
-      const atEndBoundary = mediaIndex === cardMedia.length - 1 && deltaX < 0;
-      if (atStartBoundary || atEndBoundary) {
-        bounceMedia(deltaX > 0 ? 'right' : 'left');
-        return;
-      }
-      navigateMedia(deltaX < 0 ? 1 : -1);
-      return;
-    }
-    resetDrag();
-  }
-  /** Keeps vertical touch navigation independent from Pointer Events. Mobile
-   * browsers may cancel a pointer as soon as native scrolling begins, while
-   * touchend still reports the completed gesture consistently. */
-  function startCardTouch(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target || target.closest('button, input, textarea, [data-video-fullscreen-button]')) { touchGestureStart.current = null; return; }
-    const touch = event.touches[0];
-    if (!touch) return;
-    const scroller = getCardScrollOwner(event.currentTarget);
-    touchGestureStart.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      scrollTop: scroller?.scrollTop ?? 0,
-      maxScrollTop: Math.max(0, (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0)),
-    };
-  }
-  function finishCardTouch(event) {
-    const start = touchGestureStart.current;
-    touchGestureStart.current = null;
-    const touch = event.changedTouches[0];
-    if (!start || !touch) return;
-    const direction = resolveTouchFeedDirection({ startX: start.x, startY: start.y, endX: touch.clientX, endY: touch.clientY, scrollTop: start.scrollTop, maxScrollTop: start.maxScrollTop });
-    if (direction) navigateFeed(direction);
-  }
-  /** 정의: 데스크톱 휠의 세로 이동으로 피드를 한 장씩 안전하게 순환한다. @param {WheelEvent} event 마우스 휠 이벤트 */
-  function moveCardByWheel(event) {
-    if (wheelLocked.current) return;
-    const scroller = getCardScrollOwner(event.currentTarget);
-    const direction = resolveWheelFeedDirection({ deltaY: event.deltaY, scrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0 });
-    if (!direction) return;
-    event.preventDefault();
-    wheelLocked.current = true;
-    navigateFeed(direction);
-    window.setTimeout(() => { wheelLocked.current = false; }, 420);
-  }
-
-  /** 정의: 현재 피드를 먼저 부드럽게 밀어낸 뒤 다음 또는 이전 카드를 진입시키는 세로 탐색 전환 제어다. @param {1|-1} direction 1은 다음, -1은 이전 */
-  function navigateFeed(direction) {
-    if (feedLocked.current) return;
-    feedLocked.current = true;
-    setFeedMotion(direction === 1 ? 'feed-card--exit-up' : 'feed-card--exit-down');
-    window.setTimeout(() => {
-      if (direction === 1) onNext(); else onPrevious();
-      setFeedMotion(direction === 1 ? 'feed-card--enter-up' : 'feed-card--enter-down');
-      window.setTimeout(() => { setFeedMotion(''); feedLocked.current = false; }, 310);
-    }, 150);
-  }
-
   /** 정의: PC에서도 스크롤바 없이 카테고리 탭 띠를 잡아 좌우로 탐색한다. */
   function startCategoryDrag(event) {
     // A tap on a category button must remain a click; only the empty rail is draggable.
@@ -226,31 +27,74 @@ export default function FeedView({ locale = 'ko', categories, cards, card, curre
   function moveCategoryDrag(event) { if (!categoryDrag.current || !categoryRailRef.current) return; categoryRailRef.current.scrollLeft = categoryDrag.current.scrollLeft - (event.clientX - categoryDrag.current.x); }
   function endCategoryDrag() { categoryDrag.current = null; }
 
-  return <section className="editorial-feed relative flex h-full w-full min-h-0 flex-col items-center">
+  if (!cards.length) return <EmptyFeed locale={locale} onStartUpload={onStartUpload} />;
+  const expandedCard = expandedPost ? cards.find((item) => item.id === expandedPost.card.id) : null;
+  return <section className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
     <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
 
-    <div className={`media-carousel relative flex min-h-0 w-full flex-1 items-center ${carouselKick}`}>
-    <article ref={mediaCardRef} onPointerDown={startCardGesture} onPointerMove={moveCardGesture} onPointerUp={finishCardGesture} onPointerCancel={resetCardGesture} onLostPointerCapture={cancelCapturedCardGesture} onTouchStart={startCardTouch} onTouchEnd={finishCardTouch} onTouchCancel={() => { touchGestureStart.current = null; }} onWheel={moveCardByWheel} onContextMenu={protectMediaEvent} onDragStart={protectMediaEvent} className={`media-card relative z-10 h-full min-h-0 w-full touch-pan-y overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl ${hasMultipleMedia ? 'media-card--multi' : ''} ${isDraggingMedia ? 'media-card--dragging' : ''} ${feedMotion}`}>
-      {hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left" style={{ transform: `translate3d(calc(-100% + var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex - 1]} locale={locale} className="h-full w-full object-cover object-center" /></button></div>}
-      {hasMultipleMedia && mediaIndex < cardMedia.length - 1 && <div className="media-peek media-peek--continuous media-peek--right" style={{ transform: `translate3d(calc(100% - var(--media-peek-width) + ${dragOffset}px), 0, 0) scale(.96)` }}><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진 미리보기"><CardMedia card={card} media={cardMedia[mediaIndex + 1]} locale={locale} className="h-full w-full object-cover object-center" /></button></div>}
-      <div className={`media-primary absolute z-10 overflow-hidden ${isDraggingMedia ? 'media-primary--dragging' : ''}`} style={{ transform: `translate3d(${dragOffset}px, 0, 0)` }}><CardMedia card={card} media={activeMedia} locale={locale} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen /></div>
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />
-      {hasMultipleMedia && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => navigateMedia(-1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => navigateMedia(1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === cardMedia.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
-      <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
-      <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><time dateTime={card.publishedAt || undefined} className="font-mono text-[8px] leading-none text-white/75">{publishedTime}</time></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !card.isMyUpload && card.authorId !== currentUserId} canReport={Boolean(currentUserId && card.authorId) && card.authorId !== currentUserId} following={followingIds?.has(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onToggleFollow={() => onToggleFollow?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`)} onBlock={() => onBlockAuthor?.(card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`, card.author)} onReport={() => setReportOpen(true)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
-      {hasMultipleMedia && <MediaProgress locale={locale} media={cardMedia} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
-      <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h1 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h1></div>
-        {hasVoted || isOwnPost || (canViewLiveReactions && liveReactions.length) ? <>{isAgeEvaluation ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? onBoost : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{canViewLiveReactions && <LiveReactionBalloons reactions={liveReactions} />}</> : isAgeEvaluation ? <AgeVotePanel card={card} color={theme.color} onVote={onVote} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
-        {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={isSaved} color={theme.color} notice={saveNotice} onToggleSave={toggleSavedCard} onShare={handleShare} onExpand={() => setExpandedComments(true)} />}
-      </div>
-    </article></div>
-    {card.commentsAllowed && expandedComments && <CommentPanel card={card} timestamp={publishedTime} media={activeMedia} comments={card.comments ?? []} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedComments(false)} onSubmit={() => { onAddComment(card.id, draft); setDraft(''); }} />}
-    {reportOpen && <ReportDialog locale={locale} author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => onReportPost?.(card.id, reason)} />}
-    {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} total={total} yesPercent={yesPercent} noPercent={noPercent} onClose={() => setSharePreviewOpen(false)} onShare={confirmShare} />}
+    <div className="media-carousel media-carousel--scroll relative w-full">
+      {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={onVote} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
+    </div>
+    {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
   </section>;
+}
+
+function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
+  const [mediaIndex, setMediaIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [saveNotice, setSaveNotice] = useState('');
+  const [reportOpen, setReportOpen] = useState(false);
+  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
+  const videoRef = useRef(null);
+  useEffect(() => { setMediaIndex(0); setIsVideoPlaying(false); setSaveNotice(''); }, [card.id]);
+  const theme = categories[card.category];
+  const media = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
+  const activeMedia = media[mediaIndex];
+  const isVideo = activeMedia?.type === 'video' || String(activeMedia?.type ?? '').startsWith('video/');
+  const isAge = card.evaluationType === 'NUMERIC_AGE';
+  const total = isAge ? card.ageVoteCount : card.yesVotes + card.noVotes;
+  const yesPercent = isAge || total === 0 ? 0 : Math.round((card.yesVotes / total) * 100);
+  const noPercent = 100 - yesPercent;
+  const timestamp = formatPublishedTime(card.publishedAt, { locale, now: clockNow }) || card.timestamp;
+  const authorKey = card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`;
+  async function toggleSaved() { const result = await onToggleSave(card.id); if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨')); }
+  const stopVideoControlGesture = (event) => event.stopPropagation();
+  const toggleInlinePlayback = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    if (!video.paused) { video.pause(); return; }
+    if (video.ended) video.currentTime = 0;
+    void video.play().catch(() => setIsVideoPlaying(false));
+  };
+  const toggleInlinePlaybackFromClick = (event) => {
+    if (event.detail === 0) toggleInlinePlayback(event);
+    else event.stopPropagation();
+  };
+  const enterFullscreen = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
+  };
+  return <article className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
+    <div className="media-primary absolute overflow-hidden"><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen videoControlRef={videoRef} onPlaybackChange={setIsVideoPlaying} /></div>
+    {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
+    {media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => setMediaIndex((index) => Math.max(0, index - 1))} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => setMediaIndex((index) => Math.min(media.length - 1, index + 1))} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
+    <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
+    <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><time dateTime={card.publishedAt || undefined} className="font-mono text-[8px] leading-none text-white/75">{timestamp}</time></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !isOwnPost && card.authorId !== currentUserId} canReport={Boolean(currentUserId && card.authorId) && card.authorId !== currentUserId} following={following} onToggleFollow={() => onToggleFollow?.(authorKey)} onBlock={() => onBlockAuthor?.(authorKey, card.author)} onReport={() => setReportOpen(true)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
+    {media.length > 1 && <MediaProgress locale={locale} media={media} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
+    <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h2 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h2></div>
+      {hasVoted || isOwnPost || liveReactions.length ? <>{isAge ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{liveReactions.length > 0 && <LiveReactionBalloons reactions={liveReactions} />}</> : isAge ? <AgeVotePanel card={card} color={theme.color} onVote={(value) => onVote(value, card)} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
+      {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={saved} color={theme.color} notice={saveNotice} onToggleSave={toggleSaved} onShare={() => setSharePreviewOpen(true)} onExpand={() => onOpenComments({ card, media: activeMedia, timestamp })} />}
+    </div>
+    {isVideo && <div className="video-card-controls absolute inset-0 z-30 pointer-events-none"><button type="button" data-video-play-button aria-pressed={isVideoPlaying} aria-label={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} title={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} className="video-card-play-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={toggleInlinePlayback} onClick={toggleInlinePlaybackFromClick}><span className="material-symbols-outlined" aria-hidden="true">{isVideoPlaying ? 'pause' : 'play_arrow'}</span></button><button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={stopVideoControlGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>}
+    {reportOpen && <ReportDialog locale={locale} author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => onReportPost?.(card.id, reason)} />}
+    {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} total={total} yesPercent={yesPercent} noPercent={noPercent} onClose={() => setSharePreviewOpen(false)} onShare={() => onShare(card)} />}
+  </article>;
 }
 
 /** First-use Feed state: explain the absence and offer one clear next action. */
@@ -327,21 +171,20 @@ function ReportDialog({ locale, author, onClose, onSubmit }) {
 /** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
 function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="rounded-full p-0"><span className="block rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'rgba(255,255,255,.52)' }} /></button>)}</div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
-function CardMedia({ card, media, className, locale = 'ko', muted = false, showFullscreen = false }) {
+function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
   const videoPoster = useVideoPoster(isVideo ? source.url : '');
-  const videoRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  useEffect(() => setIsPlaying(false), [source.url]);
+  const localVideoRef = useRef(null);
+  const videoRef = videoControlRef ?? localVideoRef;
   const protectMedia = (event) => event.preventDefault();
   const isolateVideoTouch = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     if (event.clientY >= bounds.bottom - 58) event.stopPropagation();
   };
   const reportVideoEvent = (event) => {
-    if (event.type === 'play') setIsPlaying(true);
-    if (['pause', 'ended', 'error'].includes(event.type)) setIsPlaying(false);
+    if (event.type === 'play') onPlaybackChange?.(true);
+    if (['pause', 'ended', 'error'].includes(event.type)) onPlaybackChange?.(false);
     if (!import.meta.env.DEV) return;
     const video = event.currentTarget;
     const mediaError = video.error;
@@ -352,26 +195,9 @@ function CardMedia({ card, media, className, locale = 'ko', muted = false, showF
       source: String(video.currentSrc || source.url || '').split('?')[0],
     });
   };
-  const playInline = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.ended) video.currentTime = 0;
-    void video.play().catch(() => setIsPlaying(false));
-  };
-  const enterFullscreen = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-    enterNativeVideoFullscreen(video);
-  };
-  const stopFullscreenGesture = (event) => event.stopPropagation();
   if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
-  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={showFullscreen && !muted ? 'auto' : 'metadata'} controls={!muted} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
-  if (!showFullscreen || muted) return video;
-  return <div className="feed-video-shell">{video}{!isPlaying && <button type="button" data-video-play-button aria-label={locale === 'en' ? 'Play video' : '동영상 재생'} title={locale === 'en' ? 'Play video' : '동영상 재생'} className="video-card-play-button" onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={playInline}><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span></button>}<button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopFullscreenGesture} onPointerMove={stopFullscreenGesture} onPointerUp={stopFullscreenGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>;
+  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={showFullscreen && !muted ? 'auto' : 'metadata'} controls={!muted && !showFullscreen} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
+  return video;
 }
 function useVideoPoster(url) {
   const [poster, setPoster] = useState('');
@@ -420,16 +246,18 @@ function CommentPreview({ locale, comments, saved, color, notice, onToggleSave, 
   const comment = comments[0];
   return <div className="comment-preview relative mt-2 overflow-hidden bg-gradient-to-b from-transparent via-[#061225]/10 to-transparent px-1 py-1.5" aria-label="댓글 미리보기">
     <div className="absolute right-0 top-1/2 z-10 flex h-6 -translate-y-1/2 items-center gap-0"><p role="status" aria-live="polite" className="sr-only">{notice}</p><button type="button" onClick={onToggleSave} aria-pressed={saved} aria-label={locale === 'en' ? (saved ? 'Remove from Scraps' : 'Save to Scraps') : (saved ? '스크랩에서 제거' : '스크랩에 저장')} title={locale === 'en' ? (saved ? 'Remove from Scraps' : 'Save to Scraps') : (saved ? '스크랩에서 제거' : '스크랩에 저장')} className="comment-preview__scrap"><Bookmark aria-hidden="true" size={16} strokeWidth={2.1} fill={saved ? 'currentColor' : 'none'} style={{ color: saved ? color : undefined }} /></button><button type="button" onClick={onShare} aria-label={locale === 'en' ? 'Share this post' : '이 게시물 공유하기'} title={locale === 'en' ? 'Share' : '공유하기'} className="flex h-6 w-6 items-center justify-center text-white/80 transition-colors hover:text-white active:scale-90"><Share2 aria-hidden="true" size={16} strokeWidth={2.1} /></button><button type="button" onClick={onExpand} aria-label="댓글 더 보기" className="flex h-6 items-center gap-0.5 px-1 text-[12px] font-bold text-cyan-glow"><span>더 보기</span><span className="material-symbols-outlined text-[16px]">more_horiz</span></button></div>
-    {comment ? <p className="comment-preview__text truncate pr-32 text-white/90"><strong className="comment-preview__author mr-1 text-cyan-50">@{comment.author}</strong>{comment.body}</p> : <p className="comment-preview__empty pr-32 text-slate-300/80">첫 번째 댓글을 남겨 보세요.</p>}
+    {comment ? <button type="button" onClick={onExpand} className="comment-preview__text block w-full truncate pr-32 text-left text-white/90 transition-colors hover:text-white focus:outline-none focus-visible:text-white"><strong className="comment-preview__author mr-1 text-cyan-50">@{comment.author}</strong>{comment.body}</button> : <button type="button" onClick={onExpand} className="comment-preview__empty pr-32 text-left text-slate-300/80 transition-colors hover:text-white focus:outline-none focus-visible:text-white">첫 번째 댓글을 남겨 보세요.</button>}
   </div>;
 }
 
 /** 정의: PC에서는 사진과 댓글을 나란히 보여 주는 게시물 상세 모달, 모바일에서는 확장 댓글 영역을 제공한다. */
-function CommentPanel({ card, timestamp, media, comments, draft, onDraftChange, onClose, onSubmit }) {
+function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onEdit, onDelete }) {
   const [visibleCount, setVisibleCount] = useState(10);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingBody, setEditingBody] = useState('');
   const mediaItems = card.media?.length ? card.media : [media];
   const [mediaIndex, setMediaIndex] = useState(() => Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id)));
-  useEffect(() => setVisibleCount(10), [comments.length]);
+  useEffect(() => { setVisibleCount(10); setEditingCommentId(null); }, [comments.length]);
   useEffect(() => setMediaIndex(Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id))), [card.id, media?.id]);
   const visibleComments = comments.slice(0, visibleCount);
   const hasMore = comments.length > visibleCount;
@@ -440,7 +268,7 @@ function CommentPanel({ card, timestamp, media, comments, draft, onDraftChange, 
       <div className="comment-panel__media"><CardMedia card={card} media={mediaItems[mediaIndex]} className="h-full w-full object-contain" muted />{mediaItems.length > 1 && <>{mediaIndex > 0 && <button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className="comment-panel__media-nav comment-panel__media-nav--left"><span className="material-symbols-outlined">chevron_left</span></button>}{mediaIndex < mediaItems.length - 1 && <button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className="comment-panel__media-nav comment-panel__media-nav--right"><span className="material-symbols-outlined">chevron_right</span></button>}<span className="comment-panel__media-count">{mediaIndex + 1} / {mediaItems.length}</span></>}</div>
       <div className="comment-panel__content">
         <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
-        <div className="comment-panel__comments">{visibleComments.length ? <><div className="mb-4 flex gap-2"><Avatar author={card.author} /><p className="comment-panel__comment-text text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{card.author}</strong>{card.question.replace('\n', ' ')}</p></div>{visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><p className="comment-panel__comment-text text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p></div>{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>)}</> : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
+        <div className="comment-panel__comments">{visibleComments.length ? visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><div className="min-w-0 flex-1">{editingCommentId === comment.id ? <form className="flex items-center gap-1" onSubmit={async (event) => { event.preventDefault(); if (await onEdit?.(comment.id, editingBody)) setEditingCommentId(null); }}><input aria-label="댓글 수정" value={editingBody} onChange={(event) => setEditingBody(event.target.value)} maxLength="500" className="min-w-0 flex-1 border-b border-[#735c00] bg-transparent py-0.5 text-xs text-[#1b1c19] focus:outline-none" autoFocus /><button type="submit" disabled={!editingBody.trim()} className="text-[11px] font-bold text-[#735c00] disabled:opacity-40">저장</button><button type="button" onClick={() => setEditingCommentId(null)} className="text-[11px] text-[#74777d]">취소</button></form> : <div className="flex items-start gap-1"><p className="comment-panel__comment-text min-w-0 flex-1 text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p>{comment.authorId === currentUserId && <span className="flex shrink-0 items-center gap-0.5"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }} aria-label="댓글 수정" title="댓글 수정" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#735c00]"><Pencil size={13} /></button><button type="button" onClick={() => onDelete?.(comment.id)} aria-label="댓글 삭제" title="댓글 삭제" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#cb2b58]"><Trash2 size={13} /></button></span>}</div>}</div></div>{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>) : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
         {hasMore && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mx-4 flex w-[calc(100%-2rem)] items-center justify-center gap-1 border-t border-[#e4e2dd] py-3 text-xs font-bold text-[#735c00]"><span className="material-symbols-outlined text-base">expand_more</span>댓글 10개 더 보기</button>}
         <form className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><label className="sr-only" htmlFor="comment-draft">댓글 작성</label><span className="material-symbols-outlined text-[23px] text-[#44474c]">sentiment_satisfied</span><input id="comment-draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} maxLength="500" placeholder="댓글 달기..." className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" /><button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">게시</button></form>
       </div>

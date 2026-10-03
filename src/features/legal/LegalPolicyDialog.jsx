@@ -1,0 +1,29 @@
+const COPY = {
+  terms: {
+    ko: { eyebrow: 'MVP 이용약관', title: '서비스 이용 원칙', sections: [['서비스 목적', 'FACt.Smack은 사진과 질문에 대한 참여자의 주관적 평가를 모아 보여주는 서비스입니다. 결과는 사실·의료·전문적 판단이 아닌 참고용 피드백입니다.'], ['회원의 책임', '본인이 촬영했거나 공개·사용 권한을 가진 사진만 올릴 수 있습니다. 타인의 개인정보, 혐오·괴롭힘·성적 대상화 또는 불법 콘텐츠는 올릴 수 없습니다.'], ['콘텐츠 처리', '운영자는 신고 또는 정책 위반이 확인된 게시물을 숨기거나 삭제할 수 있습니다.'], ['MVP 범위', 'Closed Beta 기간에는 기능과 정책이 개선될 수 있으며, 중요한 변경은 서비스 안에서 알립니다.']] },
+    en: { eyebrow: 'MVP TERMS', title: 'How this service works', sections: [['Purpose', 'FACt.Smack collects subjective feedback on photos and questions. Results are reference feedback, not factual, medical, or professional judgments.'], ['Member responsibility', 'Only upload photos you created or have permission to use. Do not upload personal data, hateful, harassing, sexualizing, or unlawful content.'], ['Content handling', 'We may hide or remove posts when a report or policy violation requires it.'], ['MVP scope', 'Features and policies may improve during Closed Beta. Material changes will be announced in the service.']] },
+  },
+  privacy: {
+    ko: { eyebrow: '개인정보 처리 안내', title: '어떤 정보를 왜 다루나요', sections: [['수집 항목', '로그인 제공자 정보, 공개 아이디, 업로드한 미디어와 게시물, 평가·신고·차단 기록을 서비스 운영에 필요한 범위에서 처리합니다.'], ['이용 목적', '인증·피드 제공·평가 집계·신고 검토·부정 이용 방지와 서비스 품질 개선에 사용합니다.'], ['공개 범위', '일반 사용자에게는 실명·이메일·인증 제공자 정보 대신 사용자가 설정한 공개 아이디만 표시합니다.'], ['보관과 삭제', '게시물 삭제와 계정 관련 요청은 운영 정책 및 법적 보관 의무에 따라 처리합니다.']] },
+    en: { eyebrow: 'PRIVACY NOTICE', title: 'What we handle and why', sections: [['Data we handle', 'We process login-provider data, public handle, uploaded media and posts, and rating, report, and block records needed to operate the service.'], ['Purpose', 'We use this data for authentication, feed delivery, aggregate results, report review, abuse prevention, and service quality.'], ['What is public', 'Other members see your chosen public handle, not your real name, email, or login provider.'], ['Retention and deletion', 'Post deletion and account requests are handled under our operating policy and any applicable retention duties.']] },
+  },
+  safety: {
+    ko: { eyebrow: '안전·신고 기준', title: '존중하는 평가를 위한 기준', sections: [['허용하지 않는 콘텐츠', '스팸·사기, 혐오·차별, 괴롭힘·욕설, 성적 콘텐츠, 개인정보 노출, 타인 비방, 사회 통념 위반을 허용하지 않습니다.'], ['신고와 검토', '로그인 회원은 게시물을 신고할 수 있으며, 운영자는 신고 사유와 게시물 미리보기를 검토해 신고 적용 또는 신고 반려를 처리합니다.'], ['차단', '차단하면 양쪽의 게시물·프로필·팔로우 관계와 상호작용이 즉시 숨겨집니다.'], ['긴급한 위험', '즉각적인 위험이나 범죄 상황에서는 서비스 신고보다 지역 긴급기관에 먼저 연락해 주세요.']] },
+    en: { eyebrow: 'SAFETY & REPORTING', title: 'Standards for respectful feedback', sections: [['Not allowed', 'Spam or fraud, hate or discrimination, harassment, sexual content, exposed personal information, defamation, and socially harmful content are not allowed.'], ['Reports and review', 'Signed-in members can report a post. Staff review the reason and preview, then apply or dismiss the report.'], ['Blocking', 'Blocking immediately hides each member’s posts, profiles, follow relationship, and interactions from the other.'], ['Urgent danger', 'For immediate danger or crime, contact local emergency services before using in-service reporting.']] },
+  },
+};
+
+export default function LegalPolicyDialog({ type = 'terms', locale = 'ko', onClose }) {
+  const korean = locale !== 'en';
+  const copy = COPY[type]?.[korean ? 'ko' : 'en'] ?? COPY.terms[korean ? 'ko' : 'en'];
+  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-3 sm:items-center" onClick={onClose}>
+    <section role="dialog" aria-modal="true" aria-labelledby="legal-policy-title" className="max-h-[82dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-[#fbf9f4] text-[#1b1c19] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <header className="sticky top-0 flex items-start justify-between border-b border-[#e4e2dd] bg-[#fbf9f4] px-5 py-4">
+        <div><p className="text-[10px] font-bold tracking-[0.14em] text-[#8a7000]">{copy.eyebrow}</p><h1 id="legal-policy-title" className="mt-1 text-lg font-bold">{copy.title}</h1></div>
+        <button type="button" onClick={onClose} aria-label={korean ? '정책 화면 닫기' : 'Close policy'} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d7d1c5] text-[#575850]"><span className="material-symbols-outlined text-base" aria-hidden="true">close</span></button>
+      </header>
+      <div className="space-y-5 px-5 py-5">{copy.sections.map(([heading, body]) => <section key={heading}><h2 className="text-sm font-bold">{heading}</h2><p className="mt-1.5 text-sm leading-6 text-[#5f625e]">{body}</p></section>)}</div>
+      <p className="border-t border-[#e4e2dd] px-5 py-3 text-[10px] leading-relaxed text-[#7b7d78]">{korean ? '이 안내는 Closed Beta MVP 운영 기준입니다. 정식 공개 전 법률 검토와 사업자·문의 정보 확정이 필요합니다.' : 'This notice describes the Closed Beta MVP. Legal review and final business/contact details are required before public launch.'}</p>
+    </section>
+  </div>;
+}

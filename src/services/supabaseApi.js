@@ -44,6 +44,85 @@ async function requireUser(client = supabase) {
   return { user: data.user };
 }
 
+function mapSupabaseComment(comment) {
+  return {
+    id: comment.id,
+    authorId: comment.author_id,
+    author: comment.author_handle ?? 'member',
+    body: comment.body,
+    createdAt: formatRelativePublishedTime(comment.created_at) ?? '방금 전',
+    createdAtIso: comment.created_at,
+    editedAt: comment.edited_at ?? null,
+    replies: [],
+  };
+}
+
+/** Reads one server-authorized comment page without exposing hidden or deleted records. */
+export async function listSupabasePostComments(postId, { beforeCreatedAt = null, limit = 50, client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  if (!postId) return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
+  const { data, error } = await client.rpc('list_post_comments', {
+    target_post_id: postId,
+    page_size: Math.min(Math.max(limit, 1), 50),
+    before_created_at: beforeCreatedAt,
+  });
+  if (error) return normalizeSupabaseError(error, '댓글을 불러오지 못했어요.');
+  return apiSuccess((data ?? []).map(mapSupabaseComment));
+}
+
+/** Reads one current comment per visible feed post in a single RLS-authorized request. */
+async function listSupabaseFeedCommentPreviews(postIds, client) {
+  if (!postIds.length || typeof client.from !== 'function') return new Map();
+  const { data, error } = await client
+    .from('comments')
+    .select('id,post_id,author_id,body,created_at,updated_at,edited_at,profiles!comments_author_id_fkey(handle)')
+    .in('post_id', postIds)
+    .eq('status', 'published')
+    .order('created_at', { ascending: false });
+  if (error) return new Map();
+  return new Map((data ?? []).reduce((previews, comment) => {
+    if (!previews.has(comment.post_id)) previews.set(comment.post_id, mapSupabaseComment({ ...comment, author_handle: comment.profiles?.handle }));
+    return previews;
+  }, new Map()));
+}
+
+/** Stores a comment through the database boundary, which checks visibility and blocks. */
+export async function createSupabasePostComment(postId, body, client = supabase) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const trimmed = String(body ?? '').trim();
+  if (!postId) return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
+  if (!trimmed || trimmed.length > 500) return apiFailure(API_ERROR.VALIDATION_FAILED, '댓글은 1~500자로 작성해 주세요.');
+  const { data, error } = await client.rpc('create_post_comment', { target_post_id: postId, input_body: trimmed });
+  if (error) return normalizeSupabaseError(error, '댓글을 저장하지 못했어요.');
+  const record = Array.isArray(data) ? data[0] : data;
+  return record ? apiSuccess(mapSupabaseComment(record)) : apiFailure(API_ERROR.INTERNAL_ERROR, '댓글 저장 결과를 확인하지 못했어요.');
+}
+
+/** Updates an authenticated author's own published comment without a time limit. */
+export async function editSupabasePostComment(commentId, body, client = supabase) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const trimmed = String(body ?? '').trim();
+  if (!commentId) return apiFailure(API_ERROR.NOT_FOUND, '댓글을 찾을 수 없어요.');
+  if (!trimmed || trimmed.length > 500) return apiFailure(API_ERROR.VALIDATION_FAILED, '댓글은 1~500자로 작성해 주세요.');
+  const { data, error } = await client.rpc('edit_own_comment', { target_comment_id: commentId, input_body: trimmed });
+  if (error) return normalizeSupabaseError(error, '댓글을 수정하지 못했어요.');
+  const record = Array.isArray(data) ? data[0] : data;
+  return record ? apiSuccess(record) : apiFailure(API_ERROR.INTERNAL_ERROR, '댓글 수정 결과를 확인하지 못했어요.');
+}
+
+/** Soft-deletes an authenticated author's own comment. */
+export async function deleteSupabasePostComment(commentId, client = supabase) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  if (!commentId) return apiFailure(API_ERROR.NOT_FOUND, '댓글을 찾을 수 없어요.');
+  const { error } = await client.rpc('delete_own_comment', { target_comment_id: commentId });
+  if (error) return normalizeSupabaseError(error, '댓글을 삭제하지 못했어요.');
+  return apiSuccess(null);
+}
+
 /** Fetches aggregate-only Result data. Raw vote rows are never selected by the browser. */
 export async function getSupabaseAggregate(postId, client = supabase) {
   if (!client) return apiFailure(API_ERROR.AUTH_REQUIRED, '인증 연결이 설정되지 않았어요.');
@@ -326,7 +405,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
   if (!postIds.length) return apiSuccess([], { source });
   const { data, error } = await client
     .from('posts')
-    .select('id,author_id,category,evaluation,question,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
+    .select('id,author_id,category,evaluation,question,comments_allowed,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
     .eq('status', 'published')
     .in('id', postIds);
   if (error) return feedReadFailure('feed-posts');
@@ -334,6 +413,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
   const aggregateResult = await getSupabaseFeedAggregates((data ?? []).map((post) => post.id), client);
   // A temporary aggregate failure must not hide otherwise readable feed cards.
   const aggregates = aggregateResult.error ? new Map() : aggregateResult.data;
+  const commentPreviews = await listSupabaseFeedCommentPreviews((data ?? []).map((post) => post.id), client);
 
   const orderById = new Map(postIds.map((id, index) => [id, index]));
   const sourceById = new Map((orderedPosts ?? []).map((item) => [item.post_id, item.source]));
@@ -376,8 +456,8 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       publishedAt: post.published_at,
       feedSource: sourceById.get(post.id) ?? 'discovery',
       isMyUpload,
-      commentsAllowed: true,
-      comments: [],
+      commentsAllowed: post.comments_allowed !== false,
+      comments: commentPreviews.has(post.id) ? [commentPreviews.get(post.id)] : [],
     };
   }));
   if (cards.some((card) => card?.failed)) return feedReadFailure('feed-media');

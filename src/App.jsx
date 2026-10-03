@@ -11,13 +11,14 @@ import MothMark from './components/brand/MothMark.jsx';
 import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
 import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
+import LegalPolicyDialog from './features/legal/LegalPolicyDialog.jsx';
 import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePublishedPost, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePostComment, createSupabasePublishedPost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -80,6 +81,7 @@ function CanvasStage({ children }) { return <div className="app-stage"><div clas
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
+  const [policyOpen, setPolicyOpen] = useState(null);
   const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
@@ -568,13 +570,6 @@ export default function App() {
     setCurrentIndex(0);
   }
 
-  /** 정의: 현재 필터 결과 안에서 이전 또는 다음 카드를 순환 이동한다. @param {number} direction -1 또는 1 */
-  function moveCard(direction) {
-    if (!visibleCards.length) return;
-    setFeaturedPostId(null);
-    setCurrentIndex((index) => (index + direction + visibleCards.length) % visibleCards.length);
-  }
-
   /** 정의: 모든 카테고리에서 임의의 카드를 선택하고 안내 토스트를 표시한다. */
   function shuffle() {
     setActiveCategory('ALL');
@@ -606,40 +601,42 @@ export default function App() {
   }
 
   /** 정의: 카테고리 평가 유형에 맞춰 BINARY 또는 NUMERIC_AGE 투표를 기록하고 카드 집계를 동기화한다. @param {boolean|number} value YES/NO 또는 예상 나이 */
-  async function vote(value) {
-    if (isCurrentUserPost) {
+  async function vote(value, targetCard = currentCard) {
+    if (!targetCard) return;
+    const isOwnTargetPost = Boolean(targetCard.authorId === authUser?.id || (targetCard.isMyUpload && !targetCard.authorId));
+    if (isOwnTargetPost) {
       setToast(locale === 'en' ? 'Your own post is not included in its result. Review other members’ evaluations here.' : '내 게시물은 결과에 포함되지 않아요. 다른 사람의 평가를 여기에서 확인해 주세요.');
       return;
     }
-    const payload = currentCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
+    const payload = targetCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
     // 정의: 지원 기기에서 YES는 잔잔한 단일 진동, NO는 분명한 이중 진동을 제공하며 비지원 브라우저는 조용히 통과한다.
-    if (currentCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
-    const result = await submitCardVote(currentCard, payload, votedIds);
+    if (targetCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
+    const result = await submitCardVote(targetCard, payload, votedIds);
     if (result.error) {
       // A previously completed evaluation can surface only when two tabs vote
       // at the same time or an older page has not hydrated yet. Move straight
       // to the result state rather than leaving a dead voting control behind.
-      if (result.error.code === 'ALREADY_VOTED' && isSupabasePost(currentCard)) {
+      if (result.error.code === 'ALREADY_VOTED' && isSupabasePost(targetCard)) {
         setVotedIds((ids) => {
-          const next = new Set([...ids, currentCard.id]);
+          const next = new Set([...ids, targetCard.id]);
           if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
           return next;
         });
-        const aggregate = await getSupabaseAggregate(currentCard.id);
-        if (aggregate.data) setCards((items) => items.map((card) => card.id === currentCard.id ? applyAggregateToCard(card, aggregate.data) : card));
+        const aggregate = await getSupabaseAggregate(targetCard.id);
+        if (aggregate.data) setCards((items) => items.map((card) => card.id === targetCard.id ? applyAggregateToCard(card, aggregate.data) : card));
         setToast(locale === 'en' ? 'Your evaluation is already reflected in this result.' : '이미 남긴 평가는 현재 결과에 반영되어 있어요.');
         return;
       }
       setToast(result.error.message);
       return;
     }
-    setCards((items) => items.map((card) => card.id === currentCard.id ? result.data.post : card));
-    const kind = currentCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
+    setCards((items) => items.map((card) => card.id === targetCard.id ? result.data.post : card));
+    const kind = targetCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
     if (result.data.aggregate) {
       const receivedAt = Date.now();
       setLiveReactions((items) => [...items, {
-        id: `local-${currentCard.id}-${Date.now()}`,
-        postId: currentCard.id,
+        id: `local-${targetCard.id}-${Date.now()}`,
+        postId: targetCard.id,
         kind,
         value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
         aggregate: result.data.aggregate,
@@ -649,37 +646,85 @@ export default function App() {
       }]);
     }
     setVotedIds((ids) => {
-      const next = new Set([...ids, currentCard.id]);
+      const next = new Set([...ids, targetCard.id]);
       if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
       return next;
     });
-    trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { postId: currentCard.id, category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
-    trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { postId: currentCard.id, category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
+    trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { postId: targetCard.id, category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
+    trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { postId: targetCard.id, category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
     if (result.data.aggregatePending) {
-      const aggregate = await getSupabaseAggregate(currentCard.id);
-      if (aggregate.data) setCards((items) => items.map((card) => card.id === currentCard.id ? applyAggregateToCard(card, aggregate.data) : card));
+      const aggregate = await getSupabaseAggregate(targetCard.id);
+      if (aggregate.data) setCards((items) => items.map((card) => card.id === targetCard.id ? applyAggregateToCard(card, aggregate.data) : card));
       setToast(locale === 'en' ? 'Your evaluation was saved. Results are refreshing.' : '평가를 저장했어요. 결과를 새로 불러오는 중이에요.');
       return;
     }
     setToast(locale === 'en'
-      ? (currentCard.evaluationType === 'NUMERIC_AGE' ? `You chose age ${value}.` : value ? 'Your YES vote was recorded.' : 'Your NO vote was recorded.')
-      : (currentCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 평가를 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
+      ? (targetCard.evaluationType === 'NUMERIC_AGE' ? `You chose age ${value}.` : value ? 'Your YES vote was recorded.' : 'Your NO vote was recorded.')
+      : (targetCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 평가를 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
   }
 
-  /** 정의: 유효한 댓글을 현재 목업 카드에 추가한다. @param {string} cardId 게시물 ID @param {string} body 댓글 내용 */
-  function addComment(cardId, body) {
+  /** Writes real-post comments through Supabase and keeps mock-only cards local. */
+  async function addComment(cardId, body) {
     if (!isConfiguredHandle(profile?.handle)) {
       setActiveTab('profile');
       setToast(locale === 'en' ? 'Set your public ID before commenting.' : '댓글을 남기기 전에 공개 아이디를 설정해 주세요.');
-      return;
+      return false;
     }
     const trimmed = body.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
+    const targetCard = cards.find((item) => item.id === cardId);
+    if (isSupabasePost(targetCard)) {
+      const result = await createSupabasePostComment(cardId, trimmed);
+      if (result.error) {
+        setToast(result.error.message);
+        return false;
+      }
+      setCards((items) => items.map((item) => item.id === cardId ? { ...item, comments: [result.data, ...(item.comments ?? [])] } : item));
+      setToast(locale === 'en' ? 'Comment posted.' : '댓글을 남겼습니다.');
+      return true;
+    }
     setCards((items) => items.map((item) => item.id === cardId ? {
       ...item,
-      comments: [...(item.comments ?? []), { id: `local-${Date.now()}`, author: 'you', body: trimmed, createdAt: '방금', replies: [] }],
+      comments: [{ id: `local-${Date.now()}`, authorId: authUser?.id ?? 'local-user', author: profile?.handle ?? 'you', body: trimmed, createdAt: '방금', replies: [] }, ...(item.comments ?? [])],
     } : item));
     setToast(locale === 'en' ? 'Comment posted.' : '댓글을 남겼습니다.');
+    return true;
+  }
+
+  /** Refreshes only the opened post's comments, avoiding comment requests for every feed card. */
+  async function loadComments(cardId) {
+    const targetCard = cards.find((item) => item.id === cardId);
+    if (!isSupabasePost(targetCard)) return;
+    const result = await listSupabasePostComments(cardId);
+    if (result.error) {
+      setToast(result.error.message);
+      return;
+    }
+    setCards((items) => items.map((item) => item.id === cardId ? { ...item, comments: result.data } : item));
+  }
+
+  async function editComment(cardId, commentId, body) {
+    const trimmed = body.trim();
+    if (!trimmed) return false;
+    const targetCard = cards.find((item) => item.id === cardId);
+    if (isSupabasePost(targetCard)) {
+      const result = await editSupabasePostComment(commentId, trimmed);
+      if (result.error) { setToast(result.error.message); return false; }
+    }
+    setCards((items) => items.map((item) => item.id === cardId ? { ...item, comments: (item.comments ?? []).map((comment) => comment.id === commentId ? { ...comment, body: trimmed, editedAt: new Date().toISOString() } : comment) } : item));
+    setToast(locale === 'en' ? 'Comment updated.' : '댓글을 수정했습니다.');
+    return true;
+  }
+
+  async function deleteComment(cardId, commentId) {
+    const targetCard = cards.find((item) => item.id === cardId);
+    if (isSupabasePost(targetCard)) {
+      const result = await deleteSupabasePostComment(commentId);
+      if (result.error) { setToast(result.error.message); return false; }
+    }
+    setCards((items) => items.map((item) => item.id === cardId ? { ...item, comments: (item.comments ?? []).filter((comment) => comment.id !== commentId) } : item));
+    setToast(locale === 'en' ? 'Comment deleted.' : '댓글을 삭제했습니다.');
+    return true;
   }
 
   /** Stores selected media privately, publishes only after storage confirms it, then shows the server-backed card. */
@@ -749,27 +794,28 @@ export default function App() {
   }
 
   /** Requests the server-validated exposure Boost for the current member's post. */
-  async function requestBoostForCurrentCard() {
-    if (!currentCard || !isCurrentUserPost) {
+  async function requestBoostForCurrentCard(targetCard = currentCard) {
+    const isOwnTargetPost = Boolean(targetCard && (targetCard.authorId === authUser?.id || (targetCard.isMyUpload && !targetCard.authorId)));
+    if (!targetCard || !isOwnTargetPost) {
       setToast(locale === 'en' ? 'Boost is available for your own post.' : 'Boost는 내가 올린 게시물에만 요청할 수 있어요.');
       return;
     }
-    if (!isSupabasePost(currentCard)) {
+    if (!isSupabasePost(targetCard)) {
       setToast(locale === 'en' ? 'Boost is available after this post is published.' : '게시가 완료된 후 Boost를 요청할 수 있어요.');
       return;
     }
-    const result = await requestSupabasePostBoost(currentCard.id);
+    const result = await requestSupabasePostBoost(targetCard.id);
     if (result.error) {
       setToast(result.error.message);
       return;
     }
     setBoostCandidateIds((ids) => {
       const next = new Set(ids);
-      next.delete(currentCard.id);
+      next.delete(targetCard.id);
       return next;
     });
-    setCards((items) => items.map((item) => item.id === currentCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
-    trackEvent(ANALYTICS_EVENT.BOOST_REQUESTED, { category: currentCard.category, evaluationType: currentCard.evaluationType, locale });
+    setCards((items) => items.map((item) => item.id === targetCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
+    trackEvent(ANALYTICS_EVENT.BOOST_REQUESTED, { category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
     setToast(locale === 'en' ? 'We will show this post to more people. Its result will not change.' : '더 많은 사람에게 이 게시물을 보여드릴게요. 결과에는 영향을 주지 않아요.');
   }
 
@@ -1145,7 +1191,7 @@ export default function App() {
   if (!brandSplashComplete) return <CanvasStage locale={locale}><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
-  if (mustEnterAuth) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} /></CanvasStage>;
+  if (mustEnterAuth) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage locale={locale}><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
@@ -1181,7 +1227,7 @@ export default function App() {
 
     <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} card={currentCard} currentIndex={safeIndex} activeCategory={activeCategory} hasVoted={currentCard && votedIds.has(currentCard.id)} isOwnPost={isCurrentUserPost} boostEligible={Boolean(currentCard && (!isSupabasePost(currentCard) || boostCandidateIds.has(currentCard.id)))} boostRequested={currentCard?.boostStatus === 'active'} canViewLiveReactions={Boolean(currentCard && (isCurrentUserPost || votedIds.has(currentCard.id)))} liveReactions={liveReactions.filter((reaction) => reaction.postId === currentCard?.id)} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onPrevious={() => moveCard(-1)} onNext={() => moveCard(1)} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onUnblock={unblockAuthor} onSignOut={signOut} />}
@@ -1189,7 +1235,9 @@ export default function App() {
       </>}
     </main>
 
-    <DesktopRecommendationAside cards={displayCards} onProfile={() => setActiveTab('profile')} followingIds={followingIds} currentUserId={authUser?.id} onToggleFollow={toggleFollowing} />
+    <DesktopRecommendationAside cards={displayCards} onProfile={() => setActiveTab('profile')} followingIds={followingIds} currentUserId={authUser?.id} onToggleFollow={toggleFollowing} onOpenPolicy={setPolicyOpen} />
+
+    {policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}
 
     {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
 
@@ -1197,6 +1245,11 @@ export default function App() {
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
+      <div className="desktop-policy-links" aria-label={locale === 'ko' ? '정책 안내' : 'Policy information'}>
+        <button type="button" onClick={() => setPolicyOpen('safety')}>{locale === 'ko' ? '안전·신고' : 'Safety'}</button>
+        <button type="button" onClick={() => setPolicyOpen('privacy')}>{locale === 'ko' ? '개인정보' : 'Privacy'}</button>
+        <button type="button" onClick={() => setPolicyOpen('terms')}>{locale === 'ko' ? '약관' : 'Terms'}</button>
+      </div>
     </nav>
   </div></CanvasStage>;
 }
@@ -1207,7 +1260,7 @@ function BrandWordmark({ compact = false }) {
 }
 
 /** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
-function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUserId, onToggleFollow }) {
+function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUserId, onToggleFollow, onOpenPolicy }) {
   if (!cards.length) return null;
   const suggestions = cards.slice(1, 6);
   return <aside className="desktop-recommendations" aria-label="회원님을 위한 추천">
@@ -1218,7 +1271,7 @@ function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUse
     </button>
     <div className="mb-3 flex items-center justify-between"><h2 className="text-[13px] font-bold text-[#44474c]">회원님을 위한 추천</h2><button type="button" className="text-[11px] font-bold text-[#1b1c19]">모두 보기</button></div>
     <div className="space-y-3">{suggestions.map((item) => { const target = getFollowTargetKey(item.authorId, item.author); const canFollow = Boolean(item.author) && !item.isMyUpload && item.authorId !== currentUserId; const following = followingIds?.has(target); return <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div>{canFollow && <button type="button" onClick={() => onToggleFollow(target)} className="text-[11px] font-bold text-[#5865F2]">{following ? '팔로잉' : '팔로우'}</button>}</div>; })}</div>
-    <p className="mt-8 text-[10px] leading-relaxed text-[#9a9a95]">소개 · 도움말 · 안전 · 개인정보처리방침 · 약관 · 위치 · 언어</p>
+    <p className="mt-8 flex flex-wrap gap-x-2 text-[10px] leading-relaxed text-[#9a9a95]"><span>소개</span><span>·</span><button type="button" onClick={() => onOpenPolicy?.('safety')} className="underline underline-offset-2">안전·신고</button><span>·</span><button type="button" onClick={() => onOpenPolicy?.('privacy')} className="underline underline-offset-2">개인정보처리방침</button><span>·</span><button type="button" onClick={() => onOpenPolicy?.('terms')} className="underline underline-offset-2">약관</button></p>
     <p className="mt-3 font-mono text-[10px] text-[#9a9a95]">© 2026 FACt.Smack</p>
   </aside>;
 }

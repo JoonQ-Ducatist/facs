@@ -9,17 +9,42 @@ const featureRoot = dirname(fileURLToPath(import.meta.url));
 test('feed videos expose a centered play affordance without stealing carousel gestures', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.match(source, /const \[isPlaying, setIsPlaying\] = useState\(false\)/);
+  assert.match(source, /const \[isVideoPlaying, setIsVideoPlaying\] = useState\(false\)/);
   assert.match(source, /data-video-play-button/);
   assert.match(source, /void video\.play\(\)\.catch/);
-  assert.match(source, /!isPlaying && <button[^>]*className="video-card-play-button"/);
-  assert.match(styles, /\.video-card-play-button \{[\s\S]*?left: 50%; top: 50%;[\s\S]*?z-index: 35/);
+  assert.match(source, /controls=\{!muted && !showFullscreen\}/);
+  assert.match(source, /aria-pressed=\{isVideoPlaying\}/);
+  assert.match(source, /\{isVideoPlaying \? 'pause' : 'play_arrow'\}/);
+  assert.match(source, /if \(!video\.paused\) \{\s*video\.pause\(\)/);
+  assert.match(source, /onPointerUp=\{toggleInlinePlayback\}/);
+  assert.match(source, /if \(event\.detail === 0\) toggleInlinePlayback\(event\)/);
+  assert.match(source, /<div className="media-primary absolute overflow-hidden">/);
+  assert.doesNotMatch(source, /<div className="media-primary absolute z-10 overflow-hidden">/);
+  assert.match(source, /<div className="video-card-controls absolute inset-0 z-30 pointer-events-none">/);
+  assert.match(styles, /\.video-card-controls \{[\s\S]*?z-index: 30;[\s\S]*?pointer-events: none/);
+  assert.match(styles, /\.video-card-play-button \{[\s\S]*?left: 50%; top: 50%;[\s\S]*?z-index: 1;[\s\S]*?display: inline-flex !important;[\s\S]*?pointer-events: auto/);
+  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?top: calc\(46px \+ env\(safe-area-inset-top\)\);[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\);[\s\S]*?width: 32px; height: 32px/);
+});
+
+test('feed leaves vertical movement to the native continuous scroll container', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /cards\.map\(\(item\) => <FeedPost/);
+  assert.doesNotMatch(source, /resolveTouchFeedDirection|resolveWheelFeedDirection|touchNavigationLocked|wheelLocked|navigateFeed\(/);
+  assert.match(styles, /Continuous social feed:[\s\S]*?\.editorial-main--feed \{ overflow-y: auto !important/);
+  assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[\s\S]*?flex: 0 0 auto/);
+});
+
+test('continuous feed retains native touch scrolling in portrait and landscape', async () => {
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(styles, /\.feed-post-card \{[\s\S]*?touch-action: pan-y/);
+  assert.match(styles, /@media \(orientation: landscape\)[\s\S]*?\.editorial-main--feed \{ overflow-y: auto !important/);
 });
 
 test('feed preserves the uploaded category selection after publishing', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /setFeaturedPostId\(publishedCard\.id\);\s*\/\/ Keep the uploaded category selected[\s\S]*setActiveCategory\(publishedCard\.category\);/);
-  assert.match(source, /boostRequested=\{currentCard\?\.boostStatus === 'active'\}/);
+  assert.match(source, /boostRequested=\{item\.boostStatus === 'active'\}/);
   assert.match(source, /setBoostCandidateIds\(\(ids\) => new Set\(\[\.\.\.ids, publishedCard\.id\]\)\)/);
   assert.match(source, /next\.delete\(reaction\.postId\)/);
 });

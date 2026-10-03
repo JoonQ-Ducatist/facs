@@ -8,7 +8,7 @@ import { selectAuthFeaturedPosts } from './authFeaturedPosts.js';
 const EMPTY_AUTH_CARDS = [];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 로그인/인증 화면이다. */
-export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
+export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const sourceCards = Array.isArray(cards) ? cards : EMPTY_AUTH_CARDS;
   const popularCards = useMemo(() => selectAuthFeaturedPosts(sourceCards), [sourceCards]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -188,7 +188,11 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
             <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="mt-px h-3 w-3 shrink-0 accent-[#c52a52]" />
             <span>{locale === 'en' ? 'Keep me signed in. Do not use this on a shared device.' : '로그인 상태 유지 · 공용 기기에서는 선택하지 마세요.'}</span>
           </label>
-          <p className="mt-3 text-center text-[9px] leading-relaxed text-white/45">{locale === 'en' ? 'By continuing, you agree to our Terms and Privacy Policy.' : '계속하면 이용약관 및 개인정보 처리방침에 동의하게 됩니다.'}</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] font-medium leading-relaxed text-white/75" aria-label={locale === 'en' ? 'Policy links' : '정책 안내 링크'}>
+            <button type="button" onClick={() => onOpenPolicy?.('terms')} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Terms' : '이용약관'}</button>
+            <button type="button" onClick={() => onOpenPolicy?.('privacy')} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Privacy' : '개인정보 처리방침'}</button>
+            <button type="button" onClick={() => onOpenPolicy?.('safety')} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Safety & reports' : '안전·신고'}</button>
+          </div>
         </section>
       </div>
     </main>
