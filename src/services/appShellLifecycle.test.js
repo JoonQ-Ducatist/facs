@@ -20,22 +20,31 @@ const lifecycleMatrix = [
   ['fullscreen exited', 'active'],
 ];
 
-test('every browser lifecycle state retains one fixed app shell and never scrolls the menus with the document', async (t) => {
+test('every browser lifecycle state retains one fixed app shell and resets only its screen scroll owner', async () => {
   const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
   const app = await readFile(resolve(serviceRoot, '../App.jsx'), 'utf8');
   const html = await readFile(resolve(serviceRoot, '../../index.html'), 'utf8');
 
-  for (const [transition, owner] of lifecycleMatrix) {
-    await t.test(`${transition} remains owned by ${owner}`, () => {
-      assert.match(styles, /\.app-stage \{ position: relative;/);
-      assert.match(styles, /height: 100vh; height: 100dvh;/);
-      assert.match(styles, /html, body, #root \{ width: 100%; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; \}/);
-      assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none;/);
-      assert.doesNotMatch(styles, /--xc-app-offset-top|--xc-app-height/);
-      assert.doesNotMatch(app, /visualViewport|scrollRestoration|setTimeout\(syncAppCanvas/);
-      assert.doesNotMatch(html, /visualViewport|scrollRestoration|normalizeInitialViewport/);
-    });
-  }
+  assert.deepEqual(lifecycleMatrix.map(([transition]) => transition), [
+    'cold load', 'address-bar reload', 'pageshow persisted', 'background then visible',
+    'address bar expanded', 'address bar collapsed', 'portrait to landscape', 'input focused',
+    'file picker returned', 'fullscreen entered', 'fullscreen exited',
+  ]);
+  assert.deepEqual(new Set(lifecycleMatrix.map(([, owner]) => owner)), new Set(['active', 'inner-scroll', 'native-video']));
+  assert.match(styles, /\.app-stage \{ position: relative;/);
+  assert.match(styles, /height: 100vh; height: 100dvh;/);
+  assert.match(styles, /html, body, #root \{ width: 100%; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; \}/);
+  assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none;/);
+  assert.doesNotMatch(styles, /--xc-app-offset-top|--xc-app-height/);
+  assert.doesNotMatch(app, /visualViewport|scrollRestoration|setTimeout\(syncAppCanvas/);
+  assert.doesNotMatch(html, /visualViewport|scrollRestoration|normalizeInitialViewport/);
+  assert.doesNotMatch(app, /if \(isGuest\) return undefined;[\s\S]*?resetScreen/);
+  assert.match(app, /function CanvasStage\(\{ children, screenKey \}\)/);
+  assert.match(app, /document\.scrollingElement\.scrollTop = 0/);
+  assert.match(app, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
+  assert.match(app, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(app, /<CanvasStage screenKey="auth-entry">/);
+  assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}`\}>/);
 });
 
 test('keyboard, file-picker and fullscreen states retain their existing isolated owners', async () => {
@@ -52,8 +61,8 @@ test('keyboard, file-picker and fullscreen states retain their existing isolated
   assert.match(upload, /visualViewport\?\.height \?\? window\.innerHeight/);
   assert.match(upload, /onPointerDown=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
   assert.match(upload, /onTouchStart=\{\(event\) => onTouchStart\(item\.id, event\)\}/);
-  assert.match(feed, /pointerId: event\.pointerId/);
-  assert.match(feed, /enterNativeVideoFullscreen\(video\)/);
+  assert.match(feed, /media-carousel--scroll/);
+  assert.match(feed, /enterNativeVideoFullscreen\(videoRef\.current\)/);
   assert.match(fullscreen, /webkitEnterFullscreen/);
   assert.match(fullscreen, /requestFullscreen/);
 });

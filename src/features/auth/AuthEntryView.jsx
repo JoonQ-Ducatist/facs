@@ -128,7 +128,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const activeCard = popularCards[activeIndex] ?? sourceCards[0] ?? null;
 
   return (
-    <main className="auth-entry-screen relative mx-auto max-w-none bg-[#051424] text-white shadow-2xl">
+    <main data-app-scroll-root className="auth-entry-screen relative mx-auto max-w-none bg-[#051424] text-white shadow-2xl">
       <div className="absolute inset-0" aria-hidden="true">
         {activeCard && <img key={activeCard.id} className="splash-media h-full w-full object-cover" style={{ objectPosition: activeCard.objectPosition }} src={activeCard.imageUrl} alt="" />}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,28,45,0.62)_0%,rgba(14,28,45,0.08)_35%,rgba(14,28,45,0.9)_100%)]" />

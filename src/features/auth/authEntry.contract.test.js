@@ -25,10 +25,10 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /import BrandSplashView from '\.\/features\/auth\/BrandSplashView\.jsx'/);
   assert.match(source, /const \[brandSplashComplete, setBrandSplashComplete\] = useState\(false\)/);
-  assert.match(source, /if \(!brandSplashComplete\) return <CanvasStage locale=\{locale\}><BrandSplashView/);
-  assert.match(source, /if \(!authReady\) return <CanvasStage locale=\{locale\}><StatePanel/);
+  assert.match(source, /if \(!brandSplashComplete\) return <CanvasStage screenKey="splash"><BrandSplashView/);
+  assert.match(source, /if \(!authReady\) return <CanvasStage screenKey="auth-loading"><StatePanel/);
   assert.match(source, /const mustEnterAuth = isGuest \|\| \(!authUser && !sharedPostId\);/);
-  assert.match(source, /if \(mustEnterAuth\) return <CanvasStage locale=\{locale\}><AuthEntryView/);
+  assert.match(source, /if \(mustEnterAuth\) return <CanvasStage screenKey="auth-entry"><AuthEntryView/);
   assert.match(source, /if \(!session\) \{[\s\S]*?setAuthUser\(null\);[\s\S]*?if \(!sharedPostId\) setIsGuest\(true\);/);
   assert.match(source, /localQaEnabled=\{localQaEnabled\}[\s\S]*?allowPreviewBypass=\{false\}/);
 });

@@ -75,8 +75,42 @@ function writeBoostCandidateCache(memberId, candidates) {
   try { window.sessionStorage.setItem(boostCandidateCacheKey(memberId), JSON.stringify(candidates)); } catch { /* Storage can be unavailable in private browsing. */ }
 }
 
-/** 정의: 모바일은 전체 폭, PC·태블릿은 중앙 SNS 콘텐츠 컬럼으로 렌더링하는 반응형 프레임이다. */
-function CanvasStage({ children }) { return <div className="app-stage"><div className="app-canvas">{children}</div></div>; }
+/** 정의: 새 화면이 실제로 마운트된 뒤 브라우저가 복원한 문서·내부 스크롤을 시작점으로 되돌린다. */
+function CanvasStage({ children, screenKey }) {
+  const stageRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const resetScreenOrigin = () => {
+      window.scrollTo(0, 0);
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = 0;
+        document.scrollingElement.scrollLeft = 0;
+      }
+      document.body.scrollTop = 0;
+      document.body.scrollLeft = 0;
+      stageRef.current?.querySelectorAll('[data-app-scroll-root]').forEach((element) => {
+        element.scrollTop = 0;
+        element.scrollLeft = 0;
+      });
+    };
+    let frame = 0;
+    const scheduleReset = () => {
+      resetScreenOrigin();
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => window.requestAnimationFrame(resetScreenOrigin));
+    };
+    scheduleReset();
+    window.addEventListener('pageshow', scheduleReset);
+    window.addEventListener('orientationchange', scheduleReset);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('pageshow', scheduleReset);
+      window.removeEventListener('orientationchange', scheduleReset);
+    };
+  }, [screenKey]);
+
+  return <div ref={stageRef} className="app-stage"><div className="app-canvas">{children}</div></div>;
+}
 
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
@@ -534,34 +568,6 @@ export default function App() {
 
   useEnglishUi(locale);
   useEffect(() => { applySeoMetadata(locale); }, [locale]);
-
-  /** Restores the shell origin after reload, rotation, tab changes, and feed
-   * changes. Mobile browsers otherwise restore a stale inner scroll offset and
-   * make the header or bottom navigation appear to have disappeared. */
-  useLayoutEffect(() => {
-    if (isGuest) return undefined;
-    const resetScreenStart = () => {
-      window.scrollTo(0, 0);
-      if (mainRef.current) {
-        mainRef.current.scrollTop = 0;
-        mainRef.current.scrollLeft = 0;
-      }
-    };
-    let frame = 0;
-    const scheduleReset = () => {
-      resetScreenStart();
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => window.requestAnimationFrame(resetScreenStart));
-    };
-    scheduleReset();
-    window.addEventListener('pageshow', scheduleReset);
-    window.addEventListener('orientationchange', scheduleReset);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('pageshow', scheduleReset);
-      window.removeEventListener('orientationchange', scheduleReset);
-    };
-  }, [activeTab, activeCategory, safeIndex, isGuest]);
 
   /** 정의: 피드 카테고리를 변경하고 새 목록의 첫 카드로 이동한다. @param {string} category 카테고리 식별자 */
   function changeCategory(category) {
@@ -1188,14 +1194,14 @@ export default function App() {
     if (!start || event?.pointerId === undefined || event.pointerId === start.pointerId) tabGestureStart.current = null;
   }
 
-  if (!brandSplashComplete) return <CanvasStage locale={locale}><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
-  if (!authReady) return <CanvasStage locale={locale}><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
+  if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
+  if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
-  if (mustEnterAuth) return <CanvasStage locale={locale}><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
-  if (!feedHydrated) return <CanvasStage locale={locale}><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
-  if (feedLoadError) return <CanvasStage locale={locale}><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
+  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
+  if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
+  if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
-  return <CanvasStage locale={locale}><div className="editorial-app h-full bg-background text-on-background font-body">
+  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className="editorial-app h-full bg-background text-on-background font-body">
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
@@ -1225,7 +1231,7 @@ export default function App() {
       </div>
     </header>
 
-    <main ref={mainRef} id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+    <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}

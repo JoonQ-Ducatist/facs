@@ -180,5 +180,6 @@ test('browser lifecycle fixes the authenticated shell while preserving isolated 
   assert.match(styles, /\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
   assert.match(source, /window\.addEventListener\('pageshow', scheduleReset\)/);
   assert.match(source, /window\.addEventListener\('orientationchange', scheduleReset\)/);
-  assert.match(source, /mainRef\.current\.scrollTop = 0/);
+  assert.match(source, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
+  assert.match(source, /<main ref=\{mainRef\} data-app-scroll-root/);
 });
