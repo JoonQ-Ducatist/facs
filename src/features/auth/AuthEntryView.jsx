@@ -4,6 +4,7 @@ import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
 import { selectAuthFeaturedPosts } from './authFeaturedPosts.js';
+import { clearPendingEmailAuth, readPendingEmailAuth, savePendingEmailAuth } from './pendingEmailAuth.js';
 
 const EMPTY_AUTH_CARDS = [];
 
@@ -12,10 +13,11 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const sourceCards = Array.isArray(cards) ? cards : EMPTY_AUTH_CARDS;
   const popularCards = useMemo(() => selectAuthFeaturedPosts(sourceCards), [sourceCards]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [emailOpen, setEmailOpen] = useState(false);
-  const [email, setEmail] = useState('');
+  const [pendingEmailAuth] = useState(readPendingEmailAuth);
+  const [emailOpen, setEmailOpen] = useState(Boolean(pendingEmailAuth));
+  const [email, setEmail] = useState(pendingEmailAuth?.email ?? '');
   const [selectedProvider, setSelectedProvider] = useState('email');
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(Boolean(pendingEmailAuth));
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
   const [emailNoticeTone, setEmailNoticeTone] = useState('success');
@@ -23,9 +25,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const [isCodeVerifying, setIsCodeVerifying] = useState(false);
   const [verificationCompleted, setVerificationCompleted] = useState(false);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [providerNotice, setProviderNotice] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(pendingEmailAuth?.rememberMe ?? true);
 
   function selectProvider(provider) {
     setProviderNotice('');
@@ -44,7 +45,10 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     setProviderNotice('');
     setIsGoogleSigningIn(true);
     const result = await onGoogleAuth?.(rememberMe);
-    if (result?.ok) return;
+    if (result?.ok) {
+      clearPendingEmailAuth();
+      return;
+    }
     setIsGoogleSigningIn(false);
     setProviderNotice(result?.message ?? (locale === 'en' ? 'Google sign-in is not available yet. Please continue with email.' : 'Google 로그인을 아직 시작할 수 없어요. 이메일로 계속해 주세요.'));
     window.setTimeout(() => setProviderNotice(''), 3000);
@@ -53,14 +57,12 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   async function submitEmail(event) {
     event.preventDefault();
     if (isEmailSending || emailSent) return;
-    // Start the code step from a stable full viewport rather than preserving
-    // the email field's keyboard-reduced geometry.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    setKeyboardOffset(0);
     setIsEmailSending(true);
     setEmailNotice('');
     const result = await onEmailAuth(email.trim(), rememberMe);
     const sent = result?.ok;
+    if (sent) savePendingEmailAuth(email.trim(), rememberMe);
     setIsEmailSending(false);
     setEmailSent(sent);
     setEmailNoticeTone(sent ? 'success' : 'error');
@@ -74,12 +76,12 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     event.preventDefault();
     if (isCodeVerifying || verificationCompleted || !isCompleteEmailOtp(verificationCode)) return;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    setKeyboardOffset(0);
     setIsCodeVerifying(true);
     setEmailNotice('');
     const result = await onEmailCode(email.trim(), verificationCode.trim(), rememberMe);
     setIsCodeVerifying(false);
     if (result?.ok) {
+      clearPendingEmailAuth();
       // Supabase consumes an OTP immediately. Keep this step locked while the
       // The auth-state listener moves this entry screen to Feed; a second click
       // would otherwise submit the already-consumed token and show "invalid".
@@ -99,31 +101,6 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   }, [popularCards.length]);
 
   useEffect(() => setActiveIndex(0), [popularCards]);
-
-  useEffect(() => {
-    let settleTimer;
-    const syncKeyboardOffset = () => {
-      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
-      const keyboardHeight = window.innerHeight - visualHeight;
-      // iPhone Chrome keeps the layout viewport at full height. Only move the
-      // panel after a real software keyboard has reduced the visual viewport.
-      setKeyboardOffset(keyboardHeight > 120 ? Math.min(600, Math.max(0, keyboardHeight - 60)) : 0);
-    };
-    const scheduleSync = () => {
-      syncKeyboardOffset();
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(syncKeyboardOffset, 180);
-    };
-    window.visualViewport?.addEventListener('resize', scheduleSync);
-    window.visualViewport?.addEventListener('scroll', scheduleSync);
-    window.addEventListener('resize', scheduleSync);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', scheduleSync);
-      window.visualViewport?.removeEventListener('scroll', scheduleSync);
-      window.removeEventListener('resize', scheduleSync);
-      window.clearTimeout(settleTimer);
-    };
-  }, []);
 
   const activeCard = popularCards[activeIndex] ?? sourceCards[0] ?? null;
 
@@ -155,7 +132,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? 'Ready to be seen differently?' : '오늘의 나를, 다른 시선으로 만나보세요.'}</h1>
         </section>
 
-        <section className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]" style={keyboardOffset ? { transform: `translateY(-${keyboardOffset}px)` } : undefined}>
+        <section className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
           </p>
@@ -171,7 +148,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
                     </p>
                     <input required disabled={verificationCompleted} inputMode="numeric" autoComplete="one-time-code" maxLength={EMAIL_OTP_LENGTH} value={verificationCode} onChange={(event) => setVerificationCode(sanitizeEmailOtp(event.target.value))} placeholder={locale === 'en' ? `${EMAIL_OTP_LENGTH}-digit code` : `${EMAIL_OTP_LENGTH}자리 인증 코드`} className="h-11 w-full rounded-full border border-[#ecd8a8]/85 bg-black/15 px-4 text-center text-sm tracking-[0.2em] text-white placeholder:tracking-normal placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" />
                     <button type="submit" disabled={isCodeVerifying || verificationCompleted || !isCompleteEmailOtp(verificationCode)} className="flex h-11 w-full items-center justify-center rounded-full bg-[#c52a52] px-4 text-[13px] font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 disabled:cursor-not-allowed disabled:opacity-55">{isCodeVerifying ? (locale === 'en' ? 'Checking...' : '확인 중...') : verificationCompleted ? (locale === 'en' ? 'Verified' : '인증 완료') : (locale === 'en' ? 'Verify code' : '인증 코드 확인')}</button>
-                    <button type="button" disabled={verificationCompleted} onClick={() => { setEmailSent(false); setVerificationCode(''); setVerificationCompleted(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2 disabled:pointer-events-none disabled:opacity-45">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>
+                    <button type="button" disabled={verificationCompleted} onClick={() => { clearPendingEmailAuth(); setEmailSent(false); setVerificationCode(''); setVerificationCompleted(false); setEmailNotice(''); }} className="w-full text-center text-[10px] font-semibold text-white/80 underline underline-offset-2 disabled:pointer-events-none disabled:opacity-45">{locale === 'en' ? 'Use another email address' : '다시 입력하기'}</button>
                   </form>
                 ) : (
                   <form className="flex flex-col gap-2" onSubmit={submitEmail} aria-busy={isEmailSending}>

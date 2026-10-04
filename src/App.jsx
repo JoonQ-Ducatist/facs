@@ -96,8 +96,12 @@ function CanvasStage({ children, screenKey }) {
     let frame = 0;
     const scheduleReset = () => {
       resetScreenOrigin();
+      window.__syncFacsViewport?.(true);
       window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => window.requestAnimationFrame(resetScreenOrigin));
+      frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        resetScreenOrigin();
+        window.__syncFacsViewport?.(true);
+      }));
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') scheduleReset();

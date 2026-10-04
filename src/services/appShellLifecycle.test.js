@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const serviceRoot = fileURLToPath(new URL('.', import.meta.url));
 
@@ -40,7 +41,10 @@ test('every browser lifecycle state retains one fixed app shell and resets only 
   assert.match(html, /window\.history\.scrollRestoration = 'manual'/);
   assert.match(html, /--xc-app-height/);
   assert.match(html, /window\.visualViewport\?\.height/);
-  assert.match(html, /layoutHeight - visualHeight > 120/);
+  assert.match(html, /const keyboardRecovering = keyboardSession && visualHeight < stableViewportHeight - 4/);
+  assert.match(html, /if \(!keyboardRecovering && visualHeight > 0\)[\s\S]*?stableViewportHeight = visualHeight;/);
+  assert.match(html, /document\.addEventListener\('focusin', \(\) => syncViewport\(false\)\)/);
+  assert.match(html, /document\.addEventListener\('focusout'/);
   assert.match(html, /document\.addEventListener\('visibilitychange'/);
   assert.match(html, /window\.addEventListener\('focus', syncAfterResume\)/);
   assert.match(html, /window\.addEventListener\('load', syncAfterResume/);
@@ -49,10 +53,75 @@ test('every browser lifecycle state retains one fixed app shell and resets only 
   assert.match(app, /function CanvasStage\(\{ children, screenKey \}\)/);
   assert.match(app, /document\.scrollingElement\.scrollTop = 0/);
   assert.match(app, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
+  assert.match(app, /window\.__syncFacsViewport\?\.\(true\)/);
   assert.match(app, /window\.addEventListener\('pageshow', scheduleReset\)/);
   assert.match(app, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
   assert.match(app, /<CanvasStage screenKey="auth-entry">/);
   assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}`\}>/);
+});
+
+test('keyboard dismissal restores document scroll even while the input remains focused', async () => {
+  const html = await readFile(resolve(serviceRoot, '../../index.html'), 'utf8');
+  const script = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+  assert.ok(script);
+  const properties = new Map();
+  const documentListeners = new Map();
+  const viewportListeners = new Map();
+  let scrollResets = 0;
+  class MockElement {
+    constructor(editable = false) { this.editable = editable; }
+    matches() { return this.editable; }
+  }
+  const document = {
+    documentElement: {
+      clientHeight: 745,
+      scrollTop: 0,
+      style: { setProperty: (key, value) => properties.set(key, value) },
+    },
+    body: { scrollTop: 0 },
+    activeElement: new MockElement(),
+    addEventListener: (name, listener) => documentListeners.set(name, listener),
+  };
+  const window = {
+    innerHeight: 745,
+    scrollY: 0,
+    visualViewport: { height: 745, addEventListener: (name, listener) => viewportListeners.set(name, listener) },
+    history: {},
+    addEventListener() {},
+    requestAnimationFrame: (callback) => callback(),
+    setTimeout: (callback) => callback(),
+    scrollTo: () => { scrollResets += 1; window.scrollY = 0; document.documentElement.scrollTop = 0; },
+  };
+  runInNewContext(script, { window, document, HTMLElement: MockElement });
+  assert.equal(properties.get('--xc-app-height'), '745px');
+
+  document.activeElement = new MockElement(true);
+  documentListeners.get('focusin')();
+  window.innerHeight = 506;
+  window.visualViewport.height = 435;
+  window.scrollY = 347;
+  document.documentElement.scrollTop = 347;
+  const beforeFocusScroll = scrollResets;
+  viewportListeners.get('resize')();
+  assert.equal(scrollResets, beforeFocusScroll);
+  assert.equal(properties.get('--xc-app-height'), '745px');
+
+  // iOS Chrome hides the keyboard without blurring the email input.
+  window.innerHeight = 745;
+  window.visualViewport.height = 745;
+  window.scrollY = 108;
+  document.documentElement.scrollTop = 108;
+  viewportListeners.get('scroll')();
+  assert.ok(scrollResets > beforeFocusScroll);
+  assert.equal(window.scrollY, 0);
+  assert.equal(document.documentElement.scrollTop, 0);
+  assert.equal(properties.get('--xc-app-height'), '745px');
+  assert.equal(document.activeElement.editable, true);
+
+  document.activeElement = new MockElement();
+  window.visualViewport.height = 800;
+  window.__syncFacsViewport();
+  assert.equal(properties.get('--xc-app-height'), '800px');
 });
 
 test('keyboard, file-picker and fullscreen states retain their existing isolated owners', async () => {

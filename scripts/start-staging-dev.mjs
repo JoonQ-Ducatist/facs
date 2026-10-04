@@ -12,11 +12,12 @@ function readEnvironment(path) {
 const local = readEnvironment('.env.local');
 const fallback = readEnvironment('.env');
 const remoteUrl = local.VITE_SUPABASE_URL;
+const host = process.argv.includes('--lan') ? '0.0.0.0' : '127.0.0.1';
 
 if (!remoteUrl?.startsWith('https://')) throw new Error('Staging checks need an approved HTTPS staging Supabase URL in .env.local. Docker, local QA accounts, migrations, and seed data are unavailable.');
 if (fallback.VITE_SUPABASE_URL && remoteUrl === fallback.VITE_SUPABASE_URL) throw new Error('Staging checks refuse the fallback production Supabase URL. Point .env.local at the approved staging project first.');
 
-const child = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', '4173', '--mode', 'staging'], {
+const child = spawn('npx', ['vite', '--host', host, '--port', '4173', '--mode', 'staging'], {
   stdio: 'inherit',
   env: {
     ...process.env,

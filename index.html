@@ -8,14 +8,22 @@
          dynamic viewport after reload. Establish the shell contract before
          React mounts; keyboard-sized viewports are intentionally ignored. */
       (() => {
+        let stableViewportHeight = 0;
+        let keyboardSession = false;
         const syncViewport = (resetScroll = false) => {
           const visualHeight = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
-          const layoutHeight = Math.round(window.innerHeight || visualHeight);
           const focused = document.activeElement;
           const editsText = focused instanceof HTMLElement && focused.matches('input, textarea, select, [contenteditable="true"]');
-          const keyboardOpen = editsText && layoutHeight - visualHeight > 120;
-          if (!keyboardOpen && visualHeight > 0) document.documentElement.style.setProperty('--xc-app-height', `${visualHeight}px`);
-          if (!resetScroll || keyboardOpen) return;
+          if (editsText && visualHeight < stableViewportHeight - 4) keyboardSession = true;
+          // iOS can keep the input focused after hiding the keyboard. Only the
+          // viewport size, not focus alone, tells us whether scrolling may reset.
+          const keyboardRecovering = keyboardSession && visualHeight < stableViewportHeight - 4;
+          if (!keyboardRecovering && visualHeight > 0) {
+            document.documentElement.style.setProperty('--xc-app-height', `${visualHeight}px`);
+            stableViewportHeight = visualHeight;
+            keyboardSession = false;
+          }
+          if (!resetScroll || keyboardRecovering) return;
           window.scrollTo(0, 0);
           document.documentElement.scrollTop = 0;
           if (document.body) document.body.scrollTop = 0;
@@ -29,19 +37,32 @@
           window.requestAnimationFrame(() => window.requestAnimationFrame(() => syncViewport(true)));
         };
         const syncViewportSize = () => {
-          syncViewport(false);
-          window.requestAnimationFrame(() => syncViewport(false));
+          syncViewport(true);
+          window.requestAnimationFrame(() => syncViewport(true));
         };
         window.addEventListener('pageshow', syncAfterResume);
         window.addEventListener('load', syncAfterResume, { once: true });
         window.addEventListener('focus', syncAfterResume);
-        window.addEventListener('orientationchange', syncAfterResume);
+        window.addEventListener('orientationchange', () => {
+          if (!(document.activeElement instanceof HTMLElement && document.activeElement.matches('input, textarea, select, [contenteditable="true"]'))) {
+            stableViewportHeight = 0;
+            keyboardSession = false;
+          }
+          syncAfterResume();
+        });
+        document.addEventListener('focusin', () => syncViewport(false));
+        document.addEventListener('focusout', () => {
+          window.requestAnimationFrame(() => syncViewport(true));
+          window.setTimeout(() => syncViewport(true), 350);
+          window.setTimeout(() => syncViewport(true), 700);
+        });
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') syncAfterResume();
         });
         window.addEventListener('resize', syncViewportSize);
         window.visualViewport?.addEventListener('resize', syncViewportSize);
         window.visualViewport?.addEventListener('scroll', syncViewportSize);
+
       })();
     </script>
     <meta name="description" content="사람들의 주관적인 평가를 투명하게 확인하는 FACt.Smack 피드백 플랫폼" />
