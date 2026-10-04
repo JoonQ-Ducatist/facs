@@ -80,6 +80,13 @@ test('successful OTP unlock always lands on Feed and clears shared-guest state',
   assert.match(source, /event\.key === 'facs_auth_completed_at'.*restoreOriginalTab\(true\)/s);
 });
 
+test('verified OAuth callback leaves the temporary path before the next mobile reload', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /const returnUrl = getCompletedAuthReturnUrl\(window\.location\)/);
+  assert.match(source, /const isAuthCallback = Boolean\(returnUrl\) \|\| hash\.has\('access_token'\)/);
+  assert.match(source, /if \(returnUrl && !window\.opener\) \{\s*window\.location\.replace\(returnUrl\);\s*return;/);
+});
+
 test('passive session restoration cannot consume the explicit Feed transition', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /allowPreviewTransition: event === 'SIGNED_IN' && authTransitionPending\.current/);

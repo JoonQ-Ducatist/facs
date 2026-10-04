@@ -67,3 +67,12 @@ export function getAuthCallbackFailure(search = '') {
 export function getAuthCallbackCode(search = '') {
   return new URLSearchParams(search).get('code');
 }
+
+/** A verified OAuth callback must not remain the browser's next reload URL. */
+export function getCompletedAuthReturnUrl(location) {
+  if (!location || !/^\/auth\/callback\/?$/.test(location.pathname)) return null;
+  const query = new URLSearchParams(location.search);
+  if (query.has('error') || query.has('error_code')) return null;
+  ['code', 'facs_remember', 'access_token', 'refresh_token', 'token_type', 'expires_in', 'expires_at'].forEach((key) => query.delete(key));
+  return `/${query.size ? `?${query}` : ''}`;
+}

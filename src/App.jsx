@@ -24,7 +24,7 @@ import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
 import { reportDeduplicationKey, submitPostReport } from './services/reportsApi.js';
-import { getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig } from './services/authConfig.js';
+import { getAuthCallbackCode, getAuthCallbackFailure, getCompletedAuthReturnUrl, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
@@ -248,7 +248,8 @@ export default function App() {
       // Magic-link tokens belong only in the one-time callback URL. Once
       // Supabase has persisted the session, remove them and land on the feed.
       const hash = new URLSearchParams(window.location.hash.slice(1));
-      const isAuthCallback = hash.has('access_token') || new URLSearchParams(window.location.search).has('code');
+      const returnUrl = getCompletedAuthReturnUrl(window.location);
+      const isAuthCallback = Boolean(returnUrl) || hash.has('access_token') || new URLSearchParams(window.location.search).has('code');
       if (isAuthCallback && !authCallbackHandled.current) {
         authCallbackHandled.current = true;
         setIsSharedGuest(false);
@@ -256,7 +257,9 @@ export default function App() {
         const query = new URLSearchParams(window.location.search);
         query.delete('code');
         query.delete('facs_remember');
-        window.history.replaceState(null, '', `${window.location.pathname}${query.size ? `?${query}` : ''}`);
+        if (!returnUrl || window.opener) {
+          window.history.replaceState(null, '', returnUrl ?? `${window.location.pathname}${query.size ? `?${query}` : ''}`);
+        }
         // Let the tab that requested the email know immediately. This keeps the
         // original sign-in screen as the place the member lands, even when a
         // mail client opens the verification link in another tab.
@@ -264,6 +267,13 @@ export default function App() {
           window.localStorage.setItem('facs_auth_completed_at', String(Date.now()));
           window.opener?.postMessage({ type: 'facs-auth-complete' }, window.location.origin);
         } catch { /* Private browsing can deny browser storage. */ }
+        // A same-tab OAuth return needs a fresh root document on iOS. The
+        // verified session survives this one-time navigation; replace avoids
+        // leaving /auth/callback as a reload/history destination.
+        if (returnUrl && !window.opener) {
+          window.location.replace(returnUrl);
+          return;
+        }
         // Mail clients sometimes force a verification link into a new browser
         // tab. When the browser permits it, dismiss that transient callback so
         // the member continues in the tab where they started signing in.

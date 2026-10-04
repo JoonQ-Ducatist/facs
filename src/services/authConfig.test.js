@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AUTH_CONFIG_ERROR, AUTH_PROVIDER, getAuthCallbackCode, getAuthCallbackFailure, getPublicAuthConfig, isPreviewBypassAllowed } from './authConfig.js';
+import { AUTH_CONFIG_ERROR, AUTH_PROVIDER, getAuthCallbackCode, getAuthCallbackFailure, getCompletedAuthReturnUrl, getPublicAuthConfig, isPreviewBypassAllowed } from './authConfig.js';
 
 const baseEnvironment = {
   VITE_SUPABASE_URL: 'https://staging-ref.supabase.co',
@@ -51,6 +51,13 @@ test('callback failures are surfaced without exposing provider error details', (
 test('PKCE callback code is read only from the callback query string', () => {
   assert.equal(getAuthCallbackCode('?code=one-time-code&locale=ko'), 'one-time-code');
   assert.equal(getAuthCallbackCode('?locale=ko'), null);
+});
+
+test('completed OAuth callbacks return to the clean root even after the SDK consumes the code', () => {
+  assert.equal(getCompletedAuthReturnUrl({ pathname: '/auth/callback', search: '', hash: '' }), '/');
+  assert.equal(getCompletedAuthReturnUrl({ pathname: '/auth/callback', search: '?code=secret&access_token=secret&facs_remember=0&locale=en', hash: '#access_token=secret' }), '/?locale=en');
+  assert.equal(getCompletedAuthReturnUrl({ pathname: '/', search: '', hash: '' }), null);
+  assert.equal(getCompletedAuthReturnUrl({ pathname: '/auth/callback', search: '?error=access_denied', hash: '' }), null);
 });
 
 test('only approved social providers are available before Apple enrollment', () => {
