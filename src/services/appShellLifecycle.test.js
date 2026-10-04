@@ -41,12 +41,16 @@ test('every browser lifecycle state retains one fixed app shell and resets only 
   assert.match(html, /--xc-app-height/);
   assert.match(html, /window\.visualViewport\?\.height/);
   assert.match(html, /layoutHeight - visualHeight > 120/);
+  assert.match(html, /document\.addEventListener\('visibilitychange'/);
+  assert.match(html, /window\.addEventListener\('focus', syncAfterResume\)/);
+  assert.match(html, /window\.addEventListener\('load', syncAfterResume/);
   assert.doesNotMatch(html, /--xc-app-offset-top|normalizeInitialViewport/);
   assert.doesNotMatch(app, /if \(isGuest\) return undefined;[\s\S]*?resetScreen/);
   assert.match(app, /function CanvasStage\(\{ children, screenKey \}\)/);
   assert.match(app, /document\.scrollingElement\.scrollTop = 0/);
   assert.match(app, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
   assert.match(app, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(app, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
   assert.match(app, /<CanvasStage screenKey="auth-entry">/);
   assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}`\}>/);
 });

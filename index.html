@@ -24,13 +24,24 @@
         if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
         window.__syncFacsViewport = syncViewport;
         syncViewport(true);
-        window.addEventListener('pageshow', () => {
+        const syncAfterResume = () => {
           syncViewport(true);
-          window.requestAnimationFrame(() => syncViewport(true));
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => syncViewport(true)));
+        };
+        const syncViewportSize = () => {
+          syncViewport(false);
+          window.requestAnimationFrame(() => syncViewport(false));
+        };
+        window.addEventListener('pageshow', syncAfterResume);
+        window.addEventListener('load', syncAfterResume, { once: true });
+        window.addEventListener('focus', syncAfterResume);
+        window.addEventListener('orientationchange', syncAfterResume);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') syncAfterResume();
         });
-        window.addEventListener('resize', () => syncViewport(false));
-        window.visualViewport?.addEventListener('resize', () => syncViewport(false));
-        window.visualViewport?.addEventListener('scroll', () => syncViewport(false));
+        window.addEventListener('resize', syncViewportSize);
+        window.visualViewport?.addEventListener('resize', syncViewportSize);
+        window.visualViewport?.addEventListener('scroll', syncViewportSize);
       })();
     </script>
     <meta name="description" content="사람들의 주관적인 평가를 투명하게 확인하는 FACt.Smack 피드백 플랫폼" />

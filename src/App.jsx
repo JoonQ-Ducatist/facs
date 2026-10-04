@@ -99,13 +99,18 @@ function CanvasStage({ children, screenKey }) {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => window.requestAnimationFrame(resetScreenOrigin));
     };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleReset();
+    };
     scheduleReset();
     window.addEventListener('pageshow', scheduleReset);
     window.addEventListener('orientationchange', scheduleReset);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('pageshow', scheduleReset);
       window.removeEventListener('orientationchange', scheduleReset);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [screenKey]);
 
