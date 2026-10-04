@@ -171,10 +171,12 @@ test('browser lifecycle fixes the authenticated shell while preserving isolated 
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const html = await readFile(resolve(featureRoot, '../../../index.html'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.doesNotMatch(html, /scrollRestoration|normalizeInitialViewport|visualViewport/);
+  assert.match(html, /window\.history\.scrollRestoration = 'manual'/);
+  assert.match(html, /window\.visualViewport\?\.height/);
+  assert.doesNotMatch(html, /normalizeInitialViewport|--xc-app-offset-top/);
   assert.doesNotMatch(source, /syncAppCanvasHeight|settleAppCanvasAfterKeyboardDismissal|visualViewport/);
-  assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: 100dvh;/);
-  assert.match(styles, /\.editorial-app \{ position: fixed; inset: 0;[\s\S]*?overflow: hidden; overscroll-behavior: none;/);
+  assert.match(styles, /\.app-stage \{ position: relative;[\s\S]*?height: 100vh; height: var\(--xc-app-height, 100dvh\);/);
+  assert.match(styles, /\.editorial-app \{ position: absolute; inset: 0;[\s\S]*?overflow: hidden; overscroll-behavior: none;/);
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
   assert.match(styles, /\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);

@@ -55,13 +55,13 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
    `100dvh` follows browser chrome changes in current mobile engines. Upload
    remains the only independently scrollable region inside this boundary. */
 html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; }
-.app-stage { position: relative; display: flex; width: 100%; height: 100vh; height: 100dvh; min-height: 0; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
+.app-stage { position: relative; display: flex; width: 100%; height: 100vh; height: var(--xc-app-height, 100dvh); min-height: 0; align-items: stretch; justify-content: center; overflow: hidden; background: var(--xc-surface); }
 .app-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--xc-surface); }
 
 /* 정의: 인증 후 앱은 브라우저 문서 스크롤과 완전히 분리된 뷰포트 프레임이다.
    모바일 주소창 재진입이 문서 스크롤 위치를 복원하더라도 상·하단 메뉴는 움직이지
    않고, 가운데 main만 각 화면의 스크롤 소유권을 가진다. */
-.editorial-app { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; background: var(--xc-surface); color: var(--xc-text); }
+.editorial-app { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--xc-surface); color: var(--xc-text); }
 .editorial-app > header { position: absolute !important; inset: 0 0 auto; }
 .desktop-nav-language { display: none; }
 .landscape-nav-toggle { display: none; }
@@ -335,7 +335,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 .auth-entry-screen, .brand-splash { width: 100%; height: 100%; min-height: 0; }
 /* Auth owns its full viewport and scrolls inside that boundary. This keeps the
    dark entry background continuous when mobile browser chrome changes size. */
-.auth-entry-screen { min-height: 100dvh; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+.auth-entry-screen { min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 .auth-entry-screen__content { min-height: 100%; }
 @media (min-width: 600px) {
   .auth-entry-screen, .brand-splash { width: min(430px, 100%); margin: 0 auto; box-shadow: 0 0 42px rgba(0,0,0,.3); }
@@ -344,7 +344,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 @media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
   /* Override the 600px+ centered 430px canvas rule: landscape phones need a
      full-width dark surface so the image continues behind the auth controls. */
-  .auth-entry-screen { width: 100%; height: 100dvh; min-height: 100dvh; margin: 0; box-shadow: none; overflow-y: auto; }
+  .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
   .auth-entry-screen__content { min-height: 460px; }
   .auth-entry-screen__content { padding-bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom))); }
 }

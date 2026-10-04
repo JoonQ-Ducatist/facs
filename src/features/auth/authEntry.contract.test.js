@@ -67,9 +67,9 @@ test('authentication loads real public posts before sign-in and keeps its own vi
   assert.match(authSource, /className="auth-entry-screen relative mx-auto max-w-none/);
   assert.match(authSource, /const sourceCards = Array\.isArray\(cards\) \? cards : EMPTY_AUTH_CARDS;/);
   assert.match(authSource, /popularCards\[activeIndex\] \?\? sourceCards\[0\] \?\? null/);
-  assert.match(styles, /\.auth-entry-screen \{ min-height: 100dvh; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; \}/);
+  assert.match(styles, /\.auth-entry-screen \{ min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; \}/);
   assert.match(styles, /\.auth-entry-screen__content \{ min-height: 460px; \}/);
-  assert.match(styles, /\.auth-entry-screen \{ width: 100%; height: 100dvh; min-height: 100dvh; margin: 0; box-shadow: none; overflow-y: auto; \}/);
+  assert.match(styles, /\.auth-entry-screen \{ width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; \}/);
 });
 
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {

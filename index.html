@@ -3,6 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      /* iOS browsers can restore both an obsolete document offset and a stale
+         dynamic viewport after reload. Establish the shell contract before
+         React mounts; keyboard-sized viewports are intentionally ignored. */
+      (() => {
+        const syncViewport = (resetScroll = false) => {
+          const visualHeight = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+          const layoutHeight = Math.round(window.innerHeight || visualHeight);
+          const focused = document.activeElement;
+          const editsText = focused instanceof HTMLElement && focused.matches('input, textarea, select, [contenteditable="true"]');
+          const keyboardOpen = editsText && layoutHeight - visualHeight > 120;
+          if (!keyboardOpen && visualHeight > 0) document.documentElement.style.setProperty('--xc-app-height', `${visualHeight}px`);
+          if (!resetScroll || keyboardOpen) return;
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          if (document.body) document.body.scrollTop = 0;
+        };
+
+        if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+        window.__syncFacsViewport = syncViewport;
+        syncViewport(true);
+        window.addEventListener('pageshow', () => {
+          syncViewport(true);
+          window.requestAnimationFrame(() => syncViewport(true));
+        });
+        window.addEventListener('resize', () => syncViewport(false));
+        window.visualViewport?.addEventListener('resize', () => syncViewport(false));
+        window.visualViewport?.addEventListener('scroll', () => syncViewport(false));
+      })();
+    </script>
     <meta name="description" content="사람들의 주관적인 평가를 투명하게 확인하는 FACt.Smack 피드백 플랫폼" />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
     <link rel="manifest" href="/manifest.webmanifest" />
