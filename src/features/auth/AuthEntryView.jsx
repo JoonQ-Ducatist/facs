@@ -28,15 +28,10 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(pendingEmailAuth?.rememberMe ?? true);
 
-  function selectProvider(provider) {
+  function openEmailSignIn() {
     setProviderNotice('');
-    if (provider === 'email') {
-      setSelectedProvider(provider);
-      setEmailOpen(true);
-      return;
-    }
-    setProviderNotice(locale === 'en' ? 'This sign-in method is being prepared. Please continue with email.' : '현재 해당 인증 수단은 준비 중입니다. 이메일로 계속해 주세요.');
-    window.setTimeout(() => setProviderNotice(''), 2400);
+    setSelectedProvider('email');
+    setEmailOpen(true);
   }
 
   async function startGoogleSignIn() {
@@ -138,7 +133,6 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           </p>
           <div className="relative flex flex-col gap-2">
             <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={isGoogleSigningIn ? (locale === 'en' ? 'Opening Google...' : 'Google 로그인으로 이동 중...') : (locale === 'en' ? 'Continue with Google' : 'Google로 계속하기')} icon={<img src={googleLogoUrl} alt="" aria-hidden="true" className={compactIconClass(selectedProvider !== 'google')} />} onClick={startGoogleSignIn} disabled={isGoogleSigningIn} />
-            <ProviderButton compact={selectedProvider !== 'kakao'} selected={selectedProvider === 'kakao'} label={locale === 'en' ? 'Continue with Kakao' : '카카오로 계속하기'} icon="chat_bubble" onClick={() => selectProvider('kakao')} />
             {selectedProvider === 'email' && emailOpen ? (
               <div className="relative mx-auto w-full rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-3 shadow-inner">
                 {emailSent ? (
@@ -158,7 +152,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
                 )}
                 {emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}
               </div>
-            ) : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={() => selectProvider('email')} />}
+            ) : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={openEmailSignIn} />}
             {providerNotice && <p role="status" className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border border-[#ecd8a8]/65 bg-[#132438]/95 px-3 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent after:border-t-[#132438]/95">{providerNotice}</p>}
           </div>
           <label className="mt-3 flex cursor-pointer items-start justify-center gap-1.5 text-center text-[9px] leading-relaxed text-white/60">

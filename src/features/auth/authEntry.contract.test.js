@@ -72,6 +72,13 @@ test('authentication loads real public posts before sign-in and keeps its own vi
   assert.match(styles, /\.auth-entry-screen \{ width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; \}/);
 });
 
+test('public MVP authentication exposes only enabled Google and email providers', async () => {
+  const source = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
+  assert.match(source, /Continue with Google/);
+  assert.match(source, /Continue with email/);
+  assert.doesNotMatch(source, /Continue with Kakao|카카오로 계속하기|selectProvider\('kakao'\)/);
+});
+
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);
