@@ -503,6 +503,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 /* Portrait viewport reserves the fixed header, bottom navigation, and category
    rail before sizing a card, so one post still exposes its action row. */
 @media (max-width: 1023px) and (orientation: portrait) {
+  .editorial-main--feed .media-carousel--scroll { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .editorial-main--feed .media-carousel--scroll > .feed-post-card {
     height: min(720px, calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
     min-height: min(480px, calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));

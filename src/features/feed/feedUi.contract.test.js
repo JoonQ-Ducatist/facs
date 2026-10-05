@@ -26,18 +26,24 @@ test('feed videos expose a centered play affordance without stealing carousel ge
   assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?top: calc\(46px \+ env\(safe-area-inset-top\)\);[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\);[\s\S]*?width: 32px; height: 32px/);
 });
 
-test('feed follows a held finger, stops on release without edge resistance, and keeps horizontal carousel gestures separate', async () => {
+test('feed uses native momentum scrolling without intercepting vertical touches', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  const scroll = await readFile(resolve(featureRoot, 'feedScroll.js'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(source, /cards\.map\(\(item\) => <FeedPost/);
   assert.doesNotMatch(source, /resolveTouchFeedDirection|resolveWheelFeedDirection|touchNavigationLocked|wheelLocked|navigateFeed\(/);
   assert.match(styles, /Continuous social feed:[\s\S]*?\.editorial-main--feed \{ overflow-y: auto !important/);
   assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[\s\S]*?flex: 0 0 auto/);
-  assert.match(source, /event\.preventDefault\(\);[\s\S]*?resolveFeedDragPosition\(startPoint\.scrollTop, deltaY, maximum\)/);
-  assert.match(scroll, /export function resolveFeedGestureAxis/);
-  assert.match(scroll, /export function resolveFeedDragPosition/);
+  assert.match(styles, /-webkit-overflow-scrolling: touch/);
+  assert.doesNotMatch(source, /section\.addEventListener\('touchmove'|scrollRoot\.scrollTop =/);
   assert.doesNotMatch(source + styles, /feed-edge--dragging|feed-edge--release|feed-edge-offset|edgeOffset/);
+});
+
+test('empty categories keep the category rail and the last card clears mobile navigation', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.doesNotMatch(source, /if \(!cards\.length\) return <EmptyFeed/);
+  assert.match(source, /<div ref=\{categoryRailRef\}[\s\S]*?\{cards\.length \? <section ref=\{feedRef\}[\s\S]*?: <EmptyFeed/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{\s*\.editorial-main--feed \.media-carousel--scroll \{ padding-bottom: calc\(96px \+ env\(safe-area-inset-bottom\)\); \}/);
 });
 
 test('desktop and landscape category rail sits outside the isolated card-list scrollport', async () => {
