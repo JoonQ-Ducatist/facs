@@ -34,7 +34,7 @@
 | 서비스 | 코드에서 확인한 용도 | 운영에서 아직 확인할 사실 |
 | --- | --- | --- |
 | Supabase | Auth, DB, 미디어 Storage, 자체 퍼널 이벤트 RPC. 2026-10-04 운영 대시보드에서 Free 프로젝트 리전 `ap-northeast-2`(서울) 확인. 2026-10-05 공식 가격표 기준 Free는 DB 500MB, 파일 1GB, egress 5GB, cached egress 5GB, 월간 활성 사용자 50,000명이며 1주 비활성 시 일시중지된다. 자동 백업·PITR·지원 SLA가 없고 API/DB 로그는 1일, Auth 감사 로그는 1시간이다 | 현재 DB·Storage·egress 사용량, 수동 복구본 보관 방식, 처리 위탁·국외 이전의 계약상 사실 확인 |
-| Google | 운영 실기기 OAuth 로그인과 운영 Supabase Google 제공자 활성 확인. 인증 메일은 custom SMTP의 `smtp.gmail.com` 사용. Google 공식 기준상 개인 Gmail은 하루 500통을 초과하면 1~24시간 발송이 제한될 수 있다. Supabase custom SMTP는 초기 30통/시간 제한을 두며 조정할 수 있다 | OAuth로 실제 수신되는 항목, Gmail 메일 발송의 처리 관계·보존. 공개 확대 전 전용 트랜잭션 메일 제공자·도메인 인증·발송 실패 대응 확정 |
+| Google·Resend | 운영 실기기 OAuth 로그인과 운영 Supabase Google 제공자 활성 확인. 이메일 인증은 Resend custom SMTP(`smtp.resend.com`)와 검증된 발신 도메인 `mail.factsmack.com`을 사용하며, 실제 OTP 수신·로그인 흐름을 사용자 점검으로 확인 | OAuth로 실제 수신되는 항목, Resend 발송·bounce 기록의 처리 관계·보존 |
 | Vercel | 승인된 운영 웹 배포·도메인 제공. 2026-10-04 운영 대시보드에서 Hobby 플랜, 최신 운영 배포 `Ready`, 최근 6시간 오류율 0%, 최근 30일 Fast Data Transfer 1.18GB/100GB 확인. 최근 운영 배포 목록에 한도·빌드 차단 신호 없음 | 로그·분석 기능의 실제 사용 범위, 리전·보존 설정 및 처리 위탁 내용 확인. 현재 수치는 여유가 있으나 공개 후 주기적으로 사용량 확인 |
 | Kakao | 운영 Supabase 제공자 비활성. 2026-10-04 사용자 결정으로 로그인 화면 버튼을 숨김 | 공개 MVP 이후 제공자 연결·오류 처리·실기기 검증을 완료하기 전에는 인증 제공자로 고지하지 않음 |
 
@@ -108,11 +108,9 @@
 
 ### 인증 메일 전달 게이트
 
-- 현재 개인 Gmail SMTP는 초기 사용자 점검용으로 유지하되 대량·고신뢰 발송 수단으로 간주하지 않는다.
-- 하루 500통 또는 Supabase의 설정된 시간당 제한에 도달하면 이메일 가입·로그인이 중단될 수 있다.
-- 외부 홍보·사용자 확대 전 `REL-06`에서 전용 트랜잭션 메일 제공자, 발신 도메인, SPF·DKIM·DMARC, 발송 실패 확인 방식을 확정한다.
-- 제공자 가입, DNS 변경, 유료 플랜 전환은 별도 사용자 승인 없이 실행하지 않는다.
-- 근거: https://support.google.com/mail/answer/22839, https://supabase.com/docs/guides/auth/auth-smtp
+- `REL-06`은 완료(승인)다. Resend custom SMTP와 `mail.factsmack.com` 발신 도메인이 연결됐으며, 실제 이메일 OTP 수신·모바일 로그인 흐름도 사용자 점검으로 확인했다.
+- 공개 운영에서는 Resend의 일일·시간당 사용량과 bounce를 확인하고, 한도 또는 전달 실패 징후가 있을 때만 원인을 점검한다.
+- 제공자 교체, DNS 변경, 유료 플랜 전환은 새 요구가 생기기 전까지 다시 제안하거나 실행하지 않는다.
 
 ## 실행 원칙
 

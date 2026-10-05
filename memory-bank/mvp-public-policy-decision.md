@@ -17,7 +17,7 @@
 | 상호작용 | 평가, 댓글, 팔로우, 차단, 스크랩, 신고·검토 기록 처리 |
 | 권리 확인 | 업로드 권리 보유 확인의 동의 버전과 시각 처리 |
 | 분석·브라우저 저장 | 퍼널 이벤트, 익명 세션 식별자, 인증 세션, 언어·평가 완료·일부 UI 복구 상태 저장 |
-| 인프라 | Supabase Free 서울 리전, Vercel Hobby, Gmail SMTP |
+| 인프라 | Supabase Free 서울 리전, Vercel Hobby, Resend custom SMTP(`mail.factsmack.com`) |
 | 삭제 | 게시물·댓글 삭제는 현재 공개 화면에서 숨기는 소프트 삭제. 계정 탈퇴와 영구 파기는 공개 MVP 이후 `REL-05` |
 
 ## 2. 공개 MVP 전에 확정할 결정
@@ -87,7 +87,7 @@
 | 처리 목적·항목 | 계정·공개 아이디·미디어·평가·댓글·신고·관계·권리 동의·분석 항목이 코드에 존재 | 실제 활성 항목과 각 처리 목적 | 운영자 |
 | 보유·삭제 | 게시물·댓글은 소프트 삭제, 영구 삭제·탈퇴는 미제공 | 항목별 보유 기준, 신고·분쟁 기록의 보존 근거와 기간, 파기 방법 | 운영자·법률 검토 |
 | 위탁·국외 이전 | Supabase, Vercel, Google/Gmail을 사용 | 각 제공자의 처리 주체, 처리 국가, 이전 항목·목적·시기·방법·보유기간 및 고지 필요 여부 | 운영자·법률 검토 |
-| 인증·메일 제공자 | Google OAuth와 Gmail SMTP를 사용 | Google OAuth가 실제 요청하는 항목·범위, 인증 메일 발신함 보관 여부와 보관 방식 | 운영자 |
+| 인증·메일 제공자 | Google OAuth와 Resend custom SMTP를 사용 | Google OAuth가 실제 요청하는 항목·범위, Resend 인증 메일·전달 실패 기록의 보관 방식 | 운영자 |
 | 인프라 로그·분석 | Supabase와 Vercel을 사용, 자체 퍼널 이벤트가 코드에 존재 | Supabase 백업·인증/API 로그 보관, Vercel Web Analytics·Speed Insights 활성 여부와 수집 항목 | 운영자 |
 | 자체 퍼널 분석 | 서버에는 계정·이메일·미디어 URL 없이 익명 세션 UUID, `visitor_opened`·`signup_completed`·`first_vote`·`upload_completed`·`result_viewed`, 선택적 게시물 UUID와 서버 시각만 저장. 브라우저에는 QA용 최근 이벤트 최대 500개를 저장 | 서버 이벤트 보존 기준, 브라우저 저장 항목의 삭제 방법과 운영 환경에서 QA용 상세 속성을 계속 보관할지 여부 | 운영자·법률 검토 |
 | 권리 행사 | 공식 접수처는 `joonkyou.park@gmail.com`, 요청자 확인 후 가능한 처리를 안내 | 본인 확인 방식, 접수·회신 절차, 처리 가능 범위 | 운영자 |
