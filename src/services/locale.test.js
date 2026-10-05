@@ -22,7 +22,7 @@ test('supported browser language is the fallback when no country or URL preferen
   assert.equal(resolveLocale('', browser('facs.example', ['fr-FR'])), 'ko');
 });
 
-test('Vercel defaults every known non-Korean country to English and preserves explicit choice and campaign query', async () => {
+test('Vercel defaults every known non-Korean country to English without overriding explicit choice', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
   const english = config.redirects.find((redirect) => redirect.destination === '/?locale=en');
   const korean = config.redirects.find((redirect) => redirect.destination === '/?locale=ko');
@@ -35,7 +35,8 @@ test('Vercel defaults every known non-Korean country to English and preserves ex
   assert.deepEqual(english.missing, [{ type: 'query', key: 'locale' }]);
   assert.equal(english.source, '/');
   assert.equal(english.statusCode, 307);
-  assert.equal(english.preserveQueryParams, true);
+  assert.equal(Object.hasOwn(english, 'preserveQueryParams'), false);
+  assert.equal(Object.hasOwn(korean, 'preserveQueryParams'), false);
   assert.deepEqual(korean.has, [{ type: 'header', key: 'x-vercel-ip-country', value: 'KR' }]);
   assert.deepEqual(korean.missing, [{ type: 'query', key: 'locale' }]);
 });
