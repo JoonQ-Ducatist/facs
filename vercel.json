@@ -15,10 +15,11 @@
         {
           "type": "header",
           "key": "x-vercel-ip-country",
-          "value": { "re": "^(US|GB|CA|AU|NZ|IE|SG|ZA|IN|PH)$" }
+          "value": { "neq": "KR" }
         }
       ],
       "missing": [{ "type": "query", "key": "locale" }],
+      "preserveQueryParams": true,
       "statusCode": 307
     },
     {
@@ -32,6 +33,7 @@
         }
       ],
       "missing": [{ "type": "query", "key": "locale" }],
+      "preserveQueryParams": true,
       "statusCode": 307
     }
   ],
