@@ -19,7 +19,6 @@
         }
       ],
       "missing": [{ "type": "query", "key": "locale" }],
-      "preserveQueryParams": true,
       "statusCode": 307
     },
     {
@@ -33,7 +32,6 @@
         }
       ],
       "missing": [{ "type": "query", "key": "locale" }],
-      "preserveQueryParams": true,
       "statusCode": 307
     }
   ],
