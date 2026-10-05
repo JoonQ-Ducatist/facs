@@ -1,10 +1,4 @@
-/**
- * Browser-only locale policy for the prototype.
- * Korean is the product default in every environment. A visitor can explicitly
- * opt into English with a URL-controlled language switch. Country routing stays
- * a server-side concern because it must not infer a user's location in the
- * client without an approved privacy policy.
- */
+/** Resolve explicit URL choice first, then browser preference outside Korea. */
 export const DEFAULT_LOCALE = 'ko';
 export const AVAILABLE_LOCALES = ['ko', 'en'];
 export const PLANNED_LOCALES = ['zh'];
@@ -12,6 +6,18 @@ export const PLANNED_LOCALES = ['zh'];
 export function resolveLocale(search = window.location.search, browser = window) {
   const requested = new URLSearchParams(search).get('locale');
   if (AVAILABLE_LOCALES.includes(requested)) return requested;
+
+  const hostname = browser?.location?.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return DEFAULT_LOCALE;
+
+  const languagePreferences = browser?.navigator?.languages?.length
+    ? browser.navigator.languages
+    : [browser?.navigator?.language];
+  const preferredLocale = languagePreferences
+    .map((language) => String(language ?? '').toLowerCase().split('-')[0])
+    .find((language) => AVAILABLE_LOCALES.includes(language));
+
+  if (preferredLocale) return preferredLocale;
   return DEFAULT_LOCALE;
 }
 

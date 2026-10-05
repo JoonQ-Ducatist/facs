@@ -17,6 +17,26 @@ test('profile exposes an explicit change flow for an existing public ID', async 
   assert.match(source, /onCancel=\{\(\) => setEditingHandle\(false\)\}/);
 });
 
+test('profile presentation action explicitly identifies bio and photo editing', async () => {
+  const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
+  assert.match(source, /locale === 'en' \? 'Edit bio and photo' : '소개 문구·사진 수정'/);
+  assert.match(source, /function ProfilePresentationForm\([\s\S]*?locale === 'en' \? 'Profile photo' : '프로필 사진'/);
+  assert.match(source, /locale === 'en' \? 'About me' : '소개 문구'/);
+});
+
+test('profile bio persists even when the optional avatar upload fails', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /let avatarUploadFailed = false;[\s\S]*?if \(uploaded\.error\) avatarUploadFailed = true;[\s\S]*?const saved = await updateMyProfilePresentation\(\{ bio, avatarPath \}\);/);
+  assert.match(source, /Your bio was saved, but the profile photo could not be uploaded\./);
+  assert.match(source, /소개 문구는 저장했지만 프로필 사진은 올리지 못했어요\./);
+});
+
+test('header avatar uses the saved profile photo instead of a recent post photo', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(source, /getProfileAvatarUrl\(profile\.avatar_path\)/);
+  assert.doesNotMatch(source, /profileCards\?\.\[0\]\?\.imageUrl/);
+});
+
 test('profile handle typography and uploaded-photo actions stay consistent across locale changes', async () => {
   const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
