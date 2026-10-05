@@ -91,6 +91,13 @@ test('feed preserves touch-safe cards while desktop and landscape scroll the car
   assert.match(styles, /\.editorial-main--feed > \.editorial-feed\.editorial-feed--scroll \{[\s\S]*?overflow-y: auto !important/);
 });
 
+test('portrait single-post cards fit below fixed navigation and do not swallow gestures without scroll range', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /const maximum = Math\.max\(0, scrollRoot\.scrollHeight - scrollRoot\.clientHeight\);\s*if \(maximum <= 0\) return;\s*event\.preventDefault\(\);/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{\s*\.editorial-main--feed \.media-carousel--scroll > \.feed-post-card \{\s*height: min\(720px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);\s*min-height: min\(480px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);/);
+});
+
 test('feed pages content and activates media only near the scroll viewport', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const app = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');

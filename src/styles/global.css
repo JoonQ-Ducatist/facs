@@ -500,6 +500,15 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 .editorial-main--feed .media-carousel--scroll { display: flex !important; height: auto !important; min-height: 0; flex: 0 0 auto; flex-direction: column; gap: 16px; overflow: visible !important; padding-bottom: 16px; }
 .editorial-main--feed .media-carousel--scroll > .feed-post-card { display: block; width: 100%; height: min(720px, calc(100dvh - 88px)); min-height: 480px; flex: 0 0 auto; touch-action: pan-y; }
 
+/* Portrait viewport reserves the fixed header, bottom navigation, and category
+   rail before sizing a card, so one post still exposes its action row. */
+@media (max-width: 1023px) and (orientation: portrait) {
+  .editorial-main--feed .media-carousel--scroll > .feed-post-card {
+    height: min(720px, calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    min-height: min(480px, calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  }
+}
+
 .feed-page-sentinel { display: flex; min-height: 1px; justify-content: center; padding: 0 0 12px; }
 .feed-page-sentinel button { min-height: 40px; padding: 0 16px; border: 1px solid var(--xc-outline); border-radius: 999px; background: #fff; color: var(--xc-text); font-size: 13px; font-weight: 700; }
 

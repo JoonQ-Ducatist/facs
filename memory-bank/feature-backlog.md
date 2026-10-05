@@ -46,7 +46,7 @@
 | CL-04 | 실제 유효 투표·기본 Result | Data | 1인 1표·서버 집계·BINARY YES/NO 또는 NUMERIC_AGE·표본 수 결과 제공 | **완료(승인)** — 서버 고유 제약·작성자 자기평가 차단·Aggregate 전용 RPC·표본 상태 UI와 실계정 다계정 평가·새로고침 복구를 사용자 점검으로 확인 |
 | CL-05 | 초기 Analytics | Acquisition·Engagement·Data | Visitor→Signup→First Vote→Upload→Result 이벤트와 Weekly Valid Votes 수집 | **Codex셀프 완료(로컬 범위)** — 익명 로컬 이벤트 계약·퍼널 이벤트 연결 완료. 서버 수집·주간 지표는 Closed Beta/Supabase 단계에서 연결 |
 | GEO-01 | 동의 기반 촬영 장소 컨텍스트 | Trust·Engagement | EXIF/기기/입력 출처·확실성·공개 동의·민감 장소 차단·상세 패널 노출을 구현 | 대기 — 위치·개인정보 영향평가와 관리자 검토 설계 선행 |
-| I18N-01 | 글로벌 언어·지역 선택 | Acquisition·Trust | `ko/en/zh` 번역 키, 서버 국가 신호+브라우저 언어 제안, 수동 언어 선택, 한국 테스트 한국어 기본을 구현 | **Codex셀프 완료(ko/en 기반 범위)** — 로컬 한국어 기본·영어 수동 전환·브라우저 영어 제안 기반을 구현. 중국어 번역 카탈로그와 서버 국가 신호는 개인정보·운영 정책 확정 뒤 연결 |
+| I18N-01 | 글로벌 언어·지역 선택 | Acquisition·Trust | `ko/en/zh` 번역 키, 서버 국가 신호+브라우저 언어 제안, 수동 언어 선택, 한국 테스트 한국어 기본을 구현 | **ko/en 코드 완료, 운영 검증 대기** — Vercel 국가 코드로 영어권 국가 영어·한국 한국어를 제안하고 다른 지역은 브라우저 언어를 fallback한다. `locale` URL 값이 우선하며 FACS는 언어 선택용 IP 원문을 저장하지 않는다. 로컬 계약 테스트 완료 후 국가별 운영 검증 필요. 중국어 번역 카탈로그는 별도 후속 |
 | HAP-01 | 모바일 평가 햅틱 | Engagement | YES 단일·NO 이중 햅틱을 지원 기기에서 제공하고 비지원 환경 안전 폴백 검증 | **Codex셀프 완료(코드 범위)** — 지원 브라우저에서 YES 12ms 단일, NO 이중 패턴을 호출하며 `navigator.vibrate` 미지원 시 무동작 폴백. 실제 기기 QA 대기 |
 
 ### Day 15–30 — Closed Beta 기반

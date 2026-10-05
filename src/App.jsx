@@ -28,7 +28,7 @@ import { blockMember, getMyBlockedMembers, unblockMember } from './services/bloc
 import { reportDeduplicationKey, submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getCompletedAuthReturnUrl, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
-import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
+import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, getProfileAvatarUrl, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
@@ -913,16 +913,20 @@ export default function App() {
 
   const saveProfilePresentation = useCallback(async ({ bio, avatarFile }) => {
     let avatarPath = profile?.avatar_path ?? null;
+    let avatarUploadFailed = false;
     if (avatarFile) {
       const uploaded = await uploadMyProfileAvatar(avatarFile);
-      if (uploaded.error) return { ok: false, message: uploaded.error.message };
-      avatarPath = uploaded.data.path;
+      if (uploaded.error) avatarUploadFailed = true;
+      else avatarPath = uploaded.data.path;
     }
     const saved = await updateMyProfilePresentation({ bio, avatarPath });
     if (saved.error) return { ok: false, message: saved.error.message };
     setProfile(saved.data);
-    setToast(locale === 'en' ? 'Your profile was saved.' : '프로필을 저장했어요.');
-    return { ok: true, data: saved.data };
+    const message = avatarUploadFailed
+      ? (locale === 'en' ? 'Your bio was saved, but the profile photo could not be uploaded.' : '소개 문구는 저장했지만 프로필 사진은 올리지 못했어요.')
+      : (locale === 'en' ? 'Your profile was saved.' : '프로필을 저장했어요.');
+    setToast(message);
+    return { ok: true, data: saved.data, warning: avatarUploadFailed ? 'avatar_upload_failed' : null };
   }, [locale, profile?.avatar_path]);
 
   const checkHandle = useCallback(async (handle) => {
@@ -1312,7 +1316,7 @@ export default function App() {
             <span className="sr-only">{locale === 'ko' ? 'English' : '한국어'}</span>
           </button>
           <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-container" onClick={() => setToast('새 알림은 없습니다.')} aria-label="알림"><span className="material-symbols-outlined text-[22px] text-on-surface-variant">notifications</span><span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#c5a059] ring-2 ring-background" /></button>
-          <button type="button" onClick={() => setActiveTab('profile')} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필">{profileCards?.[0]?.imageUrl ? <img className="h-full w-full rounded-full object-cover" src={profileCards[0].imageUrl} alt="내 프로필" /> : <span className="material-symbols-outlined text-[22px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}</button>
+          <button type="button" onClick={() => setActiveTab('profile')} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필">{profile?.avatar_path ? <img className="h-full w-full rounded-full object-cover" src={getProfileAvatarUrl(profile.avatar_path)} alt="내 프로필" /> : <span className="material-symbols-outlined text-[22px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}</button>
         </div>
       </div>
     </header>

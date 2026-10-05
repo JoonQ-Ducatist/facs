@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { localeUrl, resolveLocale } from './locale.js';
 
 const browser = (hostname, languages = []) => ({
@@ -7,17 +8,36 @@ const browser = (hostname, languages = []) => ({
   navigator: { languages, language: languages[0] },
 });
 
-test('an omitted locale always defaults to Korean, including in production', () => {
+test('local development keeps Korean as the default regardless of browser language', () => {
   assert.equal(resolveLocale('', browser('localhost', ['en-US'])), 'ko');
-  assert.equal(resolveLocale('', browser('facs.example', ['en-US'])), 'ko');
 });
 
 test('explicit supported locale takes priority over browser preference', () => {
   assert.equal(resolveLocale('?locale=en', browser('example.com', ['ko-KR'])), 'en');
+  assert.equal(resolveLocale('?locale=ko', browser('example.com', ['en-US'])), 'ko');
 });
 
-test('a browser language never overrides the Korean product default', () => {
-  assert.equal(resolveLocale('', browser('example.com', ['en-GB', 'ko-KR'])), 'ko');
+test('supported browser language is the fallback when no country or URL preference exists', () => {
+  assert.equal(resolveLocale('', browser('facs.example', ['en-GB', 'ko-KR'])), 'en');
+  assert.equal(resolveLocale('', browser('facs.example', ['fr-FR'])), 'ko');
+});
+
+test('Vercel proposes language by country only on the root and preserves explicit choice and campaign query', async () => {
+  const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
+  const english = config.redirects.find((redirect) => redirect.destination === '/?locale=en');
+  const korean = config.redirects.find((redirect) => redirect.destination === '/?locale=ko');
+
+  assert.deepEqual(english.has, [{
+    type: 'header',
+    key: 'x-vercel-ip-country',
+    value: { re: '^(US|GB|CA|AU|NZ|IE|SG|ZA|IN|PH)$' },
+  }]);
+  assert.deepEqual(english.missing, [{ type: 'query', key: 'locale' }]);
+  assert.equal(english.source, '/');
+  assert.equal(english.statusCode, 307);
+  assert.equal(english.preserveQueryParams, true);
+  assert.deepEqual(korean.has, [{ type: 'header', key: 'x-vercel-ip-country', value: 'KR' }]);
+  assert.deepEqual(korean.missing, [{ type: 'query', key: 'locale' }]);
 });
 
 test('language URL retains the current route and unrelated query values', () => {

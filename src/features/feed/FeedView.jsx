@@ -53,8 +53,9 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
       const deltaY = touch.clientY - startPoint.y;
       if (!startPoint.axis) startPoint.axis = resolveFeedGestureAxis(deltaX, deltaY);
       if (startPoint.axis !== 'y') return;
-      event.preventDefault();
       const maximum = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
+      if (maximum <= 0) return;
+      event.preventDefault();
       scrollRoot.scrollTop = resolveFeedDragPosition(startPoint.scrollTop, deltaY, maximum);
     };
     const finish = () => {

@@ -11,12 +11,16 @@ test('legal policy dialog provides terms, privacy, and safety notices in Korean 
 });
 
 test('all policy notices show the confirmed operator, public MVP scope, and approved age and request rules', () => {
-  assert.match(policy, /tweety and company/);
-  assert.match(policy, /mailto:joonkyou\.park@gmail\.com/);
+  assert.match(policy, /Tweety and Company/);
+  assert.match(policy, /mailto:teamfactsmack@gmail\.com/);
+  assert.doesNotMatch(policy, /joonkyou\.park@gmail\.com/);
+  assert.match(policy, /teamfactsmack@gmail\.com/);
   assert.match(policy, /만 14세 이상/);
   assert.match(policy, /소프트 삭제/);
   assert.match(policy, /열람·정정·삭제·처리정지/);
   assert.match(policy, /공개 MVP 운영 초안/);
+  assert.match(policy, /Vercel이 요청의 IP 주소에서 제공하는 국가 코드/);
+  assert.match(policy, /country code derived from the request IP address/);
   assert.doesNotMatch(policy, /Closed Beta/);
 });
 
