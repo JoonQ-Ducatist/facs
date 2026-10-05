@@ -355,13 +355,26 @@ export function fromDatabaseCategory(category) {
  * visible. Signed URLs stay short-lived and are recreated whenever the feed
  * is refreshed.
  */
-export async function listSupabasePublishedFeedCards({ limit = 20, client = supabase } = {}) {
+export async function listSupabasePublishedFeedCards({ limit = 10, cursor = null, client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
   if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
-  const pageSize = Math.min(Math.max(limit, 1), 50);
-  const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_ids', { page_size: pageSize, category_filter: null });
+  const pageSize = Math.min(Math.max(limit, 1), 20);
+  const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_page', {
+    page_size: pageSize + 1,
+    category_filter: null,
+    after_post_id: cursor,
+  });
+  if (orderError?.code === 'PGRST202' || orderError?.code === '42883') {
+    const legacyPage = await client.rpc('get_personalized_feed_post_ids', { page_size: 20, category_filter: null });
+    if (legacyPage.error) return feedReadFailure('feed-order');
+    const result = await listSupabaseCardsInServerOrder(legacyPage.data, { client, source: 'supabase-legacy-feed' });
+    return { ...result, meta: { ...result.meta, hasMore: false, nextCursor: null } };
+  }
   if (orderError) return feedReadFailure('feed-order');
-  return listSupabaseCardsInServerOrder(orderedPosts, { client, source: 'supabase' });
+  const page = orderedPosts ?? [];
+  const hasMore = page.length > pageSize;
+  const result = await listSupabaseCardsInServerOrder(page.slice(0, pageSize), { client, source: 'supabase' });
+  return { ...result, meta: { ...result.meta, hasMore, nextCursor: hasMore ? page.at(pageSize - 1)?.post_id ?? null : null } };
 }
 
 function feedReadFailure(source) {

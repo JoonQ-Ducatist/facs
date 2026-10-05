@@ -4,20 +4,87 @@ import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
+import { resolveFeedDragPosition, resolveFeedGestureAxis } from './feedScroll.js';
 import ResultCard from './ResultCard.jsx';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ locale = 'ko', categories, cards, activeCategory, votedIds, boostCandidateIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ locale = 'ko', categories, cards, activeCategory, hasMore = false, onLoadMore, votedIds, boostCandidateIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
   const [expandedPost, setExpandedPost] = useState(null);
   const [draft, setDraft] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
+  const feedRef = useRef(null);
+  const pageSentinelRef = useRef(null);
+  const loadMoreRef = useRef(onLoadMore);
+  const loadMoreInFlight = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  loadMoreRef.current = onLoadMore;
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    const section = feedRef.current;
+    if (!section) return undefined;
+    const main = section.closest('.editorial-main--feed');
+    const style = (element) => element && window.getComputedStyle(element);
+    const scrollRoot = /^(auto|scroll)$/.test(style(section)?.overflowY ?? '') ? section : main;
+    if (!scrollRoot) return undefined;
+    const previousMomentum = scrollRoot.style.webkitOverflowScrolling;
+    scrollRoot.style.webkitOverflowScrolling = 'auto';
+    const gesture = { current: null };
+    const start = (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (event.touches.length !== 1 || target?.closest('button, a, input, textarea, select, [contenteditable="true"], [role="dialog"], .comment-panel')) {
+        gesture.current = null;
+        return;
+      }
+      const touch = event.touches[0];
+      gesture.current = { x: touch.clientX, y: touch.clientY, scrollTop: scrollRoot.scrollTop, axis: null };
+    };
+    const move = (event) => {
+      const startPoint = gesture.current;
+      const touch = event.touches[0];
+      if (!startPoint || !touch || event.touches.length !== 1) return;
+      const deltaX = touch.clientX - startPoint.x;
+      const deltaY = touch.clientY - startPoint.y;
+      if (!startPoint.axis) startPoint.axis = resolveFeedGestureAxis(deltaX, deltaY);
+      if (startPoint.axis !== 'y') return;
+      event.preventDefault();
+      const maximum = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
+      scrollRoot.scrollTop = resolveFeedDragPosition(startPoint.scrollTop, deltaY, maximum);
+    };
+    const finish = () => {
+      gesture.current = null;
+    };
+    section.addEventListener('touchstart', start, { passive: true });
+    section.addEventListener('touchmove', move, { passive: false });
+    section.addEventListener('touchend', finish, { passive: true });
+    section.addEventListener('touchcancel', finish, { passive: true });
+    return () => {
+      section.removeEventListener('touchstart', start);
+      section.removeEventListener('touchmove', move);
+      section.removeEventListener('touchend', finish);
+      section.removeEventListener('touchcancel', finish);
+      scrollRoot.style.webkitOverflowScrolling = previousMomentum;
+    };
+  }, [cards.length > 0]);
+  useEffect(() => {
+    const sentinel = pageSentinelRef.current;
+    if (!hasMore || !sentinel || !('IntersectionObserver' in window)) return undefined;
+    const section = feedRef.current;
+    const main = section?.closest('.editorial-main--feed');
+    const sectionScrollable = section && /^(auto|scroll)$/.test(window.getComputedStyle(section).overflowY);
+    const root = sectionScrollable ? section : main;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !loadMoreInFlight.current) void requestNextPage();
+    }, { root, rootMargin: '640px 0px', threshold: 0 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [cards.length, hasMore]);
   /** 정의: PC에서도 스크롤바 없이 카테고리 탭 띠를 잡아 좌우로 탐색한다. */
   function startCategoryDrag(event) {
     // A tap on a category button must remain a click; only the empty rail is draggable.
@@ -29,27 +96,73 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
 
   if (!cards.length) return <EmptyFeed locale={locale} onStartUpload={onStartUpload} />;
   const expandedCard = expandedPost ? cards.find((item) => item.id === expandedPost.card.id) : null;
-  return <section className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
-    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
+  return <>
+    <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full shrink-0 cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
 
-    <div className="media-carousel media-carousel--scroll relative w-full">
-      {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={onVote} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
-    </div>
-    {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
-  </section>;
+    <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
+      <div className="media-carousel media-carousel--scroll relative w-full">
+        {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={onVote} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
+      </div>
+      {hasMore && <div ref={pageSentinelRef} className="feed-page-sentinel" aria-live="polite">
+        {loadMoreError || !('IntersectionObserver' in window) ? <button type="button" disabled={loadingMore} onClick={() => void requestNextPage()}>{loadingMore ? (locale === 'en' ? 'Loading…' : '불러오는 중…') : (locale === 'en' ? 'Load more' : '더 불러오기')}</button> : null}
+      </div>}
+      {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
+    </section>
+  </>;
+
+  async function requestNextPage() {
+    if (loadMoreInFlight.current || !loadMoreRef.current) return;
+    loadMoreInFlight.current = true;
+    setLoadingMore(true);
+    setLoadMoreError(false);
+    try {
+      const loaded = await loadMoreRef.current();
+      if (loaded === false) setLoadMoreError(true);
+    } catch {
+      setLoadMoreError(true);
+    } finally {
+      loadMoreInFlight.current = false;
+      setLoadingMore(false);
+    }
+  }
 }
 
 function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [nearViewport, setNearViewport] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
   const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
   const videoRef = useRef(null);
+  const articleRef = useRef(null);
+  const mediaTrackRef = useRef(null);
+  const mediaSwipeStart = useRef(null);
   useEffect(() => { setMediaIndex(0); setIsVideoPlaying(false); setSaveNotice(''); }, [card.id]);
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return undefined;
+    if (!('IntersectionObserver' in window)) { setNearViewport(true); return undefined; }
+    const feed = article.closest('.editorial-feed--scroll');
+    const main = article.closest('.editorial-main--feed');
+    const feedScrollable = feed && /^(auto|scroll)$/.test(window.getComputedStyle(feed).overflowY);
+    const observer = new IntersectionObserver(([entry]) => setNearViewport(entry.isIntersecting), {
+      root: feedScrollable ? feed : main,
+      rootMargin: '480px 0px',
+      threshold: 0,
+    });
+    observer.observe(article);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!nearViewport) {
+      videoRef.current?.pause();
+      setIsVideoPlaying(false);
+    }
+  }, [nearViewport]);
   const theme = categories[card.category];
   const media = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
   const activeMedia = media[mediaIndex];
@@ -60,6 +173,53 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
   const noPercent = 100 - yesPercent;
   const timestamp = formatPublishedTime(card.publishedAt, { locale, now: clockNow }) || card.timestamp;
   const authorKey = card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`;
+  function selectMedia(nextIndex) {
+    const boundedIndex = Math.max(0, Math.min(media.length - 1, nextIndex));
+    if (boundedIndex !== mediaIndex) {
+      videoRef.current?.pause();
+      setIsVideoPlaying(false);
+      setMediaIndex(boundedIndex);
+    }
+  }
+  function startMediaSwipe(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (media.length < 2 || event.touches.length !== 1 || target?.closest('button, a, input, textarea, select, [role="dialog"]')) {
+      mediaSwipeStart.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    if (target instanceof HTMLVideoElement) {
+      const bounds = target.getBoundingClientRect();
+      if (touch.clientY >= bounds.bottom - 58) { mediaSwipeStart.current = null; return; }
+    }
+    mediaSwipeStart.current = { x: touch.clientX, y: touch.clientY, time: event.timeStamp, width: event.currentTarget.getBoundingClientRect().width };
+    mediaTrackRef.current?.classList.add('media-track--dragging');
+  }
+  function moveMediaSwipe(event) {
+    const start = mediaSwipeStart.current;
+    const touch = event.touches[0];
+    if (!start || !touch || Math.abs(touch.clientX - start.x) <= Math.abs(touch.clientY - start.y)) return;
+    const deltaX = touch.clientX - start.x;
+    const atEdge = (mediaIndex === 0 && deltaX > 0) || (mediaIndex === media.length - 1 && deltaX < 0);
+    const resistedDelta = atEdge ? deltaX * 0.28 : deltaX;
+    mediaTrackRef.current?.style.setProperty('--media-drag-offset', `${resistedDelta}px`);
+  }
+  function finishMediaSwipe(event) {
+    const start = mediaSwipeStart.current;
+    mediaSwipeStart.current = null;
+    mediaTrackRef.current?.classList.remove('media-track--dragging');
+    const touch = event.changedTouches[0];
+    if (!start || !touch || media.length < 2) { mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); return; }
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const velocity = Math.abs(deltaX) / Math.max(1, event.timeStamp - start.time);
+    const shouldAdvance = Math.abs(deltaX) >= start.width * 0.2 || (Math.abs(deltaX) >= 28 && velocity >= 0.35);
+    const horizontal = Math.abs(deltaX) > Math.abs(deltaY);
+    const direction = deltaX < 0 ? 1 : -1;
+    mediaTrackRef.current?.style.removeProperty('--media-drag-offset');
+    if (!horizontal || !shouldAdvance) return;
+    selectMedia(mediaIndex + direction);
+  }
   async function toggleSaved() { const result = await onToggleSave(card.id); if (result?.ok) setSaveNotice(result.saved ? (locale === 'en' ? 'Saved to Scraps' : '스크랩에 저장됨') : (locale === 'en' ? 'Removed from Scraps' : '스크랩에서 제거됨')); }
   const stopVideoControlGesture = (event) => event.stopPropagation();
   const toggleInlinePlayback = (event) => {
@@ -80,18 +240,18 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     event.stopPropagation();
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
-  return <article className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
-    <div className="media-primary absolute overflow-hidden"><CardMedia card={card} media={activeMedia} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen videoControlRef={videoRef} onPlaybackChange={setIsVideoPlaying} /></div>
+  return <article ref={articleRef} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
+    <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={nearViewport && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
-    {media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => setMediaIndex((index) => Math.max(0, index - 1))} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => setMediaIndex((index) => Math.min(media.length - 1, index + 1))} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
+    {media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
     <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
     <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><time dateTime={card.publishedAt || undefined} className="font-mono text-[8px] leading-none text-white/75">{timestamp}</time></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !isOwnPost && card.authorId !== currentUserId} canReport={Boolean(currentUserId && card.authorId) && card.authorId !== currentUserId} following={following} onToggleFollow={() => onToggleFollow?.(authorKey)} onBlock={() => onBlockAuthor?.(authorKey, card.author)} onReport={() => setReportOpen(true)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
-    {media.length > 1 && <MediaProgress locale={locale} media={media} mediaIndex={mediaIndex} color={theme.color} onSelect={setMediaIndex} />}
+    {media.length > 1 && <MediaProgress locale={locale} media={media} mediaIndex={mediaIndex} color={theme.color} onSelect={selectMedia} />}
     <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h2 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h2></div>
       {hasVoted || isOwnPost || liveReactions.length ? <>{isAge ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{liveReactions.length > 0 && <LiveReactionBalloons reactions={liveReactions} />}</> : isAge ? <AgeVotePanel card={card} color={theme.color} onVote={(value) => onVote(value, card)} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
       {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={saved} color={theme.color} notice={saveNotice} onToggleSave={toggleSaved} onShare={() => setSharePreviewOpen(true)} onExpand={() => onOpenComments({ card, media: activeMedia, timestamp })} />}
     </div>
-    {isVideo && <div className="video-card-controls absolute inset-0 z-30 pointer-events-none"><button type="button" data-video-play-button aria-pressed={isVideoPlaying} aria-label={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} title={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} className="video-card-play-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={toggleInlinePlayback} onClick={toggleInlinePlaybackFromClick}><span className="material-symbols-outlined" aria-hidden="true">{isVideoPlaying ? 'pause' : 'play_arrow'}</span></button><button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={stopVideoControlGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>}
+    {isVideo && nearViewport && <div className="video-card-controls absolute inset-0 z-30 pointer-events-none"><button type="button" data-video-play-button aria-pressed={isVideoPlaying} aria-label={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} title={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} className="video-card-play-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={toggleInlinePlayback} onClick={toggleInlinePlaybackFromClick}><span className="material-symbols-outlined" aria-hidden="true">{isVideoPlaying ? 'pause' : 'play_arrow'}</span></button><button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={stopVideoControlGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>}
     {reportOpen && <ReportDialog locale={locale} author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => onReportPost?.(card.id, reason)} />}
     {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} total={total} yesPercent={yesPercent} noPercent={noPercent} onClose={() => setSharePreviewOpen(false)} onShare={() => onShare(card)} />}
   </article>;
@@ -171,10 +331,10 @@ function ReportDialog({ locale, author, onClose, onSubmit }) {
 /** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
 function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="rounded-full p-0"><span className="block rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'rgba(255,255,255,.52)' }} /></button>)}</div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
-function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange }) {
+function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
-  const videoPoster = useVideoPoster(isVideo ? source.url : '');
+  const videoPoster = useVideoPoster(isVideo && interactive ? source.url : '');
   const localVideoRef = useRef(null);
   const videoRef = videoControlRef ?? localVideoRef;
   const protectMedia = (event) => event.preventDefault();
@@ -195,8 +355,8 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
       source: String(video.currentSrc || source.url || '').split('?')[0],
     });
   };
-  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
-  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={source.url} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={showFullscreen && !muted ? 'auto' : 'metadata'} controls={!muted && !showFullscreen} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
+  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={loaded ? source.url : undefined} loading={loaded ? 'eager' : 'lazy'} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
+  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   return video;
 }
 function useVideoPoster(url) {

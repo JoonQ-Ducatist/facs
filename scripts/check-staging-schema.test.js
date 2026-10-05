@@ -14,7 +14,7 @@ test('staging guard reports missing migration tokens and RPC paths', () => {
   const missingMigration = auditMigrationContracts(migrationSql);
   const missingRpc = auditOpenApi({ paths: {} });
   assert.match(missingMigration.join('\n'), /migration file is missing/);
-  assert.deepEqual(missingRpc, ['/rpc/get_moderation_report_queue', '/rpc/get_moderation_post_preview']);
+  assert.deepEqual(missingRpc, ['/rpc/get_moderation_report_queue', '/rpc/get_moderation_post_preview', '/rpc/get_personalized_feed_post_page']);
 });
 
 test('staging guard audits the repository without mutating the database', async () => {

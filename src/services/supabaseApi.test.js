@@ -98,10 +98,31 @@ test('feed cards retain an RPC failure instead of reporting an empty successful 
 });
 
 test('feed cards keep a normal empty personalized result as a successful empty feed', async () => {
-  const result = await listSupabasePublishedFeedCards({ client: { rpc: async () => ({ data: [], error: null }) } });
+  const calls = [];
+  const result = await listSupabasePublishedFeedCards({ limit: 10, cursor: 'post-cursor-id', client: { rpc: async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; } } });
   assert.deepEqual(result.data, []);
   assert.equal(result.error, undefined);
   assert.equal(result.meta.source, 'supabase');
+  assert.equal(result.meta.hasMore, false);
+  assert.equal(result.meta.nextCursor, null);
+  assert.deepEqual(calls, [{ name: 'get_personalized_feed_post_page', args: { page_size: 11, category_filter: null, after_post_id: 'post-cursor-id' } }]);
+});
+
+test('feed remains readable with the legacy bounded page until cursor migration is available', async () => {
+  const calls = [];
+  const result = await listSupabasePublishedFeedCards({ client: { rpc: async (name, args) => {
+    calls.push({ name, args });
+    return name === 'get_personalized_feed_post_page'
+      ? { data: null, error: { code: 'PGRST202' } }
+      : { data: [], error: null };
+  } } });
+  assert.deepEqual(result.data, []);
+  assert.equal(result.meta.hasMore, false);
+  assert.equal(result.meta.nextCursor, null);
+  assert.deepEqual(calls, [
+    { name: 'get_personalized_feed_post_page', args: { page_size: 11, category_filter: null, after_post_id: null } },
+    { name: 'get_personalized_feed_post_ids', args: { page_size: 20, category_filter: null } },
+  ]);
 });
 
 test('feed aggregate reads a page in one aggregate-only RPC without raw vote rows', async () => {

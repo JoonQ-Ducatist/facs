@@ -202,7 +202,9 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 .media-card img, .media-card video { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
 .media-protected { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
 .media-primary { transition: transform .24s cubic-bezier(.18,.72,.28,1); will-change: transform; }
-.media-primary--dragging { transition: none; }
+.media-primary__track { display: flex; width: 100%; height: 100%; transition: transform .34s cubic-bezier(.22,.72,.18,1); will-change: transform; }
+.media-primary__track.media-track--dragging { transition: none; }
+.media-primary__slide { position: relative; width: 100%; height: 100%; flex: 0 0 100%; overflow: hidden; }
 .media-card--dragging .media-peek--continuous { transition: none; }
 .upload-media-control { display: inline-flex; width: 18px; height: 18px; flex: 0 0 18px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.78); border-radius: 999px; color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.32), inset 0 0 0 1px rgba(1,8,17,.14); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: transform .15s ease, filter .15s ease, opacity .15s ease; touch-action: manipulation; }
 .upload-media-control .material-symbols-outlined { font-size: 10px !important; }
@@ -407,8 +409,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .media-card-photo-nav__button { position: absolute; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; transform: translateY(-50%) scale(.9); border: 1px solid rgba(255,255,255,.32); border-radius: 999px; background: rgba(1,8,17,.34); color: #fff; opacity: 0; pointer-events: auto; transition: opacity .2s ease, transform .22s cubic-bezier(.16,1,.3,1), background .15s ease; }
   .media-card-photo-nav__button:hover { background: rgba(1,8,17,.62); }
   .media-card-photo-nav__button--left { left: 16px; }
-  /* 우측 48px은 위·아래 피드 이동 제어의 안전 영역으로 비워, 사진 다음 화살표와 겹치지 않게 한다. */
-  .media-card-photo-nav__button--right { right: 60px; }
+  .media-card-photo-nav__button--right { right: 16px; }
   .editorial-feed article:hover .media-card-photo-nav__button, .editorial-feed article:focus-within .media-card-photo-nav__button, .ranking-preview-carousel:hover .media-card-photo-nav__button, .ranking-preview-carousel:focus-within .media-card-photo-nav__button { opacity: .76; transform: translateY(-50%) scale(1); }
   .editorial-feed article:hover .media-card-photo-nav__button:hover, .editorial-feed article:focus-within .media-card-photo-nav__button:hover, .ranking-preview-carousel:hover .media-card-photo-nav__button:hover, .ranking-preview-carousel:focus-within .media-card-photo-nav__button:hover { opacity: 1; }
   .ranking-preview-carousel .media-card-photo-nav__button--right { right: 16px; }
@@ -459,7 +460,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .desktop-nav-language { display: inline-flex; margin: 0 0 10px; }
   .desktop-nav-language__mark { display: none; }
   .desktop-nav-language span:last-child { max-width: 90px; opacity: 1; }
-  .editorial-feed > div:first-child { position: relative; grid-row: 1; z-index: 45; min-height: 30px; padding: .25rem 0; background: var(--xc-surface); }
+  .editorial-main--feed > .feed-category-rail { position: sticky; top: 0; grid-row: 1; z-index: 70; min-height: 30px; padding: .25rem 0; background: #fbf9f4; }
 
   /* Landscape phone dialogs use the desktop two-column contract instead of a
      portrait bottom sheet, keeping media and controls inside the viewport. */
@@ -491,10 +492,16 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
    into a forced single-card jump. */
 .editorial-main--feed { overflow-y: auto !important; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .editorial-main--feed::-webkit-scrollbar { display: none; }
-.editorial-main--feed > .editorial-feed.editorial-feed--scroll { display: block !important; height: auto !important; min-height: 100%; overflow: visible !important; }
-.editorial-main--feed > .editorial-feed--scroll > .feed-category-rail { position: sticky; top: 0; z-index: 45; margin: 0; padding-top: .25rem; padding-bottom: .5rem; background: var(--xc-surface); }
+.editorial-main--feed > .editorial-feed.editorial-feed--scroll { display: block !important; height: auto !important; min-height: 0; overflow: visible !important; }
+/* The category rail belongs directly to the vertical scroll owner. Keeping it
+   outside the orientation-dependent feed section prevents iOS from losing the
+   sticky containing block when that section switches overflow/layout modes. */
+.editorial-main--feed > .feed-category-rail { position: sticky; top: 0; z-index: 70; isolation: isolate; margin: 0; padding-top: .25rem; padding-bottom: .5rem; background: #fbf9f4; box-shadow: 0 8px 14px rgba(10,20,32,.08); }
 .editorial-main--feed .media-carousel--scroll { display: flex !important; height: auto !important; min-height: 0; flex: 0 0 auto; flex-direction: column; gap: 16px; overflow: visible !important; padding-bottom: 16px; }
 .editorial-main--feed .media-carousel--scroll > .feed-post-card { display: block; width: 100%; height: min(720px, calc(100dvh - 88px)); min-height: 480px; flex: 0 0 auto; touch-action: pan-y; }
+
+.feed-page-sentinel { display: flex; min-height: 1px; justify-content: center; padding: 0 0 12px; }
+.feed-page-sentinel button { min-height: 40px; padding: 0 16px; border: 1px solid var(--xc-outline); border-radius: 999px; background: #fff; color: var(--xc-text); font-size: 13px; font-weight: 700; }
 
 @media (min-width: 1024px) {
   .editorial-main--feed { overflow-y: auto !important; }
@@ -510,4 +517,129 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .editorial-app { grid-template-columns: var(--desktop-nav-width) minmax(0, 520px) minmax(280px, 300px); justify-content: center; column-gap: 32px; }
   .editorial-main { grid-column: 2; width: 100%; justify-self: stretch; }
   .desktop-recommendations { display: block; grid-column: 3; grid-row: 1; align-self: start; width: 100%; padding-top: 72px; color: var(--xc-text); }
+}
+
+@media (max-width: 1023px) and (orientation: portrait) {
+  .editorial-app > header { transition: transform .2s ease; }
+  .editorial-app > nav {
+    position: fixed !important;
+    inset: auto auto calc(10px + env(safe-area-inset-bottom)) 50% !important;
+    display: flex !important;
+    width: min(420px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    height: 48px;
+    min-height: 48px;
+    transform: translateX(-50%);
+    overflow: visible;
+    border: 1px solid rgba(255,255,255,.46);
+    border-radius: 999px;
+    padding: 0 8px !important;
+    background: rgba(255,255,255,.26);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.56), 0 6px 26px rgba(10,20,32,.16);
+    backdrop-filter: blur(10px) saturate(1.35);
+    -webkit-backdrop-filter: blur(10px) saturate(1.35);
+    transform: translateX(-50%) translateZ(0);
+    transition: transform .2s ease;
+  }
+  .editorial-app > nav .desktop-nav-brand,
+  .editorial-app > nav .desktop-nav-language,
+  .editorial-app > nav .desktop-policy-links { display: none !important; }
+  .editorial-app > nav > .desktop-nav-items {
+    width: 100%;
+    height: 100% !important;
+    max-width: none;
+    justify-content: space-around;
+    gap: 0;
+    padding: 0;
+  }
+  .editorial-app > nav > .desktop-nav-items button {
+    display: inline-flex;
+    width: 25% !important;
+    height: 48px !important;
+    flex: 1 1 0%;
+    justify-content: center !important;
+    gap: 0 !important;
+    overflow: visible;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent !important;
+    color: #101114 !important;
+    padding: 0 !important;
+  }
+  .editorial-app > nav > .desktop-nav-items button .material-symbols-outlined {
+    font-size: 23px;
+    color: #101114 !important;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    filter: drop-shadow(0 1px 1px rgba(255,255,255,.65));
+  }
+  .editorial-app > nav > .desktop-nav-items button[aria-current="page"] .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  }
+  .editorial-app > nav > .desktop-nav-items button[aria-current="page"] {
+    border-color: transparent;
+    background: rgba(16,17,20,.08) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
+  }
+  .editorial-app > nav > .desktop-nav-items button span:last-child { display: none !important; }
+  .editorial-main {
+    inset: calc(44px + env(safe-area-inset-top)) 0 0 0;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    transition: inset .2s ease;
+  }
+  .editorial-app--nav-hidden > header { transform: translateY(-110%); }
+  .editorial-app--nav-hidden > nav { transform: translate(-50%, calc(100% + 18px + env(safe-area-inset-bottom))); }
+  .editorial-app--nav-hidden > .editorial-main { inset: 0 !important; }
+  .editorial-app::before,
+  .editorial-app::after {
+    position: fixed;
+    right: 0;
+    left: 0;
+    z-index: 55;
+    height: 76px;
+    background: linear-gradient(to bottom, rgba(248,247,243,.22), transparent);
+    content: '';
+    pointer-events: none;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+  .editorial-app::before {
+    top: 0;
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  }
+  .editorial-app::after {
+    bottom: 0;
+    transform: rotate(180deg);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  }
+}
+
+/* Keep desktop and phone-landscape category navigation outside the scrollport.
+   The card list alone scrolls, so media can never paint over the category row. */
+@media (min-width: 1024px), (orientation: landscape) and (max-width: 1023px) {
+  .editorial-main--feed {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .editorial-main--feed > .feed-category-rail {
+    position: relative !important;
+    top: auto !important;
+    z-index: 2;
+    flex: 0 0 auto;
+    background: #fbf9f4;
+  }
+  .editorial-main--feed > .editorial-feed.editorial-feed--scroll {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 1 1 0% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .editorial-main--feed > .editorial-feed.editorial-feed--scroll::-webkit-scrollbar { display: none; }
+  .editorial-main--feed > .editorial-feed.editorial-feed--scroll > .media-carousel--scroll { height: auto !important; overflow: visible !important; }
 }

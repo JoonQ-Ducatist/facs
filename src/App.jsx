@@ -145,12 +145,14 @@ export default function App() {
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
+  const [mobileNavigationVisible, setMobileNavigationVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
   const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
   const [scrapCards, setScrapCards] = useState(null);
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [feedLoadError, setFeedLoadError] = useState(false);
+  const [hasMoreFeed, setHasMoreFeed] = useState(false);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [featuredPostId, setFeaturedPostId] = useState(null);
@@ -170,10 +172,18 @@ export default function App() {
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
+  const navigationIdleTimer = useRef(null);
   const authCallbackHandled = useRef(false);
   const signupAnalyticsTracked = useRef(false);
   const reportedPostReasons = useRef(new Set());
   const authCallbackExchange = useRef(null);
+  const feedPage = useRef({ cursor: null, hasMore: false, loading: false, userId: null });
+
+  useEffect(() => () => window.clearTimeout(navigationIdleTimer.current), []);
+  useEffect(() => {
+    window.clearTimeout(navigationIdleTimer.current);
+    setMobileNavigationVisible(true);
+  }, [activeTab]);
 
   const authTransitionPending = useRef(false);
   const authTransitionConsumed = useRef(false);
@@ -453,17 +463,23 @@ export default function App() {
   /** Hydrates the top of the feed from real published posts after authentication. */
   useEffect(() => {
     let active = true;
+    const pageState = { cursor: null, hasMore: false, loading: false, userId: authUser?.id ?? null };
+    feedPage.current = pageState;
+    setHasMoreFeed(false);
     if (!authUser) { setFeedHydrated(true); return undefined; }
     setFeedHydrated(false);
     setFeedLoadError(false);
     async function hydrateFeed() {
       try {
-        const result = await listSupabasePublishedFeedCards();
+        const result = await listSupabasePublishedFeedCards({ limit: 10, cursor: null });
         if (!active) return;
         if (result.error) {
           setFeedLoadError(true);
           return;
         }
+        pageState.cursor = result.meta.nextCursor ?? null;
+        pageState.hasMore = Boolean(result.meta.hasMore);
+        setHasMoreFeed(pageState.hasMore);
         const serverCards = result.data ?? [];
         if (serverCards.length) {
           const serverIds = new Set(serverCards.map((card) => card.id));
@@ -488,6 +504,31 @@ export default function App() {
     void hydrateFeed();
     return () => { active = false; };
   }, [authUser?.id, feedRefreshKey]);
+
+  async function loadMoreFeed() {
+    const pageState = feedPage.current;
+    if (!authUser || pageState.userId !== authUser.id || !pageState.hasMore || pageState.loading) return false;
+    pageState.loading = true;
+    try {
+      const result = await listSupabasePublishedFeedCards({ limit: 10, cursor: pageState.cursor });
+      if (feedPage.current !== pageState || result.error) return false;
+      const nextCards = (result.data ?? []).map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
+      if (nextCards.length) {
+        setCards((existing) => {
+          const existingIds = new Set(existing.map((card) => card.id));
+          return [...existing, ...nextCards.filter((card) => !existingIds.has(card.id))];
+        });
+      }
+      pageState.cursor = result.meta.nextCursor ?? pageState.cursor;
+      pageState.hasMore = Boolean(result.meta.hasMore);
+      setHasMoreFeed(pageState.hasMore);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      pageState.loading = false;
+    }
+  }
 
   /** Loads the public handle only for the authenticated member, never from email. */
   useEffect(() => {
@@ -1232,6 +1273,13 @@ export default function App() {
     if (!start || event?.pointerId === undefined || event.pointerId === start.pointerId) tabGestureStart.current = null;
   }
 
+  function handleMainScroll() {
+    if (!window.matchMedia('(max-width: 1023px) and (orientation: portrait)').matches) return;
+    setMobileNavigationVisible(false);
+    window.clearTimeout(navigationIdleTimer.current);
+    navigationIdleTimer.current = window.setTimeout(() => setMobileNavigationVisible(true), 220);
+  }
+
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
@@ -1239,7 +1287,7 @@ export default function App() {
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
-  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className="editorial-app h-full bg-background text-on-background font-body">
+  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileNavigationVisible ? '' : ' editorial-app--nav-hidden'}`}>
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
@@ -1269,9 +1317,9 @@ export default function App() {
       </div>
     </header>
 
-    <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+    <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onUnblock={unblockAuthor} onSignOut={signOut} />}

@@ -9,6 +9,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REQUIRED_RPC_NAMES = Object.freeze([
   'get_moderation_report_queue',
   'get_moderation_post_preview',
+  'get_personalized_feed_post_page',
 ]);
 
 export const REQUIRED_MIGRATION_CONTRACTS = Object.freeze([
@@ -23,6 +24,10 @@ export const REQUIRED_MIGRATION_CONTRACTS = Object.freeze([
   {
     file: '202609250003_restore_feed_media_signing.sql',
     tokens: ['create schema if not exists facs_private', 'facs_private.staff_can_read_report_preview_object', 'drop function if exists public.staff_can_read_report_preview_object(text)'],
+  },
+  {
+    file: '202610050004_paged_personalized_feed.sql',
+    tokens: ['create or replace function public.get_personalized_feed_post_page', 'after_post_id uuid default null', 'grant execute on function public.get_personalized_feed_post_page(integer, text, uuid) to authenticated'],
   },
 ]);
 

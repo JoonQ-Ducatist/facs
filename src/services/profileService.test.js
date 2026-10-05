@@ -92,6 +92,46 @@ test('profile read-back avoids optional server-only cooldown columns', async () 
   assert.doesNotMatch(client.selectedColumns[0], /handle_changed_at/);
 });
 
+test('profile hydration retries without optional bio when the database has not exposed that column yet', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  let reads = 0;
+  client.from = () => ({
+    select: (columns) => {
+      client.selectedColumns.push(columns);
+      return { eq: () => ({ maybeSingle: async () => {
+        reads += 1;
+        if (reads === 1) return { data: null, error: { code: 'PGRST204', message: "Could not find the 'bio' column of 'profiles' in the schema cache" } };
+        return { data: { id: 'member-a', handle: 'account_a', display_name: null, role: 'member', avatar_path: null }, error: null };
+      } }) };
+    },
+  });
+
+  const result = await getMyProfile({ client });
+  assert.equal(result.data.handle, 'account_a');
+  assert.deepEqual(client.selectedColumns, [
+    'id,handle,display_name,role,bio,avatar_path',
+    'id,handle,display_name,role,avatar_path',
+  ]);
+});
+
+test('profile hydration does not retry a read failure unrelated to the optional bio column', async () => {
+  const client = profileClient({ id: 'member-a', handle: 'account_a' });
+  let reads = 0;
+  client.from = () => ({
+    select: (columns) => {
+      client.selectedColumns.push(columns);
+      return { eq: () => ({ maybeSingle: async () => {
+        reads += 1;
+        return { data: null, error: { code: '42703', message: 'column avatar_path does not exist' } };
+      } }) };
+    },
+  });
+
+  const result = await getMyProfile({ client });
+  assert.equal(result.error.message, '프로필을 불러오지 못했어요.');
+  assert.equal(reads, 1);
+});
+
 test('profile sessions remain isolated when handles are saved independently', async () => {
   const accountA = profileClient({ id: 'member-a', handle: 'account_a' });
   const accountB = profileClient({ id: 'member-b', handle: 'account_b' });

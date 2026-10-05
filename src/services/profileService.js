@@ -11,6 +11,7 @@ const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
 // older deployed database must not turn a successful handle save into a
 // generic profile-read failure merely because that optional column is absent.
 const PROFILE_READ_COLUMNS = 'id,handle,display_name,role,bio,avatar_path';
+const PROFILE_READ_COLUMNS_WITHOUT_BIO = 'id,handle,display_name,role,avatar_path';
 export const PROFILE_BIO_MAX_LENGTH = 160;
 const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -95,7 +96,10 @@ async function requireUser(client = supabase) {
 export async function getMyProfile({ client = supabase } = {}) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
-  const { data, error } = await client.from('profiles').select(PROFILE_READ_COLUMNS).eq('id', identity.user.id).maybeSingle();
+  let { data, error } = await client.from('profiles').select(PROFILE_READ_COLUMNS).eq('id', identity.user.id).maybeSingle();
+  if ((error?.code === '42703' || error?.code === 'PGRST204') && /\bbio\b/i.test(error.message ?? '')) {
+    ({ data, error } = await client.from('profiles').select(PROFILE_READ_COLUMNS_WITHOUT_BIO).eq('id', identity.user.id).maybeSingle());
+  }
   if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '프로필을 불러오지 못했어요.');
   if (!data) return apiFailure(API_ERROR.NOT_FOUND, '프로필 준비가 끝나지 않았어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
   return apiSuccess(data);

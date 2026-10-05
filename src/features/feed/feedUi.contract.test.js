@@ -12,7 +12,7 @@ test('feed videos expose a centered play affordance without stealing carousel ge
   assert.match(source, /const \[isVideoPlaying, setIsVideoPlaying\] = useState\(false\)/);
   assert.match(source, /data-video-play-button/);
   assert.match(source, /void video\.play\(\)\.catch/);
-  assert.match(source, /controls=\{!muted && !showFullscreen\}/);
+  assert.match(source, /controls=\{interactive && !muted && !showFullscreen\}/);
   assert.match(source, /aria-pressed=\{isVideoPlaying\}/);
   assert.match(source, /\{isVideoPlaying \? 'pause' : 'play_arrow'\}/);
   assert.match(source, /if \(!video\.paused\) \{\s*video\.pause\(\)/);
@@ -26,19 +26,81 @@ test('feed videos expose a centered play affordance without stealing carousel ge
   assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?top: calc\(46px \+ env\(safe-area-inset-top\)\);[\s\S]*?right: calc\(12px \+ env\(safe-area-inset-right\)\);[\s\S]*?width: 32px; height: 32px/);
 });
 
-test('feed leaves vertical movement to the native continuous scroll container', async () => {
+test('feed follows a held finger, stops on release without edge resistance, and keeps horizontal carousel gestures separate', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const scroll = await readFile(resolve(featureRoot, 'feedScroll.js'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(source, /cards\.map\(\(item\) => <FeedPost/);
   assert.doesNotMatch(source, /resolveTouchFeedDirection|resolveWheelFeedDirection|touchNavigationLocked|wheelLocked|navigateFeed\(/);
   assert.match(styles, /Continuous social feed:[\s\S]*?\.editorial-main--feed \{ overflow-y: auto !important/);
   assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[\s\S]*?flex: 0 0 auto/);
+  assert.match(source, /event\.preventDefault\(\);[\s\S]*?resolveFeedDragPosition\(startPoint\.scrollTop, deltaY, maximum\)/);
+  assert.match(scroll, /export function resolveFeedGestureAxis/);
+  assert.match(scroll, /export function resolveFeedDragPosition/);
+  assert.doesNotMatch(source + styles, /feed-edge--dragging|feed-edge--release|feed-edge-offset|edgeOffset/);
 });
 
-test('continuous feed retains native touch scrolling in portrait and landscape', async () => {
+test('desktop and landscape category rail sits outside the isolated card-list scrollport', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /return <>\s*<div[^>]+className="feed-category-rail[^\"]*shrink-0/);
+  assert.match(source, /<section ref=\{feedRef\} className="editorial-feed editorial-feed--scroll/);
+  assert.match(styles, /@media \(min-width: 1024px\), \(orientation: landscape\) and \(max-width: 1023px\) \{[\s\S]*?\.editorial-main--feed \{[\s\S]*?overflow: hidden !important;[\s\S]*?\.editorial-main--feed > \.feed-category-rail \{[\s\S]*?flex: 0 0 auto;[\s\S]*?\.editorial-main--feed > \.editorial-feed\.editorial-feed--scroll \{[\s\S]*?overflow-y: auto !important;/);
+  assert.match(styles, /\.editorial-main--feed > \.feed-category-rail \{ position: sticky; top: 0; z-index: 70; isolation: isolate/);
+});
+
+test('feed media responds to horizontal touch swipes while preserving vertical scrolling', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /onTouchStart=\{startMediaSwipe\} onTouchMove=\{moveMediaSwipe\} onTouchEnd=\{finishMediaSwipe\}/);
+  assert.match(source, /event\.touches\.length !== 1/);
+  assert.match(source, /target\?\.closest\('button, a, input, textarea, select, \[role="dialog"\]'\)/);
+  assert.match(source, /Math\.abs\(touch\.clientX - start\.x\) <= Math\.abs\(touch\.clientY - start\.y\)/);
+  assert.match(source, /Math\.abs\(deltaX\) \/ Math\.max\(1, event\.timeStamp - start\.time\)/);
+  assert.match(source, /start\.width \* 0\.2[\s\S]*?velocity >= 0\.35/);
+  assert.match(source, /media-primary__track[\s\S]*?media\.map\(\(slide, index\)/);
+  assert.match(styles, /\.media-primary__track\.media-track--dragging \{ transition: none; \}/);
+  assert.match(source, /controls=\{interactive && !muted && !showFullscreen\}/);
+  assert.match(source, /loading=\{loaded \? 'eager' : 'lazy'\}/);
+  assert.match(source, /src=\{interactive \? source\.url : undefined\}/);
+  assert.match(source, /preload=\{interactive \? \(showFullscreen && !muted \? 'auto' : 'metadata'\) : 'none'\}/);
+  assert.match(source, /videoRef\.current\?\.pause\(\)/);
+  assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[^}]*touch-action: pan-y/);
+});
+
+test('mobile navigation hides during portrait scrolling, returns when idle, and keeps desktop carousel arrows symmetric', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /function handleMainScroll\(\)[\s\S]*?matchMedia\('\(max-width: 1023px\) and \(orientation: portrait\)'\)[\s\S]*?setMobileNavigationVisible\(false\)[\s\S]*?setTimeout\(\(\) => setMobileNavigationVisible\(true\), 220\)/);
+  assert.match(source, /onScroll=\{handleMainScroll\}/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > nav \{[\s\S]*?border-radius: 999px/);
+  assert.match(styles, /height: 48px;\s*min-height: 48px;[\s\S]*?background: rgba\(255,255,255,\.26\)[\s\S]*?backdrop-filter: blur\(10px\)/);
+  assert.match(styles, /button \.material-symbols-outlined \{[\s\S]*?color: #101114 !important;[\s\S]*?wght' 500/);
+  assert.match(styles, /button\[aria-current="page"\] \{[\s\S]*?background: rgba\(16,17,20,\.08\) !important/);
+  assert.match(styles, /\.editorial-main \{\s*inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 0 0;\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/);
+  assert.match(styles, /\.editorial-app--nav-hidden > header \{ transform: translateY\(-110%\); \}/);
+  assert.match(styles, /\.editorial-app--nav-hidden > nav \{ transform: translate\(-50%, calc\(100% \+ 18px \+ env\(safe-area-inset-bottom\)\)\); \}/);
+  assert.match(styles, /\.editorial-app--nav-hidden > \.editorial-main \{ inset: 0 !important; \}/);
+  assert.match(styles, /\.editorial-app::before,[\s\S]*?backdrop-filter: blur\(5px\)/);
+  assert.match(styles, /\.media-card-photo-nav__button--left \{ left: 16px; \}[\s\S]*?\.media-card-photo-nav__button--right \{ right: 16px; \}/);
+});
+
+test('feed preserves touch-safe cards while desktop and landscape scroll the card list below categories', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(styles, /\.feed-post-card \{[\s\S]*?touch-action: pan-y/);
-  assert.match(styles, /@media \(orientation: landscape\)[\s\S]*?\.editorial-main--feed \{ overflow-y: auto !important/);
+  assert.match(styles, /\.editorial-main--feed > \.editorial-feed\.editorial-feed--scroll \{[\s\S]*?overflow-y: auto !important/);
+});
+
+test('feed pages content and activates media only near the scroll viewport', async () => {
+  const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  const app = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  assert.match(app, /listSupabasePublishedFeedCards\(\{ limit: 10, cursor: null \}\)/);
+  assert.match(app, /listSupabasePublishedFeedCards\(\{ limit: 10, cursor: pageState\.cursor \}\)/);
+  assert.match(source, /rootMargin: '480px 0px'/);
+  assert.match(source, /interactive=\{nearViewport && index === mediaIndex\}/);
+  assert.match(source, /loaded=\{nearViewport && Math\.abs\(index - mediaIndex\) <= 1\}/);
+  assert.match(source, /src=\{loaded \? source\.url : undefined\}/);
+  assert.match(source, /rootMargin: '640px 0px'/);
 });
 
 test('feed preserves the uploaded category selection after publishing', async () => {
