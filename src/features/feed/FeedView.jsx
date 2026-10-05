@@ -4,7 +4,6 @@ import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
-import { resolveFeedDragPosition, resolveFeedGestureAxis } from './feedScroll.js';
 import ResultCard from './ResultCard.jsx';
 import ShareResultCard from './ShareResultCard.jsx';
 
@@ -27,53 +26,6 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    const section = feedRef.current;
-    if (!section) return undefined;
-    const main = section.closest('.editorial-main--feed');
-    const style = (element) => element && window.getComputedStyle(element);
-    const scrollRoot = /^(auto|scroll)$/.test(style(section)?.overflowY ?? '') ? section : main;
-    if (!scrollRoot) return undefined;
-    const previousMomentum = scrollRoot.style.webkitOverflowScrolling;
-    scrollRoot.style.webkitOverflowScrolling = 'auto';
-    const gesture = { current: null };
-    const start = (event) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (event.touches.length !== 1 || target?.closest('button, a, input, textarea, select, [contenteditable="true"], [role="dialog"], .comment-panel')) {
-        gesture.current = null;
-        return;
-      }
-      const touch = event.touches[0];
-      gesture.current = { x: touch.clientX, y: touch.clientY, scrollTop: scrollRoot.scrollTop, axis: null };
-    };
-    const move = (event) => {
-      const startPoint = gesture.current;
-      const touch = event.touches[0];
-      if (!startPoint || !touch || event.touches.length !== 1) return;
-      const deltaX = touch.clientX - startPoint.x;
-      const deltaY = touch.clientY - startPoint.y;
-      if (!startPoint.axis) startPoint.axis = resolveFeedGestureAxis(deltaX, deltaY);
-      if (startPoint.axis !== 'y') return;
-      const maximum = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
-      if (maximum <= 0) return;
-      event.preventDefault();
-      scrollRoot.scrollTop = resolveFeedDragPosition(startPoint.scrollTop, deltaY, maximum);
-    };
-    const finish = () => {
-      gesture.current = null;
-    };
-    section.addEventListener('touchstart', start, { passive: true });
-    section.addEventListener('touchmove', move, { passive: false });
-    section.addEventListener('touchend', finish, { passive: true });
-    section.addEventListener('touchcancel', finish, { passive: true });
-    return () => {
-      section.removeEventListener('touchstart', start);
-      section.removeEventListener('touchmove', move);
-      section.removeEventListener('touchend', finish);
-      section.removeEventListener('touchcancel', finish);
-      scrollRoot.style.webkitOverflowScrolling = previousMomentum;
-    };
-  }, [cards.length > 0]);
-  useEffect(() => {
     const sentinel = pageSentinelRef.current;
     if (!hasMore || !sentinel || !('IntersectionObserver' in window)) return undefined;
     const section = feedRef.current;
@@ -95,7 +47,6 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
   function moveCategoryDrag(event) { if (!categoryDrag.current || !categoryRailRef.current) return; categoryRailRef.current.scrollLeft = categoryDrag.current.scrollLeft - (event.clientX - categoryDrag.current.x); }
   function endCategoryDrag() { categoryDrag.current = null; }
 
-  if (!cards.length) return <EmptyFeed locale={locale} onStartUpload={onStartUpload} />;
   const expandedCard = expandedPost ? cards.find((item) => item.id === expandedPost.card.id) : null;
   return <>
     <div ref={categoryRailRef} onPointerDown={startCategoryDrag} onPointerMove={moveCategoryDrag} onPointerUp={endCategoryDrag} onPointerCancel={endCategoryDrag} className="feed-category-rail relative z-40 mb-0 flex w-full shrink-0 cursor-grab items-center gap-1 overflow-x-auto px-4 py-0.5 no-scrollbar touch-pan-x active:cursor-grabbing">
@@ -103,7 +54,7 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
 
-    <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
+    {cards.length ? <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
       <div className="media-carousel media-carousel--scroll relative w-full">
         {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={onVote} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
       </div>
@@ -111,7 +62,7 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
         {loadMoreError || !('IntersectionObserver' in window) ? <button type="button" disabled={loadingMore} onClick={() => void requestNextPage()}>{loadingMore ? (locale === 'en' ? 'Loading…' : '불러오는 중…') : (locale === 'en' ? 'Load more' : '더 불러오기')}</button> : null}
       </div>}
       {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
-    </section>
+    </section> : <EmptyFeed locale={locale} onStartUpload={onStartUpload} />}
   </>;
 
   async function requestNextPage() {
