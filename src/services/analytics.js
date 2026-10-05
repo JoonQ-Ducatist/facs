@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js';
+import { trackGa4Event } from './ga4.js';
 
 /** Keeps the local QA trail while the server receives only the reduced funnel contract. */
 const STORAGE_KEY = 'facs_analytics_v1';
@@ -68,6 +69,9 @@ export function trackEvent(name, properties = {}) {
   const events = [...readEvents(), event].slice(-MAX_EVENTS);
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events)); } catch { /* 저장 불가 환경은 무시한다. */ }
   window.dispatchEvent(new CustomEvent('facs:analytics', { detail: event }));
+  // The GA4 adapter has its own explicit-consent and configuration gate and
+  // sends only the bounded event name, never local QA properties or IDs.
+  trackGa4Event(name);
   // Analytics must never delay a vote, upload, or navigation. The adapter only
   // receives the optional server post UUID, never the local QA properties.
   void recordAnalyticsEvent(name, { postId: properties.postId }).catch(() => {});

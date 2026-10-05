@@ -82,13 +82,13 @@ test('a saved public handle is confirmed by a server read and survives reload hy
   assert.equal(saved.data.handle, 'reload_prb_a');
   const afterReload = await getMyProfile({ client });
   assert.equal(afterReload.data.handle, 'reload_prb_a');
-  assert.deepEqual(client.selectedColumns, ['id,handle,display_name,role', 'id,handle,display_name,role']);
+  assert.deepEqual(client.selectedColumns, ['id,handle,display_name,role,bio,avatar_path', 'id,handle,display_name,role,bio,avatar_path']);
 });
 
 test('profile read-back avoids optional server-only cooldown columns', async () => {
   const client = profileClient({ id: 'member-a', handle: 'account_a' });
   await getMyProfile({ client });
-  assert.equal(client.selectedColumns[0], 'id,handle,display_name,role');
+  assert.equal(client.selectedColumns[0], 'id,handle,display_name,role,bio,avatar_path');
   assert.doesNotMatch(client.selectedColumns[0], /handle_changed_at/);
 });
 

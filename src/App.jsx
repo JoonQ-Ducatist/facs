@@ -5,6 +5,7 @@ import UploadView from './features/upload/UploadView.jsx';
 import RankingView from './features/ranking/RankingView.jsx';
 import ProfileView from './features/profile/ProfileView.jsx';
 import ModerationView, { canAccessModeration } from './features/moderation/ModerationView.jsx';
+import OperationsDashboard from './features/operations/OperationsDashboard.jsx';
 import BrandSplashView from './features/auth/BrandSplashView.jsx';
 import AuthEntryView from './features/auth/AuthEntryView.jsx';
 import MothMark from './components/brand/MothMark.jsx';
@@ -14,6 +15,7 @@ import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
 import LegalPolicyDialog from './features/legal/LegalPolicyDialog.jsx';
 import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
+import { initializeGa4 } from './services/ga4.js';
 import { localeUrl, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
@@ -26,7 +28,7 @@ import { blockMember, getMyBlockedMembers, unblockMember } from './services/bloc
 import { reportDeduplicationKey, submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getCompletedAuthReturnUrl, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
-import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle } from './services/profileService.js';
+import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 
@@ -163,6 +165,8 @@ export default function App() {
   const [liveReactions, setLiveReactions] = useState([]);
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
+
+  useEffect(() => { initializeGa4(); }, []);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
@@ -183,6 +187,7 @@ export default function App() {
   const displayProfileCards = useMemo(() => profileCards?.map((card) => localizeCard(card, locale)) ?? null, [profileCards, locale]);
   const displayScrapCards = useMemo(() => scrapCards?.map((card) => localizeCard(card, locale)) ?? null, [scrapCards, locale]);
   const canModerate = canAccessModeration(profile?.role);
+  const canViewOperations = profile?.role === 'admin';
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
@@ -865,6 +870,20 @@ export default function App() {
     return saved;
   }, [locale, resumeUploadAfterHandle]);
 
+  const saveProfilePresentation = useCallback(async ({ bio, avatarFile }) => {
+    let avatarPath = profile?.avatar_path ?? null;
+    if (avatarFile) {
+      const uploaded = await uploadMyProfileAvatar(avatarFile);
+      if (uploaded.error) return { ok: false, message: uploaded.error.message };
+      avatarPath = uploaded.data.path;
+    }
+    const saved = await updateMyProfilePresentation({ bio, avatarPath });
+    if (saved.error) return { ok: false, message: saved.error.message };
+    setProfile(saved.data);
+    setToast(locale === 'en' ? 'Your profile was saved.' : '프로필을 저장했어요.');
+    return { ok: true, data: saved.data };
+  }, [locale, profile?.avatar_path]);
+
   const checkHandle = useCallback(async (handle) => {
     const result = await checkHandleAvailability(handle);
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
@@ -1255,8 +1274,9 @@ export default function App() {
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onUnblock={unblockAuthor} onSignOut={signOut} />}
         {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
+        {activeTab === 'operations' && canViewOperations && <OperationsDashboard locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
       </>}
     </main>
 

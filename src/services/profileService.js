@@ -10,7 +10,10 @@ const HANDLE_WORDS = ['look', 'view', 'style', 'frame', 'vibe', 'note'];
 // server-only handle cooldown column is not rendered by the client, and an
 // older deployed database must not turn a successful handle save into a
 // generic profile-read failure merely because that optional column is absent.
-const PROFILE_READ_COLUMNS = 'id,handle,display_name,role';
+const PROFILE_READ_COLUMNS = 'id,handle,display_name,role,bio,avatar_path';
+export const PROFILE_BIO_MAX_LENGTH = 160;
+const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export const HANDLE_CHANGE_COOLDOWN_REASON = 'public_handle_change_cooldown';
 export const HANDLE_CHANGE_LOCK_ERROR_CODES = Object.freeze([API_ERROR.RATE_LIMITED]);
 
@@ -32,6 +35,22 @@ export function getPublicHandle(profile) {
 /** The client can submit a syntactically valid handle while availability is unknown; the RPC remains final authority. */
 export function canSubmitHandle({ handle, saving = false, checking = false, available = null } = {}) {
   return !saving && !checking && available !== false && isConfiguredHandle(normalizeHandle(handle));
+}
+
+/** Public profile wording is plain text only and deliberately has no HTML path. */
+export function normalizeProfileBio(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, PROFILE_BIO_MAX_LENGTH);
+}
+
+function profileAvatarExtension(file) {
+  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[file?.type] ?? null;
+}
+
+export function validateProfileAvatar(file) {
+  if (!file) return null;
+  if (!PROFILE_AVATAR_TYPES.has(file.type)) return 'JPG, PNG 또는 WebP 이미지만 사용할 수 있어요.';
+  if (!Number.isFinite(file.size) || file.size < 1 || file.size > PROFILE_AVATAR_MAX_BYTES) return '프로필 사진은 5MB 이하로 선택해 주세요.';
+  return null;
 }
 
 /** Adapts the shared API envelope to the ProfileView action contract. */
@@ -127,4 +146,39 @@ export async function updateMyHandle(rawHandle, { client = supabase } = {}) {
     return apiFailure(API_ERROR.INTERNAL_ERROR, '아이디 저장 결과를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
   return persisted;
+}
+
+/** Saves the current member's optional profile bio and selected avatar path. */
+export async function updateMyProfilePresentation({ bio, avatarPath }, { client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const normalizedBio = normalizeProfileBio(bio);
+  if (String(bio ?? '').trim().length > PROFILE_BIO_MAX_LENGTH) return apiFailure(API_ERROR.VALIDATION_FAILED, '소개는 160자 이내로 입력해 주세요.');
+  const { data, error } = await client.rpc('set_my_profile_presentation', {
+    input_bio: normalizedBio,
+    input_avatar_path: avatarPath || null,
+  });
+  if (error?.code === '22023') return apiFailure(API_ERROR.VALIDATION_FAILED, '프로필 정보를 확인해 주세요.');
+  if (error?.code === '42501') return apiFailure(API_ERROR.FORBIDDEN, '현재 계정에서는 프로필을 저장할 수 없어요. 다시 로그인해 주세요.');
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '프로필을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+  return data?.id ? apiSuccess(data) : apiFailure(API_ERROR.INTERNAL_ERROR, '프로필 저장 결과를 확인하지 못했어요.');
+}
+
+/** Uploads only a validated image into the signed-in member's opaque folder. */
+export async function uploadMyProfileAvatar(file, { client = supabase } = {}) {
+  const validationError = validateProfileAvatar(file);
+  if (validationError) return apiFailure(API_ERROR.VALIDATION_FAILED, validationError);
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const extension = profileAvatarExtension(file);
+  const token = globalThis.crypto?.randomUUID?.().replace(/-/g, '') ?? `${Date.now()}`;
+  const path = `${identity.user.id}/${token}.${extension}`;
+  const { error } = await client.storage.from('profile-assets').upload(path, file, { cacheControl: '31536000', contentType: file.type, upsert: false });
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '프로필 사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.');
+  return apiSuccess({ path, url: client.storage.from('profile-assets').getPublicUrl(path).data.publicUrl });
+}
+
+export function getProfileAvatarUrl(path, { client = supabase } = {}) {
+  if (!path || !client?.storage) return null;
+  return client.storage.from('profile-assets').getPublicUrl(path).data.publicUrl;
 }
