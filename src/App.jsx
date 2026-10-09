@@ -13,10 +13,11 @@ import StatePanel from './components/ui/StatePanel.jsx';
 import SkipLink from './components/ui/SkipLink.jsx';
 import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
 import LegalPolicyDialog from './features/legal/LegalPolicyDialog.jsx';
+import TermsAcceptanceGate from './features/legal/TermsAcceptanceGate.jsx';
 import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { initializeGa4 } from './services/ga4.js';
-import { localeUrl, resolveLocale } from './services/locale.js';
+import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
@@ -31,6 +32,7 @@ import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurr
 import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, getProfileAvatarUrl, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
+import { acceptCurrentTerms, CURRENT_TERMS_VERSION, getMyTermsAcceptanceStatus } from './services/termsAcceptance.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
@@ -140,6 +142,7 @@ export default function App() {
   const [isGuest, setIsGuest] = useState(() => forceAuthPreview || previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
   const [authUser, setAuthUser] = useState(null);
+  const [termsGate, setTermsGate] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
@@ -178,6 +181,19 @@ export default function App() {
   const reportedPostReasons = useRef(new Set());
   const authCallbackExchange = useRef(null);
   const feedPage = useRef({ cursor: null, hasMore: false, loading: false, userId: null });
+  const termsStatusCache = useRef(new Map());
+
+  async function readTermsStatus(memberId) {
+    const cacheKey = `${memberId}:${CURRENT_TERMS_VERSION}`;
+    let request = termsStatusCache.current.get(cacheKey);
+    if (!request) {
+      request = getMyTermsAcceptanceStatus();
+      termsStatusCache.current.set(cacheKey, request);
+    }
+    const result = await request;
+    if (!result.ok) termsStatusCache.current.delete(cacheKey);
+    return result;
+  }
 
   useEffect(() => () => window.clearTimeout(navigationIdleTimer.current), []);
   useEffect(() => {
@@ -230,11 +246,23 @@ export default function App() {
     let active = true;
     const callbackCode = getAuthCallbackCode(window.location.search);
 
-    const finishAuthenticatedEntry = (session, { allowPreviewTransition = false } = {}) => {
+    const finishAuthenticatedEntry = async (session, { allowPreviewTransition = false } = {}) => {
       // `preview=1` is a QA entry point that should resume an existing session
       // after refresh. Only the explicit `authPreview=1` flag keeps the auth entry
       // locked until a fresh sign-in event (or cross-tab completion signal).
       if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
+      setTermsGate({ user: session.user, status: 'checking' });
+      const acceptance = await readTermsStatus(session.user.id);
+      if (!active) return;
+      if (!acceptance.ok) {
+        setTermsGate({ user: session.user, status: 'error' });
+        return;
+      }
+      if (!acceptance.accepted) {
+        setTermsGate({ user: session.user, status: 'required' });
+        return;
+      }
+      setTermsGate(null);
       // The OTP field can remain focused while Supabase updates the session.
       // Dismiss its software keyboard before replacing Auth Entry with Feed; the
       // CSS viewport shell then resolves the next visible size without JS timing.
@@ -298,18 +326,19 @@ export default function App() {
 
     const restoreOriginalTab = async (allowPreviewTransition = false) => {
       const { data } = await supabase.auth.getSession();
-      if (data.session) finishAuthenticatedEntry(data.session, { allowPreviewTransition });
+      if (data.session) await finishAuthenticatedEntry(data.session, { allowPreviewTransition });
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         setAuthUser(null);
+        setTermsGate(null);
         // Feed is member-only. Preserve the separate shared-post route, but
         // return every ordinary local QA/session-loss path to authentication.
         if (!sharedPostId) setIsGuest(true);
         return;
       }
-      finishAuthenticatedEntry(session, {
+      void finishAuthenticatedEntry(session, {
         // SIGNED_IN is only a navigation event when this tab initiated an
         // explicit auth action. Passive session restoration stays in place.
         allowPreviewTransition: event === 'SIGNED_IN' && authTransitionPending.current,
@@ -350,7 +379,7 @@ export default function App() {
         session = data.session;
       }
       if (!active) return;
-      finishAuthenticatedEntry(session);
+      await finishAuthenticatedEntry(session);
       setAuthReady(true);
     }
 
@@ -959,7 +988,7 @@ export default function App() {
 
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */
   async function signOut() {
-    if (!authUser) {
+    if (!authUser && !termsGate?.user) {
       setIsSharedGuest(false);
       setActiveTab('feed');
       setIsGuest(true);
@@ -979,6 +1008,59 @@ export default function App() {
     setCurrentIndex(0);
     setActiveTab('feed');
     setIsGuest(true);
+    setTermsGate(null);
+  }
+
+  async function acceptTermsAndContinue() {
+    const result = await acceptCurrentTerms(locale);
+    if (!result.ok) {
+      const diagnostic = import.meta.env?.DEV && result.error?.code ? ` (${result.error.code})` : '';
+      return { ok: false, message: `${locale === 'en' ? 'We could not save your agreement. Please try again.' : '동의 기록을 저장하지 못했어요. 다시 시도해 주세요.'}${diagnostic}` };
+    }
+    const user = termsGate?.user;
+    if (!user) return { ok: false, message: locale === 'en' ? 'Your sign-in session expired. Please sign in again.' : '로그인 세션이 만료됐어요. 다시 로그인해 주세요.' };
+    termsStatusCache.current.set(`${user.id}:${CURRENT_TERMS_VERSION}`, Promise.resolve({ ok: true, accepted: true, record: result.record }));
+    const callbackHash = new URLSearchParams(window.location.hash.slice(1));
+    const callbackReturnUrl = getCompletedAuthReturnUrl(window.location);
+    const callbackQuery = new URLSearchParams(window.location.search);
+    const isAuthCallback = Boolean(callbackReturnUrl) || callbackHash.has('access_token') || callbackQuery.has('code');
+    if (isAuthCallback && !authCallbackHandled.current) {
+      authCallbackHandled.current = true;
+      callbackQuery.delete('code');
+      callbackQuery.delete('facs_remember');
+      if (!callbackReturnUrl || window.opener) {
+        window.history.replaceState(null, '', callbackReturnUrl ?? `${window.location.pathname}${callbackQuery.size ? `?${callbackQuery}` : ''}`);
+      }
+      if (callbackReturnUrl && !window.opener) {
+        window.location.replace(callbackReturnUrl);
+        return { ok: true };
+      }
+      window.setTimeout(() => window.close(), 300);
+    }
+    setTermsGate(null);
+    setAuthUser(user);
+    setIsGuest(false);
+    setIsSharedGuest(false);
+    setActiveTab('feed');
+    if (!signupAnalyticsTracked.current) {
+      signupAnalyticsTracked.current = true;
+      trackEvent(ANALYTICS_EVENT.SIGNUP_COMPLETED);
+    }
+    return { ok: true };
+  }
+
+  async function retryTermsStatus() {
+    const user = termsGate?.user;
+    if (!user) return;
+    termsStatusCache.current.delete(`${user.id}:${CURRENT_TERMS_VERSION}`);
+    setTermsGate({ user, status: 'checking' });
+    const result = await readTermsStatus(user.id);
+    if (!result.ok) setTermsGate({ user, status: 'error' });
+    else if (result.accepted) {
+      setTermsGate(null);
+      setAuthUser(user);
+      setIsGuest(false);
+    } else setTermsGate({ user, status: 'required' });
   }
 
   function openTab(id) {
@@ -989,6 +1071,7 @@ export default function App() {
   }
 
   async function requestEmailAuth(email, remember) {
+    rememberAuthLocale(locale);
     const result = await requestEmailMagicLink(email, authConfig, remember);
     const message = result.ok
       ? (locale === 'en' ? 'Enter the verification code from your email here.' : '이메일로 받은 인증 코드를 이 화면에 입력해 주세요.')
@@ -1013,6 +1096,21 @@ export default function App() {
       // delay both their storage update and the SIGNED_IN event, so neither is
       // allowed to decide whether a valid code opens the Feed.
       const session = result.session ?? (await supabase.auth.getSession()).data.session;
+      if (session) {
+        setTermsGate({ user: session.user, status: 'checking' });
+        const acceptance = await readTermsStatus(session.user.id);
+        if (!acceptance.ok) {
+          authTransitionPending.current = false;
+          setTermsGate({ user: session.user, status: 'error' });
+          return result;
+        }
+        if (!acceptance.accepted) {
+          authTransitionPending.current = false;
+          setTermsGate({ user: session.user, status: 'required' });
+          return result;
+        }
+      }
+      setTermsGate(null);
       if (session && !authTransitionConsumed.current) {
         authTransitionConsumed.current = true;
         authTransitionPending.current = false;
@@ -1034,6 +1132,7 @@ export default function App() {
 
   /** Starts Google in the current tab after Supabase returns its HTTPS handoff URL. */
   async function startGoogleAuth(remember) {
+    rememberAuthLocale(locale);
     authTransitionPending.current = true;
     authTransitionConsumed.current = false;
     const result = await beginOAuthSignIn('google', authConfig, remember);
@@ -1286,6 +1385,7 @@ export default function App() {
 
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
+  if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} error={termsGate.error?.message} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
   if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;

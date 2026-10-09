@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { localeUrl, resolveLocale } from './locale.js';
+import { localeUrl, rememberAuthLocale, resolveLocale } from './locale.js';
 
 const browser = (hostname, languages = []) => ({
   location: { hostname },
@@ -20,6 +20,22 @@ test('explicit supported locale takes priority over browser preference', () => {
 test('supported browser language is the fallback when no country or URL preference exists', () => {
   assert.equal(resolveLocale('', browser('facs.example', ['en-GB', 'ko-KR'])), 'en');
   assert.equal(resolveLocale('', browser('facs.example', ['fr-FR'])), 'ko');
+});
+
+test('auth callback restores the locale selected before leaving for authentication', () => {
+  const values = new Map();
+  const callbackBrowser = {
+    location: { hostname: 'facs.example', pathname: '/auth/callback' },
+    navigator: { languages: ['ko-KR'], language: 'ko-KR' },
+    localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    },
+  };
+  rememberAuthLocale('en', callbackBrowser);
+  assert.equal(resolveLocale('', callbackBrowser), 'en');
+  assert.equal(values.size, 0);
 });
 
 test('Vercel defaults every known non-Korean country to English without overriding explicit choice', async () => {

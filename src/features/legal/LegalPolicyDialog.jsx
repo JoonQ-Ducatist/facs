@@ -25,7 +25,7 @@ export default function LegalPolicyDialog({ type = 'terms', locale = 'ko', onClo
       <div className="space-y-5 px-5 py-5">{copy.sections.map(([heading, body]) => <section key={heading}><h2 className="text-sm font-bold">{heading}</h2><p className="mt-1.5 text-sm leading-6 text-[#5f625e]">{body}</p></section>)}</div>
       <footer className="border-t border-[#e4e2dd] px-5 py-3 text-[10px] leading-relaxed text-[#7b7d78]">
         <p>{korean ? '운영 주체: Tweety and Company' : 'Operator: Tweety and Company'} · {korean ? '문의: ' : 'Contact: '}<a href="mailto:teamfactsmack@gmail.com" className="underline">teamfactsmack@gmail.com</a></p>
-        <p className="mt-1">{korean ? '이 안내는 공개 MVP 운영 초안입니다. 정식 정책 확정 전 내용과 법률 검토가 필요합니다.' : 'This is a public MVP operating draft. Its content and legal review must be completed before the policy is finalized.'}</p>
+        <p className="mt-1">{korean ? '시행일: 2026년 10월 9일' : 'Effective: October 9, 2026'}</p>
       </footer>
     </section>
   </div>;
