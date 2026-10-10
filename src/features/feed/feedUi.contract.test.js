@@ -232,9 +232,9 @@ test('browser lifecycle fixes the authenticated shell while preserving isolated 
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-app > header \{ position: fixed !important; inset: 0 0 auto; z-index: 60 !important;/);
   assert.match(styles, /\.editorial-app > nav \{ position: fixed !important; inset: auto 0 0; z-index: 60 !important;/);
-  assert.match(source, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(source, /window\.addEventListener\('pageshow', syncViewport\)/);
   assert.match(source, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
-  assert.match(source, /window\.addEventListener\('orientationchange', scheduleReset\)/);
+  assert.match(source, /window\.addEventListener\('orientationchange', syncViewport\)/);
   assert.match(source, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
   assert.match(source, /<main ref=\{mainRef\} data-app-scroll-root/);
 });

@@ -11,7 +11,7 @@ const fixMigration = await readFile(new URL('../../../supabase/migrations/202610
 
 test('members see only a one-time gate for the current terms version', () => {
   assert.match(service, /CURRENT_TERMS_VERSION = 'terms-20261009-v1'/);
-  assert.match(app, /acceptance\.accepted\)\s*\{\s*setTermsGate\(\{ user: session\.user, status: 'required' \}\)/);
+  assert.match(app, /if \(!acceptance\.accepted\) \{\s*acceptedTermsUserId\.current = null;\s*setTermsGate\(\{ user: session\.user, status: 'required' \}\)/);
   assert.doesNotMatch(app, /if \(!localQaEnabled\)/);
   assert.match(app, /if \(session\) \{\s*setTermsGate\(\{ user: session\.user, status: 'checking' \}\)/);
   assert.match(migration, /primary key \(member_id, terms_version\)/);

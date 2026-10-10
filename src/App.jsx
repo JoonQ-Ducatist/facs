@@ -182,6 +182,7 @@ export default function App() {
   const authCallbackExchange = useRef(null);
   const feedPage = useRef({ cursor: null, hasMore: false, loading: false, userId: null });
   const termsStatusCache = useRef(new Map());
+  const acceptedTermsUserId = useRef(null);
 
   async function readTermsStatus(memberId) {
     const cacheKey = `${memberId}:${CURRENT_TERMS_VERSION}`;
@@ -251,6 +252,9 @@ export default function App() {
       // after refresh. Only the explicit `authPreview=1` flag keeps the auth entry
       // locked until a fresh sign-in event (or cross-tab completion signal).
       if (!session || (forceAuthPreview && !allowPreviewTransition)) return;
+      // Native pickers trigger focus/visibility events when they close. A
+      // redundant gate here unmounts UploadView and destroys selected Files.
+      if (!allowPreviewTransition && acceptedTermsUserId.current === session.user.id) return;
       setTermsGate({ user: session.user, status: 'checking' });
       const acceptance = await readTermsStatus(session.user.id);
       if (!active) return;
@@ -259,9 +263,11 @@ export default function App() {
         return;
       }
       if (!acceptance.accepted) {
+        acceptedTermsUserId.current = null;
         setTermsGate({ user: session.user, status: 'required' });
         return;
       }
+      acceptedTermsUserId.current = session.user.id;
       setTermsGate(null);
       // The OTP field can remain focused while Supabase updates the session.
       // Dismiss its software keyboard before replacing Auth Entry with Feed; the
@@ -331,6 +337,7 @@ export default function App() {
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
+        acceptedTermsUserId.current = null;
         setAuthUser(null);
         setTermsGate(null);
         // Feed is member-only. Preserve the separate shared-post route, but
@@ -1008,6 +1015,7 @@ export default function App() {
     setCurrentIndex(0);
     setActiveTab('feed');
     setIsGuest(true);
+    acceptedTermsUserId.current = null;
     setTermsGate(null);
   }
 
@@ -1020,6 +1028,7 @@ export default function App() {
     const user = termsGate?.user;
     if (!user) return { ok: false, message: locale === 'en' ? 'Your sign-in session expired. Please sign in again.' : '로그인 세션이 만료됐어요. 다시 로그인해 주세요.' };
     termsStatusCache.current.set(`${user.id}:${CURRENT_TERMS_VERSION}`, Promise.resolve({ ok: true, accepted: true, record: result.record }));
+    acceptedTermsUserId.current = user.id;
     const callbackHash = new URLSearchParams(window.location.hash.slice(1));
     const callbackReturnUrl = getCompletedAuthReturnUrl(window.location);
     const callbackQuery = new URLSearchParams(window.location.search);
@@ -1057,6 +1066,7 @@ export default function App() {
     const result = await readTermsStatus(user.id);
     if (!result.ok) setTermsGate({ user, status: 'error' });
     else if (result.accepted) {
+      acceptedTermsUserId.current = user.id;
       setTermsGate(null);
       setAuthUser(user);
       setIsGuest(false);
@@ -1109,6 +1119,7 @@ export default function App() {
           setTermsGate({ user: session.user, status: 'required' });
           return result;
         }
+        acceptedTermsUserId.current = session.user.id;
       }
       setTermsGate(null);
       if (session && !authTransitionConsumed.current) {
