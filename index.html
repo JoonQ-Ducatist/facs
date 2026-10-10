@@ -75,6 +75,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="FACt.Smack" />
     <meta property="og:locale" content="ko_KR" />
+    <meta property="og:locale:alternate" content="en_US" />
     <meta property="og:title" content="FACt.Smack | 사람들의 평가를 데이터로" />
     <meta property="og:description" content="사진과 오늘의 룩에 대한 사람들의 주관적 피드백을 안전하고 투명하게 확인하는 FACt.Smack 커뮤니티입니다." />
     <meta property="og:url" content="https://www.factsmack.com/" />
@@ -86,12 +87,37 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "FACt.Smack",
-        "url": "https://www.factsmack.com/",
-        "applicationCategory": "SocialNetworkingApplication",
-        "inLanguage": ["ko", "en"],
-        "description": "A community for receiving transparent, subjective feedback on photos and everyday looks. It does not make objective claims about a person."
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.factsmack.com/#organization",
+            "name": "FACt.Smack",
+            "legalName": "Tweety and Company",
+            "url": "https://www.factsmack.com/",
+            "email": "teamfactsmack@gmail.com",
+            "logo": "https://www.factsmack.com/icon-512.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.factsmack.com/#website",
+            "name": "FACt.Smack",
+            "url": "https://www.factsmack.com/",
+            "inLanguage": ["ko", "en"],
+            "publisher": { "@id": "https://www.factsmack.com/#organization" }
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://www.factsmack.com/#app",
+            "name": "FACt.Smack",
+            "url": "https://www.factsmack.com/",
+            "applicationCategory": "SocialNetworkingApplication",
+            "operatingSystem": "Any",
+            "isAccessibleForFree": true,
+            "inLanguage": ["ko", "en"],
+            "description": "A community for receiving transparent, subjective feedback on photos and everyday looks. It does not make objective claims about a person.",
+            "provider": { "@id": "https://www.factsmack.com/#organization" }
+          }
+        ]
       }
     </script>
     <title>FACt.Smack</title>

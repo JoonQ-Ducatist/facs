@@ -38,10 +38,14 @@ test('browser tab title stays concise while localized share titles remain descri
     applySeoMetadata('ko');
     assert.equal(document.title, 'FACt.Smack');
     assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | 사람들의 평가를 데이터로');
+    assert.equal(document.head.querySelector('meta[property="og:locale"]').getAttribute('content'), 'ko_KR');
+    assert.equal(document.head.querySelector('meta[property="og:locale:alternate"]').getAttribute('content'), 'en_US');
 
     applySeoMetadata('en');
     assert.equal(document.title, 'FACt.Smack');
     assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | Feedback, made visible');
+    assert.equal(document.head.querySelector('meta[property="og:locale"]').getAttribute('content'), 'en_US');
+    assert.equal(document.head.querySelector('meta[property="og:locale:alternate"]').getAttribute('content'), 'ko_KR');
   } finally {
     restore();
   }
