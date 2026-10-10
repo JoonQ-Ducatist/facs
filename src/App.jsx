@@ -98,26 +98,25 @@ function CanvasStage({ children, screenKey }) {
       });
     };
     let frame = 0;
-    const scheduleReset = () => {
-      resetScreenOrigin();
+    const syncViewport = () => {
       window.__syncFacsViewport?.(true);
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        resetScreenOrigin();
         window.__syncFacsViewport?.(true);
       }));
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') scheduleReset();
+      if (document.visibilityState === 'visible') syncViewport();
     };
-    scheduleReset();
-    window.addEventListener('pageshow', scheduleReset);
-    window.addEventListener('orientationchange', scheduleReset);
+    resetScreenOrigin();
+    syncViewport();
+    window.addEventListener('pageshow', syncViewport);
+    window.addEventListener('orientationchange', syncViewport);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener('pageshow', scheduleReset);
-      window.removeEventListener('orientationchange', scheduleReset);
+      window.removeEventListener('pageshow', syncViewport);
+      window.removeEventListener('orientationchange', syncViewport);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [screenKey]);
@@ -1435,7 +1434,9 @@ export default function App() {
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
-        {activeTab === 'upload' && <UploadView categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />}
+        <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
+          <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
+        </div>
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onUnblock={unblockAuthor} onSignOut={signOut} />}
         {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}

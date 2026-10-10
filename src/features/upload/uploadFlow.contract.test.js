@@ -46,8 +46,10 @@ test('upload requests rights confirmation only until the current member has acce
   assert.match(source, /if \(rightsConsentRequired && !rightsConfirmed\) nextFieldErrors\.rightsConsent = locale === 'en'/);
   assert.match(source, /I confirm I own the rights to this photo or video, or have the necessary permission\./);
   assert.match(source, /게시할 사진·영상에 대한 권리를 보유하거나 필요한 허가를 받았음을 확인합니다\./);
+  assert.match(source, /Your rights confirmation for this notice version is saved\./);
+  assert.match(source, /이 버전의 사진·영상 권리 확인이 저장되어 있습니다\./);
   assert.match(source, /rightsConsent: rightsConsentRequired \? \{ confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION \} : undefined/);
-  assert.match(source, /\{rightsConsentRequired && <fieldset/);
+  assert.match(source, /\{rightsConsentRequired\s*\? <fieldset/);
   assert.match(source, /disabled=\{isPublishing \|\| \(rightsConsentRequired && !rightsConfirmed\)\}/);
   assert.match(appSource, /media: card\.media,[\s\S]*?rightsConsent: card\.rightsConsent,/);
 });
@@ -56,6 +58,14 @@ test('only a successful upload switches from Upload to Feed', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /if \(result\.error\) \{[\s\S]*?return \{ ok: false, message \};\s*\}/);
   assert.match(source, /setActiveTab\('feed'\);[\s\S]*?return \{ ok: true, data: publishedCard \}/);
+});
+
+test('upload draft and selected media stay mounted across navigation and are cleared after publish', async () => {
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const source = await readFile(resolve(featureRoot, 'UploadView.jsx'), 'utf8');
+  assert.match(appSource, /<div className=\{activeTab === 'upload' \? 'contents' : 'hidden'\}>\s*<UploadView isActive=\{activeTab === 'upload'\}/);
+  assert.match(source, /function clearMedia\(\) \{[\s\S]*?URL\.revokeObjectURL\(url\)[\s\S]*?setMedia\(\[\]\);\s*\}/);
+  assert.match(source, /if \(rightsConsentRequired\) setRightsConsentRequired\(false\);\s*clearMedia\(\);\s*setQuestion\(''\);/);
 });
 
 test('Upload controls isolate touch events from the root swipe gesture', async () => {

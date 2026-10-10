@@ -54,8 +54,10 @@ test('every browser lifecycle state retains one fixed app shell and resets only 
   assert.match(app, /document\.scrollingElement\.scrollTop = 0/);
   assert.match(app, /querySelectorAll\('\[data-app-scroll-root\]'\)/);
   assert.match(app, /window\.__syncFacsViewport\?\.\(true\)/);
-  assert.match(app, /window\.addEventListener\('pageshow', scheduleReset\)/);
+  assert.match(app, /window\.addEventListener\('pageshow', syncViewport\)/);
   assert.match(app, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
+  assert.match(app, /const onVisibilityChange = \(\) => \{\s*if \(document\.visibilityState === 'visible'\) syncViewport\(\);\s*\}/);
+  assert.match(app, /resetScreenOrigin\(\);\s*syncViewport\(\);/);
   assert.match(app, /<CanvasStage screenKey="auth-entry">/);
   assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}`\}>/);
 });
@@ -142,4 +144,15 @@ test('keyboard, file-picker and fullscreen states retain their existing isolated
   assert.match(feed, /enterNativeVideoFullscreen\(videoRef\.current\)/);
   assert.match(fullscreen, /webkitEnterFullscreen/);
   assert.match(fullscreen, /requestFullscreen/);
+});
+
+test('resuming the app synchronizes viewport without resetting the upload scroll owner', async () => {
+  const app = await readFile(resolve(serviceRoot, '../App.jsx'), 'utf8');
+  const stage = app.match(/function CanvasStage\([\s\S]*?\n\}/)?.[0];
+  assert.ok(stage);
+  assert.match(stage, /resetScreenOrigin\(\);\s*syncViewport\(\);/);
+  assert.match(stage, /window\.addEventListener\('pageshow', syncViewport\)/);
+  assert.match(stage, /const syncViewport = \(\) => \{[\s\S]*?window\.__syncFacsViewport\?\.\(true\);[\s\S]*?\};\s*const onVisibilityChange/);
+  assert.match(stage, /const onVisibilityChange = \(\) => \{\s*if \(document\.visibilityState === 'visible'\) syncViewport\(\);\s*\}/);
+  assert.match(app, /<div className=\{activeTab === 'upload' \? 'contents' : 'hidden'\}>\s*<UploadView isActive=\{activeTab === 'upload'\}/);
 });

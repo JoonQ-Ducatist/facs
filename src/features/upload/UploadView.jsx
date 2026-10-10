@@ -53,7 +53,7 @@ function getQuestionSuggestions(category, media, locale) {
 }
 
 /** 정의: 복수 미디어 선택·정렬·질문 입력·사전 검증을 제공하는 개발용 업로드 화면이다. 실제 저장·검토는 백엔드 단계에서 처리한다. */
-export default function UploadView({ categories, locale = 'ko', publicHandle = '', onSubmit, onMessage, onOpenProfile }) {
+export default function UploadView({ isActive = true, categories, locale = 'ko', publicHandle = '', onSubmit, onMessage, onOpenProfile }) {
   const inputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const questionRef = useRef(null);
@@ -100,12 +100,13 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   }, [limitNotice]);
 
   useEffect(() => {
+    if (!isActive) return undefined;
     let active = true;
     void getMyRightsConsentStatus().then((result) => {
       if (active && result.data) setRightsConsentRequired(result.data.required);
     });
     return () => { active = false; };
-  }, []);
+  }, [isActive]);
 
   useEffect(() => () => {
     previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
@@ -175,6 +176,11 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
 
   /** 정의: 미디어 제거 시 생성한 object URL도 해제한다. @param {string} id 미디어 ID */
   function removeMedia(id) { setMedia((items) => { const target = items.find((item) => item.id === id); if (target) { URL.revokeObjectURL(target.url); previewUrls.current.delete(target.url); } return items.filter((item) => item.id !== id); }); }
+  function clearMedia() {
+    previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrls.current.clear();
+    setMedia([]);
+  }
   /** 정의: 선택한 미디어의 대표 노출 순서를 한 칸 이동한다. @param {number} index 현재 순서 @param {-1|1} direction 이동 방향 */
   function moveMedia(index, direction) { setMedia((items) => { const destination = index + direction; if (destination < 0 || destination >= items.length) return items; const next = [...items]; [next[index], next[destination]] = [next[destination], next[index]]; return next; }); }
   /** 정의: 드래그 완료 시 선택 미디어를 목표 썸네일 앞에 배치한다. */
@@ -319,6 +325,11 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
         return;
       }
       if (rightsConsentRequired) setRightsConsentRequired(false);
+      clearMedia();
+      setQuestion('');
+      setRightsConfirmed(false);
+      setError('');
+      setMediaAlert('');
     } catch {
       setError(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
     } finally {
@@ -340,7 +351,9 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       <fieldset className="rounded-lg border border-[#ddd8cd] bg-[#f5f3ee] p-3"><legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-[#74777d]">{locale === 'en' ? '2. Visibility' : '2. 공개 범위'}</legend><div role="radiogroup" aria-label={locale === 'en' ? 'Visibility' : '공개 범위'} className="grid grid-cols-2 gap-2"><VisibilityChoice selected={visibility === 'public'} icon="public" label={locale === 'en' ? 'Public' : '전체 공개'} description={locale === 'en' ? 'Anyone can see this post in the feed.' : '피드에서 누구나 볼 수 있어요.'} onSelect={() => setVisibility('public')} /><VisibilityChoice selected={visibility === 'followers'} icon="group" label={locale === 'en' ? 'Followers only' : '팔로워만'} description={locale === 'en' ? 'Only you and your followers can see this post.' : '나와 나를 팔로우한 사람만 볼 수 있어요.'} onSelect={() => setVisibility('followers')} /></div></fieldset>
       <div><label htmlFor="question-input" className="mb-1 block text-[12px] font-bold uppercase tracking-wider text-slate-300">3. 어떤 점을 평가받고 싶나요?</label><div className="mb-2 rounded-lg bg-[#f5f3ee] p-2.5"><p className="mb-1.5 font-mono text-[11px] text-slate-400">{selectedTheme.label} · {media.length ? '선택한 사진·영상에 맞춰 제안하는 질문' : '사진을 올리면 상황에 맞게 다듬어지는 추천 질문'}</p><div className="upload-question-suggestions flex flex-wrap gap-1.5">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => chooseQuestionSuggestion(suggestion)} style={{ borderColor: question === suggestion ? selectedTheme.color : '#c4c6cd', color: question === suggestion ? selectedTheme.color : '#44474c', backgroundColor: question === suggestion ? `${selectedTheme.color}12` : '#ffffff' }} className="rounded-md border px-2 py-1.5 text-left text-[12px] transition-colors">{suggestion}</button>)}</div></div><div className="relative"><textarea ref={questionRef} id="question-input" rows="2" value={question} maxLength="140" onPointerDown={(event) => event.stopPropagation()} onClick={() => questionRef.current?.focus()} onFocus={revealQuestionInput} onChange={(event) => { setQuestion(event.target.value); setFieldErrors((errors) => ({ ...errors, question: undefined })); }} aria-invalid={Boolean(fieldErrors.question)} aria-describedby={fieldErrors.question ? 'question-error' : undefined} placeholder="예: 오늘 이 룩, 저와 잘 어울리나요?" className="upload-question-input w-full resize-none rounded-md border border-surface-container-high bg-white p-2.5 pr-32 text-sm text-white placeholder:text-slate-500 focus:border-cyan-glow focus:outline-none" />{question && <button type="button" onClick={clearQuestion} className="absolute right-2 top-2 rounded-full px-2 py-1 text-[12px] text-slate-500 transition-colors hover:bg-[#f5f3ee] hover:text-[#1b1c19]">지우고 다시 작성</button>}</div>{fieldErrors.question && <p id="question-error" role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.question}</p>}</div>
       {selectedTheme.evaluationType === 'NUMERIC_AGE' && <><fieldset className="rounded-lg border border-[#ff0050]/25 bg-[#ff0050]/[0.04] p-3"><legend className="px-1 text-[11px] font-bold text-[#d90043]">4. 평가 나이 범위</legend><p className="mb-2 text-[10px] text-slate-500">평가자는 이 범위 안에서 슬라이더와 ± 버튼으로 예상 나이를 선택합니다.</p><div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-semibold text-[#44474c]">최소 나이<input type="number" min="18" max="98" value={ageMin} onChange={(event) => { setAgeMin(event.target.value); setFieldErrors((errors) => ({ ...errors, ageRange: undefined })); }} className="mt-1 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" /></label><label className="text-[11px] font-semibold text-[#44474c]">최대 나이<input type="number" min="19" max="99" value={ageMax} onChange={(event) => { setAgeMax(event.target.value); setFieldErrors((errors) => ({ ...errors, ageRange: undefined })); }} className="mt-1 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" /></label></div>{fieldErrors.ageRange && <p role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.ageRange}</p>}</fieldset><fieldset className="rounded-lg border border-[#ff0050]/25 bg-[#ff0050]/[0.04] p-3"><legend className="px-1 text-[11px] font-bold text-[#d90043]">5. 실제 나이 비교 (선택)</legend><label className="flex items-start gap-2 text-xs text-[#44474c]"><input type="checkbox" checked={shareActualAge} onChange={(event) => setShareActualAge(event.target.checked)} className="mt-0.5 accent-[#ff0050]" />결과에서만 실제 나이와 비교하기</label><p className="mt-1 text-[10px] leading-relaxed text-slate-500">실제 나이는 평가자·프로필·피드에 공개되지 않으며, 본인 결과 비교에만 사용됩니다.</p>{shareActualAge && <input type="number" min="18" max="99" value={actualAge} onChange={(event) => setActualAge(event.target.value)} placeholder="실제 나이 (18~99)" className="mt-2 w-full rounded-md border border-[#c4c6cd] bg-white px-3 py-2 text-sm text-[#1b1c19] focus:border-[#ff0050] focus:outline-none" />}</fieldset></>}
-      {rightsConsentRequired && <fieldset className="rounded-lg border border-[#ddd8cd] bg-[#f5f3ee] p-3"><legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-[#74777d]">{locale === 'en' ? 'Rights confirmation' : '사진·영상 권리 확인'}</legend><label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-[#44474c]"><input type="checkbox" checked={rightsConfirmed} onChange={(event) => { setRightsConfirmed(event.target.checked); setFieldErrors((errors) => ({ ...errors, rightsConsent: undefined })); }} className="mt-0.5 accent-[#e94670]" />{locale === 'en' ? 'I confirm I own the rights to this photo or video, or have the necessary permission.' : '게시할 사진·영상에 대한 권리를 보유하거나 필요한 허가를 받았음을 확인합니다.'}</label><p id="rights-consent-hint" className="mt-1 pl-6 text-[10px] leading-relaxed text-slate-500">{locale === 'en' ? 'This confirmation is required to upload.' : '업로드를 시작하려면 이 확인이 필요합니다.'}</p>{fieldErrors.rightsConsent && <p role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.rightsConsent}</p>}</fieldset>}
+      {rightsConsentRequired
+        ? <fieldset className="rounded-lg border border-[#ddd8cd] bg-[#f5f3ee] p-3"><legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-[#74777d]">{locale === 'en' ? 'Rights confirmation' : '사진·영상 권리 확인'}</legend><label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-[#44474c]"><input type="checkbox" checked={rightsConfirmed} onChange={(event) => { setRightsConfirmed(event.target.checked); setFieldErrors((errors) => ({ ...errors, rightsConsent: undefined })); }} className="mt-0.5 accent-[#e94670]" />{locale === 'en' ? 'I confirm I own the rights to this photo or video, or have the necessary permission.' : '게시할 사진·영상에 대한 권리를 보유하거나 필요한 허가를 받았음을 확인합니다.'}</label><p id="rights-consent-hint" className="mt-1 pl-6 text-[10px] leading-relaxed text-slate-500">{locale === 'en' ? 'This confirmation is required to upload.' : '업로드를 시작하려면 이 확인이 필요합니다.'}</p>{fieldErrors.rightsConsent && <p role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.rightsConsent}</p>}</fieldset>
+        : <p role="status" className="rounded-md border border-[#d7e7de] bg-[#f3f8f5] px-3 py-2 text-[11px] leading-relaxed text-[#426653]">{locale === 'en' ? 'Your rights confirmation for this notice version is saved.' : '이 버전의 사진·영상 권리 확인이 저장되어 있습니다.'}</p>}
       <div><p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-300">{selectedTheme.evaluationType === 'NUMERIC_AGE' ? '6.' : '4.'} {locale === 'en' ? 'Posting ID' : '게시 아이디'}</p><div className="flex items-center gap-2 rounded-xl border border-surface-container-high bg-surface-container px-3 py-2 text-xs text-white sm:text-sm"><span className="material-symbols-outlined text-[16px] text-cyan-glow">person</span><span className="font-semibold">@{publicHandle}</span><button type="button" onClick={onOpenProfile} className="ml-auto shrink-0 text-[10px] font-semibold text-cyan-glow underline underline-offset-2 hover:text-white">{locale === 'en' ? 'Change in Profile' : '프로필에서 변경'}</button></div></div>
       {error && <p role="alert" aria-live="assertive" className="text-xs text-[#9b5c55]">{error}</p>}
       <button type="submit" disabled={isPublishing || (rightsConsentRequired && !rightsConfirmed)} aria-describedby={rightsConsentRequired && !rightsConfirmed ? 'rights-consent-hint' : undefined} className="ui-primary-action mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#0e1c2d] bg-primary-container py-2 font-body text-sm font-bold text-white shadow-[0_4px_20px_rgba(0,0,0,.08)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-65"><span className="material-symbols-outlined text-base">{isPublishing ? 'progress_activity' : 'arrow_upward'}</span>{isPublishing ? (locale === 'en' ? 'Saving your post...' : '사진을 저장하고 있어요...') : (locale === 'en' ? 'Upload to feed' : '피드에 업로드하기')}</button>
