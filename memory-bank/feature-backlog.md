@@ -108,7 +108,7 @@
 
 | ID | 기능·결정 | 완료 기준 | 상태 |
 | --- | --- | --- | --- |
-| SEO-01 | 검색 엔진 기본 노출 | 언어별 title·description, Open Graph·X 공유 메타, robots·sitemap을 제공 | **Codex셀프 완료(프론트엔드 범위)** — SPA 기본 메타·robots·sitemap 반영. 운영 도메인 확정 후 절대 URL·Search Console 등록 필요 |
+| SEO-01 | 검색 엔진 기본 노출 | 언어별 title·description, Open Graph·X 공유 메타, robots·sitemap을 제공 | **완료(승인·운영 배포)** — 절대 URL sitemap과 검색 메타 반영, Google Search Console 및 Naver Search Advisor 소유권 확인과 sitemap 제출 완료 (2026-10-10) |
 | GEO-SEO-01 | 생성형 검색(GEO) 콘텐츠 신뢰성 | 서비스 목적·평가의 주관성·안전 원칙·운영자 책임을 명확한 공개 문서와 구조화 데이터로 제공 | **Codex셀프 완료(구조화 데이터 범위)** — WebApplication 구조화 데이터에 주관적 첫인상·비객관적 판단 원칙을 명시. 공개 도움말·정책 문서와 운영 도메인 확정 뒤 확장 |
 
 ## 4. 기존 기능·운영 백로그 (이력 및 종속 과제)
@@ -214,10 +214,10 @@
 | --- | --- | --- | --- |
 | REL-01 | 랭킹 정책·캐시 | 최소 표본·최근성·제외 기준으로 계산 | 대기 |
 | REL-02 | 운영 지표·경보 | 등록·투표·신고·검토·오류 지표와 알림 제공 | 진행 중 — 기존 퍼널·콘텐츠·신고 데이터를 재사용하는 관리자 전용 1~168시간 집계 RPC를 2026-10-05 운영 Supabase에 적용. 함수 존재, 익명 실행 차단, 인증 역할 execute 권한 확인. 사용자·콘텐츠·이벤트 원문은 노출하지 않음. Vercel 오류 로그를 포함한 최소 확인 주기·주의 기준 확정 대기 |
-| REL-03 | 약관·개인정보·콘텐츠 정책 | 사용자에게 필요한 정책과 실제 운영 중인 요청·처리 경로 제공 | 진행 중 — 로그인 전 정책 링크·MVP 안내 초안 구현, 운영 주체·연락처 표시 승인. **공개 MVP 배포 전 차단 항목:** 실제 수집 항목·처리 목적·보존 기준·현재 가능한 요청·처리 절차, 처리 위탁·국외 이전 여부, 정보주체 권리 행사·쿠키 정책, 미성년자 정책, 콘텐츠·신고 처리 기준을 확정하고 법률 검토 후 정식 문서로 교체. 영구 삭제·탈퇴 기능 구현은 `REL-05`로 분리 |
+| REL-03 | 약관·개인정보·콘텐츠 정책 | 사용자에게 필요한 정책과 실제 운영 중인 요청·처리 경로 제공 | 진행 중 — 로그인 전 정책 링크·MVP 안내 초안 구현, 운영 주체·연락처 표시 승인. 만 14세 이상 인증 시작 전 한·영 연령 확인은 2026-10-10 로컬 화면에서 사용자 점검·승인 완료(운영 미배포). **공개 MVP 배포 전 차단 항목:** 실제 수집 항목·처리 목적·보존 기준·현재 가능한 요청·처리 절차, 처리 위탁·국외 이전 여부, 정보주체 권리 행사·쿠키 정책, 미성년자 정책, 콘텐츠·신고 처리 기준을 확정하고 법률 검토 후 정식 문서로 교체. 영구 삭제·탈퇴 기능 구현은 `REL-05`로 분리 |
 | REL-05 | 계정 탈퇴·잔여 데이터 처리 | 계정과 관련 기록의 보존 예외, 실제 파기·탈퇴 요청·감사 흐름을 정책과 일치하게 구현 | **공개 MVP 이후** — 작성자 게시물·댓글 실제 삭제는 2026-10-09 결정에 따라 `CNT-14`에서 출시 전 처리. 계정 탈퇴만 이 후속 항목에 남김 |
 | REL-06 | 인증 메일 전용 발송 체계 | 공개 사용자에게 이메일 인증을 안정적으로 전달하고 발송 실패를 확인 | **완료(승인)** — Resend SMTP와 검증된 발신 도메인 `mail.factsmack.com`을 Supabase Auth에 연결했고, `auth@mail.factsmack.com` 발신과 실제 이메일 OTP 수신·로그인 흐름을 사용자 점검으로 확인. 일일·시간당 사용량과 bounce는 공개 운영 지표로만 관찰 |
-| DISC-01 | SEO·AEO·GEO 검색 발견성 | 검색·AI 응답·공유 미리보기가 서비스의 실제 목적·주관성·안전 원칙을 정확히 이해하도록 한·영 title·description·canonical·JSON-LD·Search Console/Naver sitemap 등록을 제공 | **코드 범위 진행 중** — 한·영 메타·canonical·robots·절대 URL sitemap과 Organization/WebSite/WebApplication JSON-LD를 적용. 일반 SNS에 제한된 FAQ rich result와 주관적 평가의 AggregateRating은 제외. 운영자 계정의 Google Search Console·Naver Search Advisor 소유권 확인 및 sitemap 제출 대기 |
+| DISC-01 | SEO·AEO·GEO 검색 발견성 | 검색·AI 응답·공유 미리보기가 서비스의 실제 목적·주관성·안전 원칙을 정확히 이해하도록 한·영 title·description·canonical·JSON-LD·Search Console/Naver sitemap 등록을 제공 | **완료(승인·운영 배포)** — 한·영 메타·canonical·robots·절대 URL sitemap과 Organization/WebSite/WebApplication JSON-LD 적용, Google Search Console·Naver Search Advisor 소유권 확인 및 sitemap 제출 완료 (2026-10-10). FAQ rich result와 주관적 평가 AggregateRating은 제외 |
 | ANA-01 | GA4 익명 퍼널 수집 | GA4에서 페이지 조회·로그인·업로드·첫 평가·결과·공유 요청을 식별정보 없이 수집 | **완료(승인)** — `G-MXK6W58WK9` 운영 수집과 실시간 보고서 노출 확인. 광고 개인화·Google Signals 비활성, 인증 URL 제거 루트 주소, 제한된 이벤트 이름만 전송 |
 | ANA-02 | 관리자 사용자 동선 분석 | admin 전용 화면에서 MAU/DAU, 신규 가입·탈퇴, 활성 업로더·평가자, 퍼널 이탈·유입 채널의 집계만 제공 | **진행 중** — 내부 집계 화면 적용. GA4 Data API 서버 자격 증명과 관리자 권한·원문 비노출 계약은 후속 범위 |
 | ANA-03 | 광고 개인화·Google Signals 확장 게이트 | 광고·리마케팅·교차 기기 신호 기능을 추가할 때 동의 방식, 개인정보 처리방침, 국가별 규제, 보존 기간, GA4 설정과 허용 이벤트 계약을 함께 검토·반영 | **공개 MVP 이후 연계 작업** — 현재 두 기능은 비활성 유지. 광고·부스트 또는 관련 분석 기능 착수 시 단순 설정 전환 없이 본 항목을 필수 선행 |
