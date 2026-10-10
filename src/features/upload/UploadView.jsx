@@ -115,12 +115,18 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
 
   useEffect(() => {
     if (!isActive || !window.visualViewport) return undefined;
+    const input = questionRef.current;
+    const scrollArea = input?.closest('.editorial-main--scroll');
     const onViewportChange = () => revealQuestionInput();
+    const onQuestionBlur = () => scrollArea?.style.removeProperty('--upload-keyboard-inset');
     window.visualViewport.addEventListener('resize', onViewportChange);
     window.visualViewport.addEventListener('scroll', onViewportChange);
+    input?.addEventListener('blur', onQuestionBlur);
     return () => {
       window.visualViewport.removeEventListener('resize', onViewportChange);
       window.visualViewport.removeEventListener('scroll', onViewportChange);
+      input?.removeEventListener('blur', onQuestionBlur);
+      scrollArea?.style.removeProperty('--upload-keyboard-inset');
     };
   }, [isActive]);
 
@@ -298,6 +304,10 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
       const scrollArea = input?.closest('.editorial-main--scroll');
       if (!input || !scrollArea || document.activeElement !== input) return;
       const viewportBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight) - 16;
+      // The shell deliberately stays full-height with a keyboard open. Add
+      // the covered portion to the scroll range before trying to reveal the input.
+      const coveredHeight = Math.max(0, scrollArea.getBoundingClientRect().bottom - viewportBottom);
+      scrollArea.style.setProperty('--upload-keyboard-inset', `${coveredHeight}px`);
       const safeTop = 58;
       const bounds = input.getBoundingClientRect();
       const delta = bounds.bottom > viewportBottom ? bounds.bottom - viewportBottom : bounds.top < safeTop ? bounds.top - safeTop : 0;

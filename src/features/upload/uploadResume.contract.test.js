@@ -20,9 +20,15 @@ test('native picker resume cannot replace an accepted member upload with the ter
 
 test('question field follows the final visual viewport while the software keyboard opens', async () => {
   const upload = await readFile(resolve(root, 'UploadView.jsx'), 'utf8');
+  const styles = await readFile(resolve(root, '../../styles/global.css'), 'utf8');
   assert.match(upload, /window\.visualViewport\.addEventListener\('resize', onViewportChange\)/);
   assert.match(upload, /window\.visualViewport\.removeEventListener\('resize', onViewportChange\)/);
   assert.match(upload, /window\.visualViewport\?\.offsetTop/);
   assert.match(upload, /onFocus=\{\(\) => revealQuestionInput\(true\)\}/);
   assert.match(upload, /scrollArea\.scrollBy\(\{ top: delta, behavior: 'auto' \}\)/);
+  assert.match(upload, /coveredHeight = Math\.max\(0, scrollArea\.getBoundingClientRect\(\)\.bottom - viewportBottom\)/);
+  assert.match(upload, /scrollArea\.style\.setProperty\('--upload-keyboard-inset', `\$\{coveredHeight\}px`\)/);
+  assert.match(upload, /scrollArea\?\.style\.removeProperty\('--upload-keyboard-inset'\)/);
+  assert.match(styles, /\.editorial-main--scroll \{[^}]*padding-bottom: calc\(8px \+ var\(--upload-keyboard-inset, 0px\)\) !important;/);
+  assert.match(styles, /\.editorial-main--scroll \{\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\) \+ var\(--upload-keyboard-inset, 0px\)\) !important;\s*\}/);
 });
