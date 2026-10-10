@@ -57,6 +57,7 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
   const inputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const questionRef = useRef(null);
+  const previewUrls = useRef(new Set());
   const [media, setMedia] = useState([]);
   const [category, setCategory] = useState('Outfit');
   const [visibility, setVisibility] = useState('public');
@@ -106,6 +107,11 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
     return () => { active = false; };
   }, []);
 
+  useEffect(() => () => {
+    previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrls.current.clear();
+  }, []);
+
   /** 정의: 파일 형식·용량·개수·영상 길이를 확인해 미리보기 가능한 미디어 목록에 추가한다. @param {FileList|File[]} fileList 선택 또는 드롭된 파일 */
   async function addFiles(fileList) {
     const candidates = Array.from(fileList ?? []);
@@ -131,11 +137,12 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
       if (type === 'video' && nextVideos >= MAX_VIDEOS) { limitWarningKind = 'video'; continue; }
       if (type === 'video' && !supportsVideoFile(file)) { rejectedMessage = locale === 'en' ? 'This browser cannot play that video. Choose an H.264 MP4 or iPhone MOV.' : '이 동영상 형식은 현재 브라우저에서 재생할 수 없어요. H.264 MP4 또는 iPhone MOV를 선택해 주세요.'; continue; }
       const uploadFile = type === 'image' ? await prepareImageForUpload(file) : file;
-      const url = type === 'image' ? await getImagePreviewUrl(uploadFile) : URL.createObjectURL(file);
+      const url = URL.createObjectURL(type === 'image' ? uploadFile : file);
+      previewUrls.current.add(url);
       if (!url) { rejectedMessage = `${file.name || '선택한 이미지'}를 미리보기로 읽지 못했어요. 다른 형식으로 다시 선택해 주세요.`; continue; }
       if (type === 'video') {
         const duration = await getVideoDuration(url);
-        if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); rejectedMessage = locale === 'en' ? 'Videos must be 10 seconds or shorter.' : '동영상은 10초 이하만 업로드할 수 있습니다.'; continue; }
+        if (!Number.isFinite(duration) || duration > 10) { URL.revokeObjectURL(url); previewUrls.current.delete(url); rejectedMessage = locale === 'en' ? 'Videos must be 10 seconds or shorter.' : '동영상은 10초 이하만 업로드할 수 있습니다.'; continue; }
         nextVideos += 1;
         accepted.push(makeItem(file, url, type, duration));
       } else {
@@ -159,11 +166,15 @@ export default function UploadView({ categories, locale = 'ko', publicHandle = '
 
   /** 정의: 파일 입력 이벤트를 한 곳에서 처리해 브라우저 파일 선택기 복귀 시에도 오류를 화면에 남긴다. */
   function handleFileChange(event) {
-    void addFiles(event.currentTarget.files).catch(() => setError('파일을 읽는 중 문제가 생겼어요. 다시 선택해 주세요.'));
+    void addFiles(event.currentTarget.files).catch(() => {
+      const message = locale === 'en' ? 'We could not read that file. Please choose it again.' : '파일을 읽는 중 문제가 생겼어요. 다시 선택해 주세요.';
+      setError(message);
+      setMediaAlert(message);
+    });
   }
 
   /** 정의: 미디어 제거 시 생성한 object URL도 해제한다. @param {string} id 미디어 ID */
-  function removeMedia(id) { setMedia((items) => { const target = items.find((item) => item.id === id); if (target) URL.revokeObjectURL(target.url); return items.filter((item) => item.id !== id); }); }
+  function removeMedia(id) { setMedia((items) => { const target = items.find((item) => item.id === id); if (target) { URL.revokeObjectURL(target.url); previewUrls.current.delete(target.url); } return items.filter((item) => item.id !== id); }); }
   /** 정의: 선택한 미디어의 대표 노출 순서를 한 칸 이동한다. @param {number} index 현재 순서 @param {-1|1} direction 이동 방향 */
   function moveMedia(index, direction) { setMedia((items) => { const destination = index + direction; if (destination < 0 || destination >= items.length) return items; const next = [...items]; [next[index], next[destination]] = [next[destination], next[index]]; return next; }); }
   /** 정의: 드래그 완료 시 선택 미디어를 목표 썸네일 앞에 배치한다. */
@@ -366,15 +377,6 @@ function supportsVideoFile(file) {
   if (!['video/mp4', 'video/quicktime'].includes(mime)) return false;
   const probe = document.createElement('video');
   return Boolean(probe.canPlayType(mime));
-}
-/** 정의: 모바일 파일 제공자에서도 안정적으로 표시되도록 이미지 미리보기를 data URL로 읽는다. */
-function getImagePreviewUrl(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-    reader.onerror = () => resolve('');
-    reader.readAsDataURL(file);
-  });
 }
 /** 정의: 미디어 썸네일, 순서 변경, 제거를 한 단위로 제공하는 선택 항목이다. */
 function MediaPreview({ item, index, color, onRemove, onMove, canMovePrevious, canMoveNext, isDragging, isDragOver, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onNativeDragStart, onNativeDragOver, onNativeDrop, onNativeDragEnd }) {

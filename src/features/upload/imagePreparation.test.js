@@ -22,5 +22,12 @@ test('JPEG optimization bounds dimensions and falls back to the original', async
 test('the upload flow stores the prepared JPEG instead of the original source', async () => {
   const source = await readFile(resolve(root, 'UploadView.jsx'), 'utf8');
   assert.match(source, /const uploadFile = type === 'image' \? await prepareImageForUpload\(file\) : file;/);
+  assert.match(source, /URL\.createObjectURL\(type === 'image' \? uploadFile : file\)/);
   assert.match(source, /accepted\.push\(makeItem\(uploadFile, url, type\)\)/);
+  assert.doesNotMatch(source, /readAsDataURL/);
+});
+
+test('file selection exceptions are shown in the media picker area', async () => {
+  const source = await readFile(resolve(root, 'UploadView.jsx'), 'utf8');
+  assert.match(source, /addFiles\(event\.currentTarget\.files\)\.catch\(\(\) => \{[\s\S]*?setError\(message\);\s*setMediaAlert\(message\);/);
 });
