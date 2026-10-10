@@ -35,7 +35,7 @@ test('landscape phone keeps a PC-style menu beside a fixed-width scrolling feed'
   assert.match(landscapeBlock, /\.editorial-app > nav \{ position: static !important; grid-column: 1; grid-row: 1;[\s\S]*?width: 216px;/);
   assert.match(landscapeBlock, /\.editorial-app > nav > \.desktop-nav-items button \{ width: 100%; height: 52px; flex-direction: row;/);
   assert.match(landscapeBlock, /\.desktop-nav-language__mark \{ display: none; \}/);
-  assert.match(landscapeBlock, /\.editorial-feed > div:first-child \{ position: relative; grid-row: 1; z-index: 45;/);
+  assert.match(landscapeBlock, /\.editorial-main--feed > \.feed-category-rail \{\s*position: sticky;\s*top: 0;\s*grid-row: 1;\s*z-index: 70;/);
   assert.doesNotMatch(landscapeBlock, /landscape-nav-rail|landscape-nav-collapsed/);
 
   for (const [width, height] of landscapeMatrix) {
@@ -60,6 +60,15 @@ test('portrait mobile and desktop keep their original navigation ownership', asy
     assert.ok(width < 599 && height > width, `${width}x${height} remains a portrait phone viewport`);
   }
   assert.ok(1440 >= 1024 && 900 >= 600, '1440x900 remains in the desktop contract');
+});
+
+test('desktop policy links only appear in the expanded sidebar and never split labels', async () => {
+  const styles = await readFile(resolve(serviceRoot, '../styles/global.css'), 'utf8');
+  const desktopBlock = styles.slice(styles.indexOf('@media (min-width: 1024px)'), styles.indexOf('.editorial-feed {', styles.indexOf('@media (min-width: 1024px)')));
+
+  assert.match(desktopBlock, /\.desktop-policy-links \{ display: none;/);
+  assert.match(desktopBlock, /\.editorial-app > nav:hover \.desktop-policy-links, \.editorial-app > nav:focus-within \.desktop-policy-links \{ display: flex; \}/);
+  assert.match(desktopBlock, /\.desktop-policy-links button \{[^}]*white-space: nowrap; word-break: keep-all;/);
 });
 
 test('landscape dialogs have an in-viewport two-column contract without changing portrait sheets', async () => {

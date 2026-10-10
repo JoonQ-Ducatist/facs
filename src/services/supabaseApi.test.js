@@ -237,6 +237,7 @@ function orderedLibraryClient(rpcRows) {
     post_media: [{ position: 0, media_assets: { id: 'asset-b', storage_path: 'uploads/b', media_type: 'image' } }],
   };
   const query = { select: () => query, eq: () => query, in: async () => ({ data: [post], error: null }) };
+  const commentQuery = { select: () => commentQuery, in: () => commentQuery, eq: () => commentQuery, order: async () => ({ data: [], error: null }) };
   return {
     calls,
     auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
@@ -245,7 +246,7 @@ function orderedLibraryClient(rpcRows) {
       if (name === 'get_published_post_aggregates') return { data: [], error: null };
       return { data: rpcRows, error: null };
     },
-    from: () => query,
+    from: (table) => table === 'comments' ? commentQuery : query,
     storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/b.jpg' }, error: null }) }) },
   };
 }
@@ -273,12 +274,13 @@ test('profile library falls back to an owner-scoped posts query while its RPC mi
     limit: async () => ({ data: [{ id: 'post-b', published_at: post.published_at }], error: null }),
     in: async () => ({ data: selectedColumns === 'id,published_at' ? [] : [post], error: null }),
   };
+  const commentQuery = { select: () => commentQuery, in: () => commentQuery, eq: () => commentQuery, order: async () => ({ data: [], error: null }) };
   const client = {
     auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
     rpc: async (name) => name === 'get_my_published_profile_post_ids'
       ? ({ data: null, error: { code: 'PGRST202' } })
       : ({ data: [], error: null }),
-    from: () => query,
+    from: (table) => table === 'comments' ? commentQuery : query,
     storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: 'https://signed.example/b.jpg' }, error: null }) }) },
   };
   const result = await listSupabaseMyPublishedProfileCards({ client });

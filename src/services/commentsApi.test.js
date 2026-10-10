@@ -22,7 +22,7 @@ test('comment reads and writes use only the intended RPC contracts', async () =>
   ]);
 });
 
-test('comment owners edit and soft-delete through owner-only RPCs', async () => {
+test('comment owners edit and permanently delete through owner-only RPCs', async () => {
   const calls = [];
   const client = {
     auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },

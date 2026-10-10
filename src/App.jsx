@@ -21,7 +21,7 @@ import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePostComment, createSupabasePublishedPost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, hideMySupabasePost, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -179,6 +179,7 @@ export default function App() {
   const authCallbackHandled = useRef(false);
   const signupAnalyticsTracked = useRef(false);
   const reportedPostReasons = useRef(new Set());
+  const deletingPostIds = useRef(new Set());
   const authCallbackExchange = useRef(null);
   const feedPage = useRef({ cursor: null, hasMore: false, loading: false, userId: null });
   const termsStatusCache = useRef(new Map());
@@ -1212,32 +1213,42 @@ export default function App() {
     setActiveTab('feed');
   }
 
-  /** Hides only the current member's post after the server confirms ownership. */
+  /** Deletes the current member's post after the server confirms ownership. */
   async function deleteCard(id) {
-    const target = cards.find((item) => item.id === id);
+    if (deletingPostIds.current.has(id)) return { ok: false };
+    const target = profileCards?.find((item) => item.id === id) ?? cards.find((item) => item.id === id);
     const isOwner = Boolean(target && (target.authorId === authUser?.id || (target.isMyUpload && !target.authorId)));
     if (!isOwner) {
       setToast(locale === 'en' ? 'Only the person who posted this can delete it.' : '게시물을 올린 본인만 삭제할 수 있어요.');
       return { ok: false };
     }
-    if (isSupabasePost(target)) {
-      const result = await hideMySupabasePost(id);
-      if (result.error) {
-        setToast(locale === 'en' ? 'We could not hide this post. Please try again.' : '게시물을 숨기지 못했어요. 다시 시도해 주세요.');
-        return { ok: false };
+    const confirmed = window.confirm(locale === 'en'
+      ? 'Permanently delete this post, its photos or videos, ratings, and comments? This cannot be undone.'
+      : '게시물과 사진·동영상, 평가, 댓글을 완전히 삭제할까요? 되돌릴 수 없습니다.');
+    if (!confirmed) return { ok: false };
+    deletingPostIds.current.add(id);
+    try {
+      if (isSupabasePost(target)) {
+        const result = await deleteMySupabasePost(id);
+        if (result.error) {
+          setToast(locale === 'en' ? 'We could not delete this post. Please try again.' : '게시물을 삭제하지 못했어요. 다시 시도해 주세요.');
+          return { ok: false };
+        }
       }
+      setCards((items) => items.filter((item) => item.id !== id));
+      setProfileCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
+      setScrapCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
+      setSavedPostIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      setLiveReactions((items) => items.filter((reaction) => reaction.postId !== id));
+      setToast(locale === 'en' ? 'Post deleted.' : '게시물을 삭제했습니다.');
+      return { ok: true };
+    } finally {
+      deletingPostIds.current.delete(id);
     }
-    setCards((items) => items.filter((item) => item.id !== id));
-    setProfileCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
-    setScrapCards((items) => Array.isArray(items) ? items.filter((item) => item.id !== id) : items);
-    setSavedPostIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-    setLiveReactions((items) => items.filter((reaction) => reaction.postId !== id));
-    setToast(locale === 'en' ? 'Post removed from FACS.' : '게시물을 서비스에서 숨겼습니다.');
-    return { ok: true };
   }
 
   /** Sends guests to the existing sign-in screen; signed-in users persist a private Scrap. */

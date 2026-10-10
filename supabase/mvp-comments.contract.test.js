@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 const sql = await readFile(new URL('./migrations/202610030001_mvp_comments.sql', import.meta.url), 'utf8');
+const hardDeleteSql = await readFile(new URL('./migrations/202610090003_hard_delete_member_content.sql', import.meta.url), 'utf8');
 
 test('MVP comments keep browser writes behind authenticated RPCs', () => {
   for (const token of [
@@ -16,16 +17,16 @@ test('MVP comments keep browser writes behind authenticated RPCs', () => {
   ]) assert.match(sql, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
-test('MVP comments enforce visible-post access, blocks, and soft deletion without an edit deadline', () => {
+test('MVP comments enforce visible-post access and current deletion without an edit deadline', () => {
   for (const token of [
     'p.comments_allowed',
     'public.current_member_can_view_post',
     'public.members_are_blocked',
-    "status = 'deleted'",
     'status = \'published\'',
     'list_post_comments',
   ]) assert.match(sql, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.doesNotMatch(sql, /interval '15 minutes'/);
+  assert.match(hardDeleteSql, /delete from public\.comments c where c\.id = target_comment_id/);
 });
 
 test('MVP comments refresh the PostgREST schema cache after installing RPCs', () => {

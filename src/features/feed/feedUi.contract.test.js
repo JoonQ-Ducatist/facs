@@ -97,11 +97,11 @@ test('feed preserves touch-safe cards while desktop and landscape scroll the car
   assert.match(styles, /\.editorial-main--feed > \.editorial-feed\.editorial-feed--scroll \{[\s\S]*?overflow-y: auto !important/);
 });
 
-test('portrait single-post cards fit below fixed navigation and do not swallow gestures without scroll range', async () => {
+test('portrait single-post cards fit below fixed navigation with native scrolling', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.match(source, /const maximum = Math\.max\(0, scrollRoot\.scrollHeight - scrollRoot\.clientHeight\);\s*if \(maximum <= 0\) return;\s*event\.preventDefault\(\);/);
-  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{\s*\.editorial-main--feed \.media-carousel--scroll > \.feed-post-card \{\s*height: min\(720px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);\s*min-height: min\(480px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);/);
+  assert.doesNotMatch(source, /onTouchMove=\{.*preventDefault|scrollRoot\.scrollTop =/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-main--feed \.media-carousel--scroll > \.feed-post-card \{\s*height: min\(720px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);\s*min-height: min\(480px, calc\(100dvh - 132px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)\);/);
 });
 
 test('feed pages content and activates media only near the scroll viewport', async () => {
@@ -119,16 +119,18 @@ test('feed pages content and activates media only near the scroll viewport', asy
 test('feed preserves the uploaded category selection after publishing', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /setFeaturedPostId\(publishedCard\.id\);\s*\/\/ Keep the uploaded category selected[\s\S]*setActiveCategory\(publishedCard\.category\);/);
-  assert.match(source, /boostRequested=\{item\.boostStatus === 'active'\}/);
+  const feed = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
+  assert.match(feed, /boostRequested=\{item\.boostStatus === 'active'\}/);
   assert.match(source, /setBoostCandidateIds\(\(ids\) => new Set\(\[\.\.\.ids, publishedCard\.id\]\)\)/);
   assert.match(source, /next\.delete\(reaction\.postId\)/);
 });
 
 test('a server-eligible zero-rating post exposes the recovery Boost request without implying payment', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /if \(total === 0\) return <ResultShell total=\{total\} color=\{color\} onBoost=\{onBoost\}/);
-  assert.match(source, /평가를 기다리고 있어요/);
-  assert.match(source, /더 많은 평가 받아보기/);
+  const card = await readFile(resolve(featureRoot, 'ResultCard.jsx'), 'utf8');
+  assert.match(source, /if \(total === 0\) return <ResultCard locale=\{locale\}[\s\S]*?onBoost=\{onBoost\}/);
+  assert.match(card, /onBoost && <button type="button" onClick=\{onBoost\}/);
+  assert.match(source, /아직 평가가 모이지 않았어요/);
   assert.doesNotMatch(source, /Boost · ₩1,000/);
 });
 
@@ -148,15 +150,13 @@ test('signed-in viewers can report another author with every approved reason and
   assert.match(source, /higher-layer dialog[\s\S]*?onClose\(\);/);
 });
 
-test('feed cards render protected media and adjacent multi-photo previews', async () => {
+test('feed cards render protected media and adjacent slides only when loaded', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /media-peek media-peek--continuous media-peek--left/);
-  assert.match(source, /media-peek media-peek--continuous media-peek--right/);
+  assert.match(source, /media-primary__track[\s\S]*?media\.map\(\(slide, index\)/);
+  assert.match(source, /loaded=\{nearViewport && Math\.abs\(index - mediaIndex\) <= 1\}/);
   assert.match(source, /onContextMenu=\{protectMedia\}/);
   assert.match(source, /onDragStart=\{protectMedia\}/);
-  assert.match(source, /onContextMenu=\{protectMediaEvent\}/);
-  assert.match(source, /onDragStart=\{protectMediaEvent\}/);
-  assert.match(source, /media-card--multi/);
+  assert.match(source, /media\.length > 1 && <MediaProgress/);
 });
 
 test('feed video owns fullscreen gestures in unstarted, playing and replay states without stealing carousel gestures', async () => {
@@ -164,28 +164,24 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   const fullscreenSource = await readFile(resolve(featureRoot, 'videoFullscreen.js'), 'utf8');
   assert.match(source, /autoPlay=\{Boolean\(muted\)\}/);
   assert.match(source, /loop=\{Boolean\(muted\)\}/);
-  assert.match(source, /preload=\{showFullscreen && !muted \? 'auto' : 'metadata'\}/);
-  assert.match(source, /controls=\{!muted\}/);
+  assert.match(source, /preload=\{interactive \? \(showFullscreen && !muted \? 'auto' : 'metadata'\) : 'none'\}/);
+  assert.match(source, /controls=\{interactive && !muted && !showFullscreen\}/);
   assert.match(source, /onPointerDown=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerMove=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerUp=\{isolateVideoTouch\}/);
   assert.match(source, /onPointerCancel=\{isolateVideoTouch\}/);
   assert.match(source, /event\.clientY >= bounds\.bottom - 58/);
   assert.match(source, /data-video-fullscreen-button/);
-  assert.match(source, /target\.closest\('button, input, textarea, \[data-video-fullscreen-button\]'\)/);
-  assert.match(source, /pointerId: event\.pointerId/);
-  assert.match(source, /gestureStart\.current\.pointerId !== event\.pointerId/);
-  assert.match(source, /onLostPointerCapture=\{cancelCapturedCardGesture\}/);
-  assert.match(source, /if \(gestureStart\.current\) resetCardGesture\(\)/);
+  assert.match(source, /target\?\.closest\('button, a, input, textarea, select, \[role="dialog"\]'\)/);
   assert.match(source, /function enterFullscreen|const enterFullscreen/);
-  assert.match(source, /enterNativeVideoFullscreen\(video\)/);
+  assert.match(source, /enterNativeVideoFullscreen\(videoRef\.current\)/);
   assert.match(fullscreenSource, /webkitEnterFullscreen/);
   assert.match(fullscreenSource, /if \(video\.readyState === 0\) video\.load\(\)/);
   assert.match(fullscreenSource, /if \(video\.paused\) playRequest = video\.play\(\)/);
   assert.match(fullscreenSource, /webkitDisplayingFullscreen/);
   assert.match(fullscreenSource, /restorePreviewAfterFailure/);
   assert.match(fullscreenSource, /requestFullscreen/);
-  assert.match(source, /onPointerDown=\{stopFullscreenGesture\}/);
+  assert.match(source, /onPointerDown=\{stopVideoControlGesture\}/);
   assert.match(source, /onClick=\{enterFullscreen\}/);
   assert.doesNotMatch(source, /fullscreenActive|fullscreenSnapshotRef|fullscreenRequestRef|facs-video-fullscreen-active/);
   assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
@@ -195,51 +191,32 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
 });
 
-test('multi-photo media keeps a full-width center track with continuous edge previews', async () => {
+test('multi-photo media keeps a full-width track and follows horizontal dragging', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(styles, /\.media-card \.media-primary \{ inset: 0;/);
-  assert.match(styles, /\.media-card--multi \.media-primary \{ inset: 0;/);
-  assert.match(styles, /\.media-card--multi \{ background: #fff; \}/);
-  assert.match(styles, /\.media-peek--continuous \{[^}]*--media-peek-width: 28px;[^}]*width: 100%/);
-  assert.match(styles, /\.media-peek \{[^}]*background: #fff/);
-  assert.match(styles, /\.media-peek \{[^}]*filter: saturate\(\.8\) brightness\(\.68\) blur\(\.35px\)/);
-  assert.match(styles, /\.media-peek--continuous \{ --media-peek-width: clamp\(24px, 8vw, 32px\); width: 100%; \}/);
-  assert.match(styles, /\.media-card--dragging \.media-peek--continuous \{ transition: none; \}/);
-  assert.match(source, /const width = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
-  assert.match(source, /deltaX \* 0\.2/);
-  assert.match(source, /function bounceMedia\(direction\)/);
-  assert.match(styles, /\.media-carousel--resist-left/);
-  assert.match(styles, /\.media-carousel--resist-right/);
-  assert.match(source, /const travel = Math\.max\(1, mediaCardRef\.current\?\.clientWidth/);
-  assert.match(source, /translate3d\(calc\(-100% \+ var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
-  assert.match(source, /translate3d\(calc\(100% - var\(--media-peek-width\) \+ \$\{dragOffset\}px/);
-  assert.match(styles, /\.media-card:hover \.media-peek/);
+  assert.match(styles, /\.media-primary__track \{ display: flex; width: 100%; height: 100%;/);
+  assert.match(styles, /\.media-primary__track\.media-track--dragging \{ transition: none; \}/);
+  assert.match(source, /mediaTrackRef\.current\?\.style\.setProperty\('--media-drag-offset', `\$\{resistedDelta\}px`\)/);
+  assert.match(source, /Math\.abs\(deltaX\) >= start\.width \* 0\.2/);
+  assert.match(source, /translate3d\(calc\(\$\{-mediaIndex \* 100\}% \+ var\(--media-drag-offset, 0px\)\), 0, 0\)/);
   assert.match(styles, /-webkit-touch-callout: none/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?z-index: 35;[\s\S]*?width: 44px; height: 44px/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?right: calc\(40px \+ env\(safe-area-inset-right\)\)/);
-  assert.match(styles, /\.video-fullscreen-button \{[\s\S]*?pointer-events: auto/);
 });
 
-test('multi-photo edge previews only render for directions that have a neighboring media item', async () => {
+test('multi-photo navigation hides unavailable directions and shows position', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /hasMultipleMedia && mediaIndex > 0 && <div className="media-peek media-peek--continuous media-peek--left"/);
-  assert.match(source, /hasMultipleMedia && mediaIndex < cardMedia\.length - 1 && <div className="media-peek media-peek--continuous media-peek--right"/);
+  assert.match(source, /mediaIndex === 0 \? 'invisible' : ''/);
+  assert.match(source, /mediaIndex === media\.length - 1 \? 'invisible' : ''/);
+  assert.match(source, /media\.length > 1 && <MediaProgress/);
 });
 
-test('feed navigation uses scroll and touch handoff without visible up/down controls', async () => {
+test('feed navigation uses native vertical scrolling without card-step controls', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(source, /className=\{`media-card[^`]*touch-pan-y/);
-  assert.match(source, /if \(event\.pointerType === 'mouse'\) event\.currentTarget\.setPointerCapture/);
-  assert.match(source, /onTouchStart=\{startCardTouch\}/);
-  assert.match(source, /onTouchEnd=\{finishCardTouch\}/);
-  assert.match(source, /function getCardScrollOwner\(element\)/);
-  assert.match(source, /carousel\.scrollHeight > carousel\.clientHeight \+ 2/);
-  assert.match(source, /resolveTouchFeedDirection\(/);
-  assert.match(source, /resolveWheelFeedDirection\(/);
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(styles, /\.editorial-main--feed \.media-carousel \{[^}]*overflow-y: auto;[^}]*touch-action: pan-y/);
+  assert.match(source, /onTouchStart=\{startMediaSwipe\} onTouchMove=\{moveMediaSwipe\} onTouchEnd=\{finishMediaSwipe\}/);
+  assert.doesNotMatch(source, /resolveTouchFeedDirection|resolveWheelFeedDirection|setPointerCapture/);
   assert.doesNotMatch(source, /function ArrowButton/);
-  assert.doesNotMatch(source, /label="이전 카드"/);
-  assert.doesNotMatch(source, /label="다음 카드"/);
 });
 
 test('browser lifecycle fixes the authenticated shell while preserving isolated body scrolling', async () => {

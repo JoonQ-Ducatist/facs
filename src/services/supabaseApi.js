@@ -113,7 +113,7 @@ export async function editSupabasePostComment(commentId, body, client = supabase
   return record ? apiSuccess(record) : apiFailure(API_ERROR.INTERNAL_ERROR, '댓글 수정 결과를 확인하지 못했어요.');
 }
 
-/** Soft-deletes an authenticated author's own comment. */
+/** Permanently deletes an authenticated author's own comment. */
 export async function deleteSupabasePostComment(commentId, client = supabase) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
@@ -317,12 +317,22 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
   return apiSuccess({ post, media: urlResults });
 }
 
-/** Hides only the signed-in member's post while retaining its protected records. */
-export async function hideMySupabasePost(postId) {
-  const identity = await requireUser();
+/** Removes owned media through Storage, then permanently deletes the post and its related rows. */
+export async function deleteMySupabasePost(postId, client = supabase) {
+  const identity = await requireUser(client);
   if (identity.error) return identity.error;
-  const { data, error } = await supabase.rpc('hide_my_post', { target_post_id: postId });
-  if (error || !data) return normalizeSupabaseError(error, '게시물을 숨기지 못했어요. 잠시 후 다시 시도해 주세요.');
+  if (!postId) return apiFailure(API_ERROR.NOT_FOUND, '게시물을 찾을 수 없어요.');
+  const { data: assets, error: assetError } = await client.rpc('get_my_post_deletion_assets', { target_post_id: postId });
+  if (assetError) return normalizeSupabaseError(assetError, '삭제할 게시물의 미디어를 확인하지 못했어요.');
+  const paths = (assets ?? []).map((asset) => asset.storage_path).filter(Boolean);
+  if (paths.length) {
+    if (!client.storage?.from) return apiFailure(API_ERROR.INTERNAL_ERROR, '미디어 삭제 연결을 확인하지 못했어요.');
+    const { error: storageError } = await client.storage.from('facs-media').remove(paths);
+    if (storageError) return normalizeSupabaseError(storageError, '미디어를 삭제하지 못했어요. 다시 시도해 주세요.');
+  }
+  const { data, error } = await client.rpc('delete_my_post', { target_post_id: postId });
+  if (error) return normalizeSupabaseError(error, '게시물을 삭제하지 못했어요. 다시 시도해 주세요.');
+  if (!data) return apiFailure(API_ERROR.INTERNAL_ERROR, '게시물을 삭제하지 못했어요. 다시 시도해 주세요.');
   return apiSuccess({ id: postId });
 }
 

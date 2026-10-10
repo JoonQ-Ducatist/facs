@@ -16,10 +16,8 @@ test('share result card is a separate accessible dialog with media and aggregate
 
 test('feed opens the share card from the existing share action and preserves the parent share flow on confirmation', () => {
   assert.match(feed, /const \[sharePreviewOpen, setSharePreviewOpen\] = useState\(false\)/);
-  assert.match(feed, /function handleShare\(\)/);
   assert.match(feed, /setSharePreviewOpen\(true\)/);
-  assert.match(feed, /onShare=\{handleShare\}/);
-  assert.match(feed, /function confirmShare\(\)[\s\S]*onShare\?\.\(card\)/);
-  assert.match(feed, /<ShareResultCard locale=\{locale\}[\s\S]*onShare=\{confirmShare\}/);
+  assert.match(feed, /onShare=\{\(\) => setSharePreviewOpen\(true\)\}/);
+  assert.match(feed, /<ShareResultCard locale=\{locale\}[\s\S]*onShare=\{\(\) => onShare\(card\)\}/);
   assert.match(shareCard, /onClick=\{onShare\}/);
 });
