@@ -27,15 +27,17 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(pendingEmailAuth?.rememberMe ?? true);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   function openEmailSignIn() {
+    if (!ageConfirmed) return;
     setProviderNotice('');
     setSelectedProvider('email');
     setEmailOpen(true);
   }
 
   async function startGoogleSignIn() {
-    if (isGoogleSigningIn) return;
+    if (!ageConfirmed || isGoogleSigningIn) return;
     setSelectedProvider('google');
     setProviderNotice('');
     setIsGoogleSigningIn(true);
@@ -51,7 +53,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
 
   async function submitEmail(event) {
     event.preventDefault();
-    if (isEmailSending || emailSent) return;
+    if (!ageConfirmed || isEmailSending || emailSent) return;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     setIsEmailSending(true);
     setEmailNotice('');
@@ -131,8 +133,12 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
           </p>
+          <label className="mb-3 flex cursor-pointer items-start gap-2 text-left text-[10px] leading-relaxed text-white/75">
+            <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-px h-3.5 w-3.5 shrink-0 accent-[#c52a52]" />
+            <span>{locale === 'en' ? 'I confirm that I am 14 years of age or older.' : '만 14세 이상임을 확인합니다.'}</span>
+          </label>
           <div className="relative flex flex-col gap-2">
-            <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={isGoogleSigningIn ? (locale === 'en' ? 'Opening Google...' : 'Google 로그인으로 이동 중...') : (locale === 'en' ? 'Continue with Google' : 'Google로 계속하기')} icon={<img src={googleLogoUrl} alt="" aria-hidden="true" className={compactIconClass(selectedProvider !== 'google')} />} onClick={startGoogleSignIn} disabled={isGoogleSigningIn} />
+            <ProviderButton compact={selectedProvider !== 'google'} selected={selectedProvider === 'google'} label={isGoogleSigningIn ? (locale === 'en' ? 'Opening Google...' : 'Google 로그인으로 이동 중...') : (locale === 'en' ? 'Continue with Google' : 'Google로 계속하기')} icon={<img src={googleLogoUrl} alt="" aria-hidden="true" className={compactIconClass(selectedProvider !== 'google')} />} onClick={startGoogleSignIn} disabled={!ageConfirmed || isGoogleSigningIn} />
             {selectedProvider === 'email' && emailOpen ? (
               <div className="relative mx-auto w-full rounded-xl border border-[#ecd8a8]/70 bg-white/[0.14] p-3 shadow-inner">
                 {emailSent ? (
@@ -147,12 +153,12 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
                 ) : (
                   <form className="flex flex-col gap-2" onSubmit={submitEmail} aria-busy={isEmailSending}>
                     <input required disabled={isEmailSending} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={locale === 'en' ? 'you@example.com' : '이메일 주소'} className="h-11 w-full rounded-full border border-[#ecd8a8]/85 bg-black/15 px-4 text-sm text-white placeholder:text-white/45 outline-none focus:border-[#de3c65] disabled:cursor-not-allowed disabled:opacity-55" />
-                    <button type="submit" disabled={isEmailSending} className="flex h-11 w-full items-center justify-center rounded-full bg-[#c52a52] px-4 text-[13px] font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 active:bg-[#9f1f41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8] disabled:cursor-not-allowed disabled:opacity-55">{isEmailSending && <span className="material-symbols-outlined mr-1 animate-spin text-[14px]" aria-hidden="true">progress_activity</span>}{isEmailSending ? (locale === 'en' ? 'Sending...' : '인증 코드 보내는 중...') : (locale === 'en' ? 'Send verification code' : '인증 코드 보내기')}</button>
+                    <button type="submit" disabled={!ageConfirmed || isEmailSending} className="flex h-11 w-full items-center justify-center rounded-full bg-[#c52a52] px-4 text-[13px] font-extrabold text-white transition duration-150 hover:bg-[#de3c65] active:scale-95 active:bg-[#9f1f41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd8a8] disabled:cursor-not-allowed disabled:opacity-55">{isEmailSending && <span className="material-symbols-outlined mr-1 animate-spin text-[14px]" aria-hidden="true">progress_activity</span>}{isEmailSending ? (locale === 'en' ? 'Sending...' : '인증 코드 보내는 중...') : (locale === 'en' ? 'Send verification code' : '인증 코드 보내기')}</button>
                   </form>
                 )}
                 {emailNotice && <p role={emailNoticeTone === 'error' ? 'alert' : 'status'} className={`pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border px-3 py-1.5 text-center text-[10px] font-semibold text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent ${emailNoticeTone === 'success' ? 'border-[#22C55E]/60 bg-[#0b2a17]/95 after:border-t-[#0b2a17]/95' : 'border-[#ff8aa5]/60 bg-[#4a1020]/95 after:border-t-[#4a1020]/95'}`}>{emailNotice}</p>}
               </div>
-            ) : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={openEmailSignIn} />}
+            ) : <ProviderButton compact={selectedProvider !== 'email'} selected={selectedProvider === 'email'} label={locale === 'en' ? 'Continue with email' : '이메일로 계속하기'} icon="mail" onClick={openEmailSignIn} disabled={!ageConfirmed} />}
             {providerNotice && <p role="status" className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 w-max max-w-[94%] -translate-x-1/2 rounded-lg border border-[#ecd8a8]/65 bg-[#132438]/95 px-3 py-1.5 text-center text-[10px] font-semibold leading-relaxed text-white shadow-lg after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-x-[5px] after:border-t-[5px] after:border-x-transparent after:border-t-[#132438]/95">{providerNotice}</p>}
           </div>
           <label className="mt-3 flex cursor-pointer items-start justify-center gap-1.5 text-center text-[9px] leading-relaxed text-white/60">

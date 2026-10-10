@@ -79,6 +79,17 @@ test('public MVP authentication exposes only enabled Google and email providers'
   assert.doesNotMatch(source, /Continue with Kakao|카카오로 계속하기|selectProvider\('kakao'\)/);
 });
 
+test('email and Google sign-in require an age confirmation without blocking a pending OTP', async () => {
+  const source = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
+  assert.match(source, /const \[ageConfirmed, setAgeConfirmed\] = useState\(false\)/);
+  assert.match(source, /I confirm that I am 14 years of age or older\./);
+  assert.match(source, /만 14세 이상임을 확인합니다\./);
+  assert.match(source, /if \(!ageConfirmed\) return;[\s\S]*?setEmailOpen\(true\)/);
+  assert.match(source, /if \(!ageConfirmed \|\| isGoogleSigningIn\) return/);
+  assert.match(source, /if \(!ageConfirmed \|\| isEmailSending \|\| emailSent\) return/);
+  assert.match(source, /async function submitCode\(event\)[\s\S]*?!isCompleteEmailOtp\(verificationCode\)\) return/);
+});
+
 test('successful OTP unlock always lands on Feed and clears shared-guest state', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /async function confirmEmailCode\(email, code, remember\) \{[\s\S]*?authTransitionPending\.current = true;/);
