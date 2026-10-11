@@ -91,10 +91,29 @@ test('mobile navigation hides during portrait scrolling, returns when idle, and 
   assert.match(styles, /\.media-card-photo-nav__button--left \{ left: 16px; \}[\s\S]*?\.media-card-photo-nav__button--right \{ right: 16px; \}/);
 });
 
+test('portrait mobile navigation shows localized labels below its icons', async () => {
+  const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(source, /\{ ko: '피드', en: 'Feed' \}/);
+  assert.match(source, /\{ ko: '업로드', en: 'Upload' \}/);
+  assert.match(source, /\{ ko: '랭킹', en: 'Ranking' \}/);
+  assert.match(source, /\{ ko: '프로필', en: 'Profile' \}/);
+  assert.match(source, /className="mobile-nav-label">\{labels\[locale\]\}/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?button \.mobile-nav-label \{[\s\S]*?font-size: 10px;[\s\S]*?font-weight: 500;[\s\S]*?line-height: 12px;/);
+  assert.match(styles, /button\[aria-current="page"\] \.mobile-nav-label \{ font-weight: 600; \}/);
+});
+
 test('feed preserves touch-safe cards while desktop and landscape scroll the card list below categories', async () => {
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(styles, /\.feed-post-card \{[\s\S]*?touch-action: pan-y/);
   assert.match(styles, /\.editorial-main--feed > \.editorial-feed\.editorial-feed--scroll \{[\s\S]*?overflow-y: auto !important/);
+});
+
+test('feed cards meet without a bright gutter while preserving scroll and navigation clearance', async () => {
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
+  assert.match(styles, /\.editorial-main--feed \.media-carousel--scroll \{[^}]*gap: 0;[^}]*background: #000;/);
+  assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[^}]*border-bottom: 1px solid rgba\(255,255,255,\.15\);[^}]*touch-action: pan-y/);
+  assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{\s*\.editorial-main--feed \.media-carousel--scroll \{ padding-bottom: calc\(96px \+ env\(safe-area-inset-bottom\)\); \}/);
 });
 
 test('portrait single-post cards fit below fixed navigation with native scrolling', async () => {

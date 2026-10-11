@@ -37,10 +37,10 @@ import { selectUniqueAccountRecommendations } from './services/recommendationSer
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
-  ['feed', 'dynamic_feed', 'Feed', '#2BA8E8'],
-  ['upload', 'add_circle', 'Upload', '#E65B7A'],
-  ['ranking', 'emoji_events', 'Ranking', '#18B9B5'],
-  ['profile', 'account_circle', 'Profile', '#EAAF2D'],
+  ['feed', 'dynamic_feed', { ko: '피드', en: 'Feed' }, '#2BA8E8'],
+  ['upload', 'add_circle', { ko: '업로드', en: 'Upload' }, '#E65B7A'],
+  ['ranking', 'emoji_events', { ko: '랭킹', en: 'Ranking' }, '#18B9B5'],
+  ['profile', 'account_circle', { ko: '프로필', en: 'Profile' }, '#EAAF2D'],
 ];
 
 const LIVE_REACTION_ANIMATION_MS = 2_450;
@@ -1452,7 +1452,7 @@ export default function App() {
     </header>
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
-      {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
+      {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
@@ -1470,10 +1470,10 @@ export default function App() {
 
     {toast && <div role="status" className="app-toast fixed left-1/2 z-[100] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-start gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs leading-relaxed text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined mt-px shrink-0 text-base text-cyan-glow">check_circle</span><span className="min-w-0">{toast}</span></div></div>}
 
-    <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
+    <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label={locale === 'en' ? 'Primary navigation' : '주요 메뉴'}>
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
-      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, label, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={label} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mt-px font-mono text-[10px] font-bold">{label}</span></button>)}</div>
+      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mobile-nav-label">{labels[locale]}</span></button>)}</div>
       <div className="desktop-policy-links" aria-label={locale === 'ko' ? '정책 안내' : 'Policy information'}>
         <button type="button" onClick={() => setPolicyOpen('safety')}>{locale === 'ko' ? '안전·신고' : 'Safety'}</button>
         <button type="button" onClick={() => setPolicyOpen('privacy')}>{locale === 'ko' ? '개인정보' : 'Privacy'}</button>

@@ -42,6 +42,12 @@ test('private media and scraps remain owner-scoped', async () => {
   assert.match(scrapSql, /members remove own scraps/i);
 });
 
+test('authenticated scraps have the table privileges required before RLS evaluation', async () => {
+  const sql = await migration('202610110003_scraps_authenticated_grants.sql');
+  assert.match(sql, /grant select, insert, delete on table public\.scraps to authenticated/i);
+  assert.doesNotMatch(sql, /grant[^;]+public\.scraps[^;]+to anon/i);
+});
+
 test('profile library RPC returns only the authenticated member published posts', async () => {
   const sql = await migration('202609220001_my_published_profile_posts.sql');
   assert.match(sql, /p\.author_id\s*=\s*auth\.uid\(\)/i);

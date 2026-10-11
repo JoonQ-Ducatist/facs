@@ -499,8 +499,8 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
    outside the orientation-dependent feed section prevents iOS from losing the
    sticky containing block when that section switches overflow/layout modes. */
 .editorial-main--feed > .feed-category-rail { position: sticky; top: 0; z-index: 70; isolation: isolate; margin: 0; padding-top: .25rem; padding-bottom: .5rem; background: #fbf9f4; box-shadow: 0 8px 14px rgba(10,20,32,.08); }
-.editorial-main--feed .media-carousel--scroll { display: flex !important; height: auto !important; min-height: 0; flex: 0 0 auto; flex-direction: column; gap: 16px; overflow: visible !important; padding-bottom: 16px; }
-.editorial-main--feed .media-carousel--scroll > .feed-post-card { display: block; width: 100%; height: min(720px, calc(100dvh - 88px)); min-height: 480px; flex: 0 0 auto; touch-action: pan-y; }
+.editorial-main--feed .media-carousel--scroll { display: flex !important; height: auto !important; min-height: 0; flex: 0 0 auto; flex-direction: column; gap: 0; overflow: visible !important; padding-bottom: 16px; background: #000; }
+.editorial-main--feed .media-carousel--scroll > .feed-post-card { display: block; width: 100%; height: min(720px, calc(100dvh - 88px)); min-height: 480px; flex: 0 0 auto; border-bottom: 1px solid rgba(255,255,255,.15); touch-action: pan-y; }
 
 /* Portrait viewport reserves the fixed header, bottom navigation, and category
    rail before sizing a card, so one post still exposes its action row. */
@@ -568,8 +568,9 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
     width: 25% !important;
     height: 48px !important;
     flex: 1 1 0%;
+    flex-direction: column;
     justify-content: center !important;
-    gap: 0 !important;
+    gap: 2px !important;
     overflow: visible;
     border-radius: 999px;
     border: 1px solid transparent;
@@ -591,7 +592,22 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
     background: rgba(16,17,20,.08) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
   }
-  .editorial-app > nav > .desktop-nav-items button span:last-child { display: none !important; }
+  .editorial-app > nav > .desktop-nav-items button .mobile-nav-label {
+    display: block !important;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    color: #101114;
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 12px;
+    letter-spacing: 0;
+    opacity: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .editorial-app > nav > .desktop-nav-items button[aria-current="page"] .mobile-nav-label { font-weight: 600; }
   .editorial-main {
     inset: calc(44px + env(safe-area-inset-top)) 0 0 0;
     padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
