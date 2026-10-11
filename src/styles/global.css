@@ -285,8 +285,8 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 }
 
 /* 정의: 모바일 댓글 상세는 카드 위를 덮고 아래에서 올라오는 바텀 시트로 제공한다. */
-.comment-panel { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; width: 100%; margin: 0; background: rgba(1,8,17,.5); animation: comment-backdrop-in .22s ease-out both; }
-.comment-panel__dialog { position: relative; display: flex; width: 100%; height: min(78dvh, 760px); max-height: 100dvh; min-height: min(420px, 100dvh); flex-direction: column; overflow: hidden; border-radius: 1.25rem 1.25rem 0 0; background: var(--xc-surface-card); animation: comment-sheet-up .3s cubic-bezier(.2,.78,.24,1) both; }
+.comment-panel { position: fixed; top: var(--comment-viewport-top, 0px); left: var(--comment-viewport-left, 0px); z-index: 100; display: flex; align-items: flex-end; width: var(--comment-viewport-width, 100vw); height: var(--comment-viewport-height, 100dvh); margin: 0; background: rgba(1,8,17,.5); animation: comment-backdrop-in .22s ease-out both; }
+.comment-panel__dialog { position: relative; display: flex; width: 100%; height: min(78dvh, 760px, var(--comment-viewport-height, 100dvh)); max-height: var(--comment-viewport-height, 100dvh); min-height: min(420px, var(--comment-viewport-height, 100dvh)); flex-direction: column; overflow: hidden; border-radius: 1.25rem 1.25rem 0 0; background: var(--xc-surface-card); animation: comment-sheet-up .3s cubic-bezier(.2,.78,.24,1) both; }
 .comment-panel__media { display: none; }
 .comment-panel__media-nav, .comment-panel__media-count { display: none; }
 .comment-panel__content { display: flex; min-height: 0; flex: 1; flex-direction: column; }

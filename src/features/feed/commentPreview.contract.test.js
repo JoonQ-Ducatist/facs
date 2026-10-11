@@ -20,6 +20,7 @@ test('the comment list renders persisted comments only, not the post caption as 
 
 test('comment sheet is outside the feed scrollport and above mobile navigation', () => {
   assert.match(source, /import \{ createPortal \} from 'react-dom'/);
-  assert.match(source, /return createPortal\(<section className="comment-panel"/);
+  assert.match(source, /return createPortal\(<section ref=\{panelRef\} className="comment-panel"/);
+  assert.match(source, /useLayoutEffect\(\(\) => bindCommentViewport\(panelRef\.current\), \[\]\)/);
   assert.match(source, /<\/section>, document\.body\);/);
 });

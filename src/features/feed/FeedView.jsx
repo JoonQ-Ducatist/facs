@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
+import { bindCommentViewport } from './commentViewport.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
 import ResultCard from './ResultCard.jsx';
@@ -365,6 +366,7 @@ function CommentPreview({ locale, comments, saved, color, notice, onToggleSave, 
 
 /** 정의: PC에서는 사진과 댓글을 나란히 보여 주는 게시물 상세 모달, 모바일에서는 확장 댓글 영역을 제공한다. */
 function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onEdit, onDelete }) {
+  const panelRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingBody, setEditingBody] = useState('');
@@ -372,9 +374,10 @@ function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, 
   const [mediaIndex, setMediaIndex] = useState(() => Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id)));
   useEffect(() => { setVisibleCount(10); setEditingCommentId(null); }, [comments.length]);
   useEffect(() => setMediaIndex(Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id))), [card.id, media?.id]);
+  useLayoutEffect(() => bindCommentViewport(panelRef.current), []);
   const visibleComments = comments.slice(0, visibleCount);
   const hasMore = comments.length > visibleCount;
-  return createPortal(<section className="comment-panel" role="dialog" aria-modal="true" aria-label="게시물 댓글 상세">
+  return createPortal(<section ref={panelRef} className="comment-panel" role="dialog" aria-modal="true" aria-label="게시물 댓글 상세">
     <div className="comment-panel__dialog">
       <div className="comment-panel__sheet-heading"><span className="comment-panel__handle" aria-hidden="true" /><strong>댓글</strong></div>
       <button type="button" onClick={onClose} className="comment-panel__close" aria-label="댓글 상세 닫기"><span className="material-symbols-outlined">close</span></button>
