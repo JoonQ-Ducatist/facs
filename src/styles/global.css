@@ -66,6 +66,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 .desktop-nav-language { display: none; }
 .landscape-nav-toggle { display: none; }
 .editorial-main { height: 100%; min-height: 0; padding-bottom: calc(44px + env(safe-area-inset-bottom)) !important; }
+.app-toast { top: calc(96px + env(safe-area-inset-top)); pointer-events: none; }
 .editorial-main--feed { overflow: hidden; }
 .feed-empty { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; flex-direction: column; gap: 0; padding: clamp(28px, 8vw, 64px); background: var(--xc-surface); text-align: center; }
 .feed-empty__mark { width: 92px; height: auto; margin-bottom: 18px; opacity: .88; }

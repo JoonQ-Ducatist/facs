@@ -171,7 +171,19 @@ test('profile hydration does not erase a post while server publication is settli
   assert.match(source, /const hydratedProfileCards = profileResult\.data \?\? \[\];/);
   assert.match(source, /justPublished && !hydratedProfileCards\.some\(\(card\) => card\.id === justPublished\.id\)/);
   assert.match(source, /\[justPublished, \.\.\.hydratedProfileCards\]/);
-  assert.match(source, /hydratedProfileCards\.some\(\(card\) => card\.id === justPublished\.id\)\) pendingPublishedCard\.current = null/);
+  assert.doesNotMatch(source, /hydratedProfileCards\.some\(\(card\) => card\.id === justPublished\.id\)\) pendingPublishedCard\.current = null/);
   assert.match(source, /setProfileRefreshKey\(\(key\) => key \+ 1\)/);
   assert.match(source, /setProfileCards\(\(items\) => \[publishedCard, \.\.\.\(Array\.isArray\(items\) \? items : \[\]\)/);
+});
+
+test('a new upload stays first in its category and Shuffle until deliberate category browsing', async () => {
+  const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const feedSource = await readFile(resolve(featureRoot, '../feed/FeedView.jsx'), 'utf8');
+  assert.match(appSource, /setFeaturedPostId\(publishedCard\.id\)/);
+  assert.match(appSource, /setActiveCategory\(publishedCard\.category\)/);
+  assert.match(appSource, /pendingPublishedCard\.current\s*\?\?/);
+  assert.match(appSource, /if \(featuredPostId\) \{[\s\S]*?setCurrentIndex\(0\)/);
+  assert.match(appSource, /if \(category !== activeCategory\) \{[\s\S]*?pendingPublishedCard\.current = null/);
+  assert.match(feedSource, /if \(!featuredPostId \|\| firstCardId !== featuredPostId\) return/);
+  assert.match(feedSource, /feed\.scrollTop = 0/);
 });

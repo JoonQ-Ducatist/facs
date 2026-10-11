@@ -1,7 +1,8 @@
 import { supabase } from './supabaseClient.js';
 import { trackGa4Event } from './ga4.js';
+import { isLocalQaAccountMode } from './localQaAccounts.js';
 
-/** Keeps the local QA trail while the server receives only the reduced funnel contract. */
+/** The detailed event trail is useful for local QA, but is not needed in production browsers. */
 const STORAGE_KEY = 'facs_analytics_v1';
 const SESSION_KEY = 'facs_analytics_session_v1';
 const MAX_EVENTS = 500;
@@ -55,10 +56,15 @@ export async function recordAnalyticsEvent(name, { postId = null, client = supab
 }
 
 function readEvents() {
+  if (typeof window === 'undefined') return [];
+  if (!isLocalQaAccountMode()) {
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* Storage may be unavailable. */ }
+    return [];
+  }
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY) ?? '[]';
     const events = JSON.parse(stored);
-    return events;
+    return Array.isArray(events) ? events : [];
   } catch { return []; }
 }
 
@@ -66,9 +72,11 @@ function readEvents() {
 export function trackEvent(name, properties = {}) {
   if (typeof window === 'undefined') return;
   const event = { name, occurredAt: new Date().toISOString(), properties };
-  const events = [...readEvents(), event].slice(-MAX_EVENTS);
-  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events)); } catch { /* 저장 불가 환경은 무시한다. */ }
-  window.dispatchEvent(new CustomEvent('facs:analytics', { detail: event }));
+  const events = readEvents();
+  if (isLocalQaAccountMode()) {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...events, event].slice(-MAX_EVENTS))); } catch { /* Storage may be unavailable. */ }
+    window.dispatchEvent(new CustomEvent('facs:analytics', { detail: event }));
+  }
   // The GA4 adapter requires a configured measurement ID and sends only the
   // bounded event name, never local QA properties or IDs.
   trackGa4Event(name);

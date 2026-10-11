@@ -9,6 +9,10 @@
   않는다. 공개 도메인에 연결된 Vercel 프로젝트의 Production `VITE_SUPABASE_URL`
   호스트와 Supabase Dashboard의 프로젝트 ref를 읽기 전용으로 대조해 일치할 때만
   운영 대상으로 확정한다. 확인 불가·불일치 시 DB 적용과 운영 배포를 중단한다.
+- Supabase DB 명령 전에 반드시 `npm run check:supabase-target:staging` 또는
+  `npm run check:supabase-target:production`을 실행한다. raw `supabase db push`를 먼저
+  실행하지 않는다. 로컬 QA 서버는 `.env.local`의 ref와 CLI 연결 ref가 일치하고 필수
+  RPC가 실제 응답할 때만 시작한다.
 - 최근 승인·배포·관련 파일을 한 번만 대조한다. 이미 완료된 동일 항목이면 다음
   미완료 작업으로 이동한다. 완료·승인·배포 이력이 확인된 항목은 작업 목록·실행
   후보·사용자 점검표에 다시 넣지 않는다. 후속 범위가 있으면 새 ID로 분리한다.

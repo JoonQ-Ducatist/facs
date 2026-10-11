@@ -171,9 +171,8 @@ export async function getSupabaseMyVotedPostIds(postIds, client = supabase) {
 
 /**
  * Requests the server-side exposure Boost for the signed-in member's post.
- * Payment capture is intentionally not part of this call; the migration only
- * validates the one-hour/zero-rating eligibility boundary and creates the
- * exposure request consumed by the personalized feed RPC.
+ * Payment capture is intentionally not part of the public MVP. The server
+ * validates ownership, publication, <=10 ratings, and one request per post.
  */
 export async function requestSupabasePostBoost(postId, client = supabase) {
   const identity = await requireUser(client);
@@ -222,6 +221,20 @@ export async function listSupabaseBoostCandidates({ limit = 20, client = supabas
     otherVoteCount: Number(candidate.other_vote_count ?? 0),
     targetVotes: Number(candidate.target_votes ?? 100),
   })), { source: 'supabase' });
+}
+
+/** Restores the current member's active exposure requests after a reload. */
+export async function listSupabaseMyActiveBoostedPostIds({ limit = 50, client = supabase } = {}) {
+  const identity = await requireUser(client);
+  if (identity.error) return identity.error;
+  const pageSize = Math.min(Math.max(limit, 1), 100);
+  let { data, error } = await client.rpc('get_my_active_boosted_post_ids', { page_size: pageSize });
+  if (error?.code === 'PGRST202') {
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 250));
+    ({ data, error } = await client.rpc('get_my_active_boosted_post_ids', { page_size: pageSize }));
+  }
+  if (error) return apiFailure(API_ERROR.INTERNAL_ERROR, '더 많은 사람에게 보여주는 상태를 확인하지 못했어요.');
+  return apiSuccess(new Set((data ?? []).map((request) => request?.post_id).filter(Boolean)), { source: 'supabase' });
 }
 
 /** Writes a single immutable vote, then returns the server aggregate. */
@@ -365,17 +378,18 @@ export function fromDatabaseCategory(category) {
  * visible. Signed URLs stay short-lived and are recreated whenever the feed
  * is refreshed.
  */
-export async function listSupabasePublishedFeedCards({ limit = 10, cursor = null, client = supabase } = {}) {
+export async function listSupabasePublishedFeedCards({ category = null, limit = 10, cursor = null, client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
   if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
   const pageSize = Math.min(Math.max(limit, 1), 20);
+  const categoryFilter = category ? toDatabaseCategory(category) : null;
   const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_page', {
     page_size: pageSize + 1,
-    category_filter: null,
+    category_filter: categoryFilter,
     after_post_id: cursor,
   });
   if (orderError?.code === 'PGRST202' || orderError?.code === '42883') {
-    const legacyPage = await client.rpc('get_personalized_feed_post_ids', { page_size: 20, category_filter: null });
+    const legacyPage = await client.rpc('get_personalized_feed_post_ids', { page_size: 20, category_filter: categoryFilter });
     if (legacyPage.error) return feedReadFailure('feed-order');
     const result = await listSupabaseCardsInServerOrder(legacyPage.data, { client, source: 'supabase-legacy-feed' });
     return { ...result, meta: { ...result.meta, hasMore: false, nextCursor: null } };
@@ -428,7 +442,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
   if (!postIds.length) return apiSuccess([], { source });
   const { data, error } = await client
     .from('posts')
-    .select('id,author_id,category,evaluation,question,comments_allowed,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle),post_media(position,media_assets(id,storage_path,media_type))')
+    .select('id,author_id,category,evaluation,question,comments_allowed,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle,avatar_path,bio),post_media(position,media_assets(id,storage_path,media_type))')
     .eq('status', 'published')
     .in('id', postIds);
   if (error) return feedReadFailure('feed-posts');
@@ -461,6 +475,10 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       id: post.id,
       authorId: post.author_id,
       author: post.profiles?.handle ?? 'member',
+      authorBio: post.profiles?.bio?.trim() || null,
+      authorAvatarUrl: post.profiles?.avatar_path && typeof client.storage?.from?.('profile-assets')?.getPublicUrl === 'function'
+        ? client.storage.from('profile-assets').getPublicUrl(post.profiles.avatar_path).data?.publicUrl ?? null
+        : null,
       category: fromDatabaseCategory(post.category),
       evaluationType,
       question: post.question,

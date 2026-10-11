@@ -107,8 +107,9 @@ test('portrait single-post cards fit below fixed navigation with native scrollin
 test('feed pages content and activates media only near the scroll viewport', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const app = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(app, /listSupabasePublishedFeedCards\(\{ limit: 10, cursor: null \}\)/);
-  assert.match(app, /listSupabasePublishedFeedCards\(\{ limit: 10, cursor: pageState\.cursor \}\)/);
+  assert.match(app, /listSupabasePublishedFeedCards\(\{ category: requestedCategory, limit: 10, cursor: null \}\)/);
+  assert.match(app, /listSupabasePublishedFeedCards\(\{ category: pageState\.category, limit: 10, cursor: pageState\.cursor \}\)/);
+  assert.match(app, /\[authUser\?\.id, feedRefreshKey, activeCategory, featuredPostId\]/);
   assert.match(source, /rootMargin: '480px 0px'/);
   assert.match(source, /interactive=\{nearViewport && index === mediaIndex\}/);
   assert.match(source, /loaded=\{nearViewport && Math\.abs\(index - mediaIndex\) <= 1\}/);
@@ -120,18 +121,31 @@ test('feed preserves the uploaded category selection after publishing', async ()
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /setFeaturedPostId\(publishedCard\.id\);\s*\/\/ Keep the uploaded category selected[\s\S]*setActiveCategory\(publishedCard\.category\);/);
   const feed = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
-  assert.match(feed, /boostRequested=\{item\.boostStatus === 'active'\}/);
+  assert.match(feed, /boostRequested=\{boostedPostIds\?\.has\(item\.id\) \|\| item\.boostStatus === 'active'\}/);
   assert.match(source, /setBoostCandidateIds\(\(ids\) => new Set\(\[\.\.\.ids, publishedCard\.id\]\)\)/);
   assert.match(source, /next\.delete\(reaction\.postId\)/);
 });
 
-test('a server-eligible zero-rating post exposes the recovery Boost request without implying payment', async () => {
+test('a server-eligible low-rating post invites more feedback without technical Boost language', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const card = await readFile(resolve(featureRoot, 'ResultCard.jsx'), 'utf8');
+  const app = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
+  const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(source, /if \(total === 0\) return <ResultCard locale=\{locale\}[\s\S]*?onBoost=\{onBoost\}/);
   assert.match(card, /onBoost && <button type="button" onClick=\{onBoost\}/);
-  assert.match(source, /아직 평가가 모이지 않았어요/);
+  assert.match(source, /onBoost \? \(locale === 'en' \? 'No ratings yet\. Ask more people what they think\.'/);
+  assert.match(source, /: \(locale === 'en' \? 'No ratings yet\.' : '아직 평가가 모이지 않았어요\.'\)/);
+  assert.match(source, /더 많은 사람의 생각을 들어보세요/);
+  assert.match(card, /더 많은 사람에게 물어보기/);
+  assert.match(card, /Ask more people/);
+  assert.match(card, /더 많은 사람에게 보여주고 있어요/);
+  assert.match(card, /Showing this to more people/);
+  assert.doesNotMatch(card, /MVP 무료 부스트|무료로 더 노출하기|Free MVP Boost|Boost for free/);
+  assert.doesNotMatch(source, /canOfferBoost/);
+  assert.match(source, /sampleStatus=\{sampleStatus\} boostRequested=\{boostRequested\} onBoost=\{onBoost\}/);
   assert.doesNotMatch(source, /Boost · ₩1,000/);
+  assert.match(app, /role="status" className="app-toast fixed left-1\/2 z-\[100\]/);
+  assert.match(styles, /\.app-toast \{ top: calc\(96px \+ env\(safe-area-inset-top\)\); pointer-events: none; \}/);
 });
 
 test('sharing stays with the card action row instead of competing with media controls', async () => {

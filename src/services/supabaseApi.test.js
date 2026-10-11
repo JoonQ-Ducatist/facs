@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupabasePublishedPost, fromDatabaseCategory, getMyRightsConsentStatus, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, RIGHTS_CONSENT_DOCUMENT_VERSION, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
+import { createSupabasePublishedPost, fromDatabaseCategory, getMyRightsConsentStatus, getSupabaseAggregate, getSupabaseFeedAggregates, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePublishedFeedCards, listSupabasePublishedPosts, mapSupabaseFeedPost, normalizeSupabaseError, requestSupabasePostBoost, resolveUploadMimeType, RIGHTS_CONSENT_DOCUMENT_VERSION, submitSupabaseVote, toDatabaseCategory } from './supabaseApi.js';
 
 test('Supabase duplicate vote errors retain the public API contract', () => {
   const result = normalizeSupabaseError({ code: '23505' });
@@ -106,6 +106,13 @@ test('feed cards keep a normal empty personalized result as a successful empty f
   assert.equal(result.meta.hasMore, false);
   assert.equal(result.meta.nextCursor, null);
   assert.deepEqual(calls, [{ name: 'get_personalized_feed_post_page', args: { page_size: 11, category_filter: null, after_post_id: 'post-cursor-id' } }]);
+});
+
+test('category feed requests are filtered by the server before pagination', async () => {
+  const calls = [];
+  const result = await listSupabasePublishedFeedCards({ category: 'Outfit', limit: 10, client: { rpc: async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; } } });
+  assert.deepEqual(result.data, []);
+  assert.deepEqual(calls, [{ name: 'get_personalized_feed_post_page', args: { page_size: 11, category_filter: 'outfit', after_post_id: null } }]);
 });
 
 test('feed remains readable with the legacy bounded page until cursor migration is available', async () => {
@@ -227,6 +234,33 @@ test('a failed Boost candidate lookup is not misreported as an empty successful 
   const result = await listSupabaseBoostCandidates({ client });
   assert.equal(result.data, undefined);
   assert.equal(result.error.message, 'Boost 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+});
+
+test('active exposure requests are restored only for the signed-in member', async () => {
+  const calls = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async (name, args) => { calls.push([name, args]); return { data: [{ post_id: 'post-a' }, { post_id: null }], error: null }; },
+  };
+  const result = await listSupabaseMyActiveBoostedPostIds({ client });
+  assert.deepEqual([...result.data], ['post-a']);
+  assert.deepEqual(calls, [['get_my_active_boosted_post_ids', { page_size: 50 }]]);
+});
+
+test('active exposure recovery retries a newly refreshed API schema', async () => {
+  let calls = 0;
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member-a' } }, error: null }) },
+    rpc: async () => {
+      calls += 1;
+      return calls === 1
+        ? { data: null, error: { code: 'PGRST202' } }
+        : { data: [{ post_id: 'post-a' }], error: null };
+    },
+  };
+  const result = await listSupabaseMyActiveBoostedPostIds({ client });
+  assert.equal(calls, 2);
+  assert.deepEqual([...result.data], ['post-a']);
 });
 
 function orderedLibraryClient(rpcRows) {

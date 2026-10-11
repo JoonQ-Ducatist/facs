@@ -29,6 +29,9 @@ test('all policy notices show the confirmed operator, public MVP scope, and appr
   assert.match(policy, /country code derived from the request IP address/);
   assert.match(policy, /쿠키\(_ga 등\)/);
   assert.match(policy, /cookies \(including _ga\)/);
+  assert.match(policy, /임시 분석 세션 식별자/);
+  assert.match(policy, /temporary analytics session identifier/);
+  assert.doesNotMatch(policy, /서비스 분석 이벤트와 임시 세션 식별자|product analytics events, and a temporary session identifier/);
   assert.doesNotMatch(policy, /익명 이용 흐름|anonymous usage journeys/);
   for (const phrase of ['프로필 사진', '스크랩', '브라우저 저장', '사진·영상 권리 확인', 'profile photos', 'scraps', 'Browser storage', 'rights confirmation']) assert.match(policy, new RegExp(phrase));
   assert.doesNotMatch(policy, /Closed Beta/);

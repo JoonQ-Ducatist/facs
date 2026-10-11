@@ -4,13 +4,31 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-// These are the three moderation/media contracts that must be present before
-// browser QA. Keep this list small and intentional.
+// Critical browser flows must have their server contracts before QA starts.
 export const REQUIRED_RPC_NAMES = Object.freeze([
   'get_moderation_report_queue',
   'get_moderation_post_preview',
   'get_personalized_feed_post_page',
+  'get_my_published_profile_post_ids',
+  'get_auth_featured_public_photos',
+  'get_my_post_deletion_assets',
+  'delete_my_post',
+  'get_my_boost_candidates',
+  'request_post_boost',
+  'get_my_active_boosted_post_ids',
 ]);
+
+const RPC_PROBE_BODIES = Object.freeze({
+  get_moderation_post_preview: { target_report_id: '00000000-0000-4000-8000-000000000000' },
+  get_personalized_feed_post_page: { page_size: 1, category_filter: null, after_post_id: null },
+  get_my_published_profile_post_ids: { page_size: 1 },
+  get_auth_featured_public_photos: { page_size: 1, candidate_pool_size: 1 },
+  get_my_post_deletion_assets: { target_post_id: '00000000-0000-4000-8000-000000000000' },
+  delete_my_post: { target_post_id: '00000000-0000-4000-8000-000000000000' },
+  get_my_boost_candidates: { page_size: 1 },
+  request_post_boost: { target_post_id: '00000000-0000-4000-8000-000000000000' },
+  get_my_active_boosted_post_ids: { page_size: 1 },
+});
 
 export const REQUIRED_MIGRATION_CONTRACTS = Object.freeze([
   {
@@ -36,6 +54,21 @@ export function auditOpenApi(document, requiredRpcNames = REQUIRED_RPC_NAMES) {
   return requiredRpcNames
     .filter((name) => !paths.has(`/rpc/${name}`))
     .map((name) => `/rpc/${name}`);
+}
+
+export async function probeRpcAvailability({ stagingUrl, publishableKey, fetcher = fetch, requiredRpcNames = REQUIRED_RPC_NAMES }) {
+  const missing = [];
+  for (const name of requiredRpcNames) {
+    const response = await fetcher(`${stagingUrl}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(RPC_PROBE_BODIES[name] ?? {}),
+    });
+    if (response.status !== 404) continue;
+    const body = await response.json().catch(() => ({}));
+    if (body?.code === 'PGRST202') missing.push(`/rpc/${name}`);
+  }
+  return missing;
 }
 
 export function auditMigrationContracts(migrationSql, contracts = REQUIRED_MIGRATION_CONTRACTS) {
@@ -76,13 +109,7 @@ export async function runGuard({ root = ROOT, fetcher = fetch } = {}) {
   const migrationDir = resolve(root, 'supabase/migrations');
   const migrationSql = Object.fromEntries(readdirSync(migrationDir).filter((name) => name.endsWith('.sql')).map((name) => [name, readFileSync(resolve(migrationDir, name), 'utf8')]));
   const migrationIssues = auditMigrationContracts(migrationSql);
-  const document = await fetcher(`${local.VITE_SUPABASE_URL}/rest/v1/`, {
-    headers: { apikey: local.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${local.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-  }).then(async (response) => {
-    if (!response.ok) throw new Error(`Staging OpenAPI request failed (${response.status}).`);
-    return response.json();
-  });
-  const missingRpc = auditOpenApi(document);
+  const missingRpc = await probeRpcAvailability({ stagingUrl: local.VITE_SUPABASE_URL, publishableKey: local.VITE_SUPABASE_PUBLISHABLE_KEY, fetcher });
   return { ok: migrationIssues.length === 0 && missingRpc.length === 0, migrationIssues, missingRpc };
 }
 

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { assertSupabaseTarget } from './supabase-target.mjs';
+import { runGuard } from './check-staging-schema.mjs';
 
 function readEnvironment(path) {
   if (!existsSync(path)) return {};
@@ -16,6 +18,10 @@ const host = process.argv.includes('--lan') ? '0.0.0.0' : '127.0.0.1';
 
 if (!remoteUrl?.startsWith('https://')) throw new Error('Staging checks need an approved HTTPS staging Supabase URL in .env.local. Docker, local QA accounts, migrations, and seed data are unavailable.');
 if (fallback.VITE_SUPABASE_URL && remoteUrl === fallback.VITE_SUPABASE_URL) throw new Error('Staging checks refuse the fallback production Supabase URL. Point .env.local at the approved staging project first.');
+
+assertSupabaseTarget({ target: 'staging' });
+const schema = await runGuard();
+if (!schema.ok) throw new Error(`Staging schema is incomplete: ${[...schema.migrationIssues, ...schema.missingRpc].join(', ')}`);
 
 const child = spawn('npx', ['vite', '--host', host, '--port', '4173', '--mode', 'staging'], {
   stdio: 'inherit',

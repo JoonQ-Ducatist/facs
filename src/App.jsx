@@ -21,7 +21,7 @@ import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -29,10 +29,11 @@ import { blockMember, getMyBlockedMembers, unblockMember } from './services/bloc
 import { reportDeduplicationKey, submitPostReport } from './services/reportsApi.js';
 import { getAuthCallbackCode, getAuthCallbackFailure, getCompletedAuthReturnUrl, getPublicAuthConfig } from './services/authConfig.js';
 import { AUTH_ACTION_ERROR, beginOAuthSignIn, requestEmailMagicLink, signOutCurrentSession, verifyEmailCode } from './services/authService.js';
-import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, getProfileAvatarUrl, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
+import { checkHandleAvailability, getHandleSuggestionsWithAvailability, getMyProfile, getProfileAvatarUrl, getPublicHandle, isConfiguredHandle, mapHandleSaveResult, updateMyHandle, updateMyProfilePresentation, uploadMyProfileAvatar } from './services/profileService.js';
 import { isLocalQaAccountMode, resetLocalQaAbRelationshipState, signInWithLocalQaAccount } from './services/localQaAccounts.js';
 import { resolveFeedCardIndex } from './services/feedSelection.js';
 import { acceptCurrentTerms, CURRENT_TERMS_VERSION, getMyTermsAcceptanceStatus } from './services/termsAcceptance.js';
+import { selectUniqueAccountRecommendations } from './services/recommendationService.js';
 
 /** 정의: 앱 전역 하단 탐색 메뉴의 식별자·아이콘·표시명·선택 색상 목록이다. */
 const tabs = [
@@ -62,15 +63,13 @@ function markLiveReactionSeen(memberId, reaction) {
 }
 
 const BOOST_CANDIDATE_CACHE_PREFIX = 'facs_boost_candidates_v1:';
-const BOOST_CANDIDATE_WINDOW_MS = 60 * 60 * 1000;
 function boostCandidateCacheKey(memberId) { return `${BOOST_CANDIDATE_CACHE_PREFIX}${memberId}`; }
 function readBoostCandidateCache(memberId) {
   if (!memberId) return new Set();
   try {
     const cached = JSON.parse(window.sessionStorage.getItem(boostCandidateCacheKey(memberId)) ?? '[]');
-    const now = Date.now();
     return new Set((Array.isArray(cached) ? cached : [])
-      .filter((candidate) => candidate?.postId && Number.isFinite(Date.parse(candidate.publishedAt)) && now - Date.parse(candidate.publishedAt) < BOOST_CANDIDATE_WINDOW_MS)
+      .filter((candidate) => candidate?.postId)
       .map((candidate) => candidate.postId));
   } catch { return new Set(); }
 }
@@ -163,6 +162,7 @@ export default function App() {
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [blockedMembers, setBlockedMembers] = useState([]);
   const [boostCandidateIds, setBoostCandidateIds] = useState(() => new Set());
+  const [boostedPostIds, setBoostedPostIds] = useState(() => new Set());
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [handleProfileRefreshKey, setHandleProfileRefreshKey] = useState(0);
@@ -443,6 +443,8 @@ export default function App() {
   useEffect(() => {
     setProfileCards(null);
     setScrapCards(null);
+    pendingPublishedCard.current = null;
+    setFeaturedPostId(null);
   }, [authUser?.id]);
 
   /** Hydrates complete private profile libraries independently of the Feed page limit. */
@@ -457,7 +459,6 @@ export default function App() {
         setProfileCards(justPublished && !hydratedProfileCards.some((card) => card.id === justPublished.id)
           ? [justPublished, ...hydratedProfileCards]
           : hydratedProfileCards);
-        if (justPublished && hydratedProfileCards.some((card) => card.id === justPublished.id)) pendingPublishedCard.current = null;
       }
       if (!scrapResult.error) setScrapCards(scrapResult.data ?? []);
     });
@@ -472,16 +473,19 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id]);
 
-  /** Keeps Boost CTA eligibility aligned with the server-clock candidate RPC. */
+  /** Keeps the free MVP Boost CTA aligned with the server-validated <=10-rating rule. */
   useEffect(() => {
     let active = true;
-    if (!authUser) { setBoostCandidateIds(new Set()); return undefined; }
+    if (!authUser) { setBoostCandidateIds(new Set()); setBoostedPostIds(new Set()); return undefined; }
     const cachedIds = readBoostCandidateCache(authUser.id);
     if (cachedIds.size) setBoostCandidateIds(cachedIds);
     listSupabaseBoostCandidates().then((result) => {
       if (!active || result.error) return;
       writeBoostCandidateCache(authUser.id, result.data);
       setBoostCandidateIds(new Set(result.data.map((candidate) => candidate.postId)));
+    });
+    listSupabaseMyActiveBoostedPostIds().then((result) => {
+      if (active && result.data) setBoostedPostIds(result.data);
     });
     return () => { active = false; };
   }, [authUser?.id]);
@@ -499,7 +503,8 @@ export default function App() {
   /** Hydrates the top of the feed from real published posts after authentication. */
   useEffect(() => {
     let active = true;
-    const pageState = { cursor: null, hasMore: false, loading: false, userId: authUser?.id ?? null };
+    const requestedCategory = activeCategory === 'ALL' ? null : activeCategory;
+    const pageState = { cursor: null, hasMore: false, loading: false, userId: authUser?.id ?? null, category: requestedCategory };
     feedPage.current = pageState;
     setHasMoreFeed(false);
     if (!authUser) { setFeedHydrated(true); return undefined; }
@@ -507,7 +512,7 @@ export default function App() {
     setFeedLoadError(false);
     async function hydrateFeed() {
       try {
-        const result = await listSupabasePublishedFeedCards({ limit: 10, cursor: null });
+        const result = await listSupabasePublishedFeedCards({ category: requestedCategory, limit: 10, cursor: null });
         if (!active) return;
         if (result.error) {
           setFeedLoadError(true);
@@ -517,36 +522,36 @@ export default function App() {
         pageState.hasMore = Boolean(result.meta.hasMore);
         setHasMoreFeed(pageState.hasMore);
         const serverCards = result.data ?? [];
-        if (serverCards.length) {
-          const serverIds = new Set(serverCards.map((card) => card.id));
-          const hydratedServerCards = serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
-          const justPublished = pendingPublishedCard.current;
-          setCards((existing) => {
-            const localOnly = existing.filter((card) => !serverIds.has(card.id) && card.id !== justPublished?.id);
-            const serverPublished = hydratedServerCards.find((card) => card.id === justPublished?.id);
-            const featured = justPublished
-              ? { ...justPublished, ...(serverPublished ?? {}), category: justPublished.category, isMyUpload: true }
-              : null;
-            const remainingServerCards = featured
-              ? hydratedServerCards.filter((card) => card.id !== justPublished.id)
-              : hydratedServerCards;
-            return [...(featured ? [featured] : []), ...remainingServerCards, ...localOnly];
-          });
-        }
+        const hydratedServerCards = serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
+        setCards((existing) => {
+          const justPublished = pendingPublishedCard.current
+            ?? existing.find((card) => card.id === featuredPostId)
+            ?? null;
+          const belongsInPage = justPublished && (!requestedCategory || justPublished.category === requestedCategory);
+          const localOnly = existing.filter((card) => !isSupabasePost(card) && card.id !== justPublished?.id);
+          const serverPublished = hydratedServerCards.find((card) => card.id === justPublished?.id);
+          const featured = belongsInPage
+            ? { ...justPublished, ...(serverPublished ?? {}), category: justPublished.category, isMyUpload: true }
+            : null;
+          const remainingServerCards = featured
+            ? hydratedServerCards.filter((card) => card.id !== justPublished.id)
+            : hydratedServerCards;
+          return [...(featured ? [featured] : []), ...remainingServerCards, ...localOnly];
+        });
       } finally {
         if (active) setFeedHydrated(true);
       }
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, feedRefreshKey]);
+  }, [authUser?.id, feedRefreshKey, activeCategory, featuredPostId]);
 
   async function loadMoreFeed() {
     const pageState = feedPage.current;
     if (!authUser || pageState.userId !== authUser.id || !pageState.hasMore || pageState.loading) return false;
     pageState.loading = true;
     try {
-      const result = await listSupabasePublishedFeedCards({ limit: 10, cursor: pageState.cursor });
+      const result = await listSupabasePublishedFeedCards({ category: pageState.category, limit: 10, cursor: pageState.cursor });
       if (feedPage.current !== pageState || result.error) return false;
       const nextCards = (result.data ?? []).map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
       if (nextCards.length) {
@@ -672,7 +677,10 @@ export default function App() {
 
   /** 정의: 피드 카테고리를 변경하고 새 목록의 첫 카드로 이동한다. @param {string} category 카테고리 식별자 */
   function changeCategory(category) {
-    setFeaturedPostId(null);
+    if (category !== activeCategory) {
+      pendingPublishedCard.current = null;
+      setFeaturedPostId(null);
+    }
     setActiveCategory(category);
     setCurrentIndex(0);
   }
@@ -880,8 +888,8 @@ export default function App() {
     };
     pendingPublishedCard.current = publishedCard;
     setCards((items) => [publishedCard, ...items]);
-    // A newly published post necessarily starts inside the server's one-hour,
-    // zero-other-rating window. The server revalidates this again on request.
+    // A newly published post necessarily starts inside the free MVP eligibility
+    // boundary. The server revalidates the <=10-rating rule on request.
     setBoostCandidateIds((ids) => new Set([...ids, publishedCard.id]));
     setProfileCards((items) => [publishedCard, ...(Array.isArray(items) ? items : []).filter((item) => item.id !== publishedCard.id)]);
     setProfileRefreshKey((key) => key + 1);
@@ -921,6 +929,7 @@ export default function App() {
       next.delete(targetCard.id);
       return next;
     });
+    setBoostedPostIds((ids) => new Set([...ids, targetCard.id]));
     setCards((items) => items.map((item) => item.id === targetCard.id ? { ...item, boostStatus: result.data.status ?? 'active' } : item));
     trackEvent(ANALYTICS_EVENT.BOOST_REQUESTED, { category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
     setToast(locale === 'en' ? 'We will show this post to more people. Its result will not change.' : '더 많은 사람에게 이 게시물을 보여드릴게요. 결과에는 영향을 주지 않아요.');
@@ -1444,7 +1453,7 @@ export default function App() {
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
@@ -1455,11 +1464,11 @@ export default function App() {
       </>}
     </main>
 
-    <DesktopRecommendationAside cards={displayCards} onProfile={() => setActiveTab('profile')} followingIds={followingIds} currentUserId={authUser?.id} onToggleFollow={toggleFollowing} onOpenPolicy={setPolicyOpen} />
+    <DesktopRecommendationAside locale={locale} cards={displayCards} profile={profile} onProfile={() => setActiveTab('profile')} followingIds={followingIds} currentUserId={authUser?.id} onToggleFollow={toggleFollowing} onOpenPolicy={setPolicyOpen} />
 
     {policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}
 
-    {toast && <div role="status" className="fixed left-1/2 top-[60px] z-[60] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-center gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined text-base text-cyan-glow">check_circle</span>{toast}</div></div>}
+    {toast && <div role="status" className="app-toast fixed left-1/2 z-[100] w-full max-w-xs -translate-x-1/2 px-4"><div className="flex items-start gap-2 rounded-lg border border-[#e4e2dd] bg-white/95 px-3.5 py-2.5 text-xs leading-relaxed text-[#1b1c19] shadow-lg backdrop-blur"><span className="material-symbols-outlined mt-px shrink-0 text-base text-cyan-glow">check_circle</span><span className="min-w-0">{toast}</span></div></div>}
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label="주요 메뉴">
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
@@ -1479,18 +1488,19 @@ function BrandWordmark({ compact = false }) {
   return <span lang="en" aria-label="FACt.Smack" className={`shrink-0 whitespace-nowrap font-latin font-extrabold leading-none tracking-tight text-[#1b1c19] ${compact ? 'text-[15px] sm:text-[17px] md:text-xl' : 'text-[15px]'}`}><span className="brand-wordmark__facs">FAC</span>t.<span className="brand-wordmark__facs">S</span>mack</span>;
 }
 
-/** 정의: 넓은 PC 화면에서 중앙 피드와 병렬로 표시하는 Instagram형 사용자·추천 콘텐츠 영역이다. */
-function DesktopRecommendationAside({ cards, onProfile, followingIds, currentUserId, onToggleFollow, onOpenPolicy }) {
-  if (!cards.length) return null;
-  const suggestions = cards.slice(1, 6);
-  return <aside className="desktop-recommendations" aria-label="회원님을 위한 추천">
+/** 정의: 넓은 PC 화면에서 본인 프로필과 중복 없는 계정 추천을 표시한다. */
+function DesktopRecommendationAside({ locale, cards, profile, onProfile, followingIds, currentUserId, onToggleFollow, onOpenPolicy }) {
+  const suggestions = selectUniqueAccountRecommendations(cards, currentUserId);
+  const profileHandle = getPublicHandle(profile);
+  const profileAvatarUrl = getProfileAvatarUrl(profile?.avatar_path);
+  return <aside className="desktop-recommendations" aria-label={locale === 'en' ? 'Suggested accounts' : '추천 계정'}>
     <button type="button" onClick={onProfile} className="mb-7 flex w-full items-center gap-3 text-left">
-      <img className="h-11 w-11 rounded-full border border-[#c5a059]/60 object-cover p-0.5" src={cards[0]?.imageUrl} alt="내 프로필" />
-      <span className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">my_look_daily</strong><span className="block truncate text-[12px] text-[#74777d]">나의 Look Book</span></span>
-      <span className="font-mono text-[11px] font-bold text-[#5865F2]">전환</span>
+      {profileAvatarUrl ? <img className="h-11 w-11 rounded-full border border-[#c5a059]/60 object-cover p-0.5" src={profileAvatarUrl} alt="" /> : <span className="material-symbols-outlined flex h-11 w-11 items-center justify-center rounded-full border border-[#c5a059]/60 text-[32px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}
+      <span className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">{profileHandle ? `@${profileHandle}` : (locale === 'en' ? 'Set your public ID' : '공개 아이디 설정 필요')}</strong><span className="block truncate text-[12px] text-[#74777d]">{profile?.bio || (locale === 'en' ? 'My profile' : '내 프로필')}</span></span>
+      <span className="font-mono text-[11px] font-bold text-[#5865F2]">{locale === 'en' ? 'View' : '보기'}</span>
     </button>
-    <div className="mb-3 flex items-center justify-between"><h2 className="text-[13px] font-bold text-[#44474c]">회원님을 위한 추천</h2><button type="button" className="text-[11px] font-bold text-[#1b1c19]">모두 보기</button></div>
-    <div className="space-y-3">{suggestions.map((item) => { const target = getFollowTargetKey(item.authorId, item.author); const canFollow = Boolean(item.author) && !item.isMyUpload && item.authorId !== currentUserId; const following = followingIds?.has(target); return <div key={item.id} className="flex items-center gap-2.5"><img className="h-8 w-8 rounded-full object-cover" src={item.imageUrl} alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{item.subtext}</span></div>{canFollow && <button type="button" onClick={() => onToggleFollow(target)} className="text-[11px] font-bold text-[#5865F2]">{following ? '팔로잉' : '팔로우'}</button>}</div>; })}</div>
+    <div className="mb-3"><h2 className="text-[13px] font-bold text-[#44474c]">{locale === 'en' ? 'Suggested accounts' : '추천 계정'}</h2></div>
+    <div className="space-y-3">{suggestions.map((item) => { const target = getFollowTargetKey(item.authorId, item.author); const following = followingIds?.has(target); return <div key={target} className="flex items-center gap-2.5">{item.authorAvatarUrl ? <img className="h-8 w-8 rounded-full object-cover" src={item.authorAvatarUrl} alt="" /> : <span className="material-symbols-outlined flex h-8 w-8 items-center justify-center rounded-full bg-[#f0eee9] text-[23px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}<div className="min-w-0 flex-1"><strong className="block truncate text-[12px] text-[#1b1c19]">@{item.author}</strong>{item.authorBio && <span className="block truncate text-[10px] text-[#74777d]">{item.authorBio}</span>}</div><button type="button" onClick={() => onToggleFollow(target)} className="text-[11px] font-bold text-[#5865F2]">{following ? (locale === 'en' ? 'Following' : '팔로잉') : (locale === 'en' ? 'Follow' : '팔로우')}</button></div>; })}</div>
     <p className="mt-8 flex flex-wrap gap-x-2 text-[10px] leading-relaxed text-[#9a9a95]"><span>소개</span><span>·</span><button type="button" onClick={() => onOpenPolicy?.('safety')} className="underline underline-offset-2">안전·신고</button><span>·</span><button type="button" onClick={() => onOpenPolicy?.('privacy')} className="underline underline-offset-2">개인정보처리방침</button><span>·</span><button type="button" onClick={() => onOpenPolicy?.('terms')} className="underline underline-offset-2">약관</button></p>
     <p className="mt-3 font-mono text-[10px] text-[#9a9a95]">© 2026 FACt.Smack</p>
   </aside>;
