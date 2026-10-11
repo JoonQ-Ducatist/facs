@@ -86,7 +86,8 @@ test('mobile navigation hides during portrait scrolling, returns when idle, and 
   assert.match(styles, /\.editorial-main \{\s*inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 0 0;\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/);
   assert.match(styles, /\.editorial-app--nav-hidden > header \{ transform: translateY\(-110%\); \}/);
   assert.match(styles, /\.editorial-app--nav-hidden > nav \{ transform: translate\(-50%, calc\(100% \+ 18px \+ env\(safe-area-inset-bottom\)\)\); \}/);
-  assert.match(styles, /\.editorial-app--nav-hidden > \.editorial-main \{ inset: 0 !important; \}/);
+  assert.match(styles, /\.editorial-app--nav-hidden > \.editorial-main--feed \{ inset: 0 !important; \}/);
+  assert.doesNotMatch(styles, /\.editorial-app--nav-hidden > \.editorial-main \{ inset: 0 !important; \}/);
   assert.match(styles, /\.editorial-app::before,[\s\S]*?backdrop-filter: blur\(5px\)/);
   assert.match(styles, /\.media-card-photo-nav__button--left \{ left: 16px; \}[\s\S]*?\.media-card-photo-nav__button--right \{ right: 16px; \}/);
 });

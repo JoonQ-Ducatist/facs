@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const policy = await readFile(new URL('./LegalPolicyDialog.jsx', import.meta.url), 'utf8');
 const app = await readFile(new URL('../../App.jsx', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth/AuthEntryView.jsx', import.meta.url), 'utf8');
+const profile = await readFile(new URL('../profile/ProfileView.jsx', import.meta.url), 'utf8');
 const guestPhotoRule = await readFile(new URL('../../../supabase/migrations/202609220002_auth_featured_public_photos.sql', import.meta.url), 'utf8');
 const postVisibilityRule = await readFile(new URL('../../../supabase/migrations/202609110005_follows_and_personalized_feed.sql', import.meta.url), 'utf8');
 
@@ -22,7 +23,9 @@ test('all policy notices show the confirmed operator, public MVP scope, and appr
   assert.match(policy, /만 14세 이상/);
   assert.match(policy, /작성자가 게시물이나 댓글을 삭제하면 해당 원본을 제거합니다/);
   assert.match(policy, /When an author deletes a post or comment, its original record is removed/);
-  assert.match(policy, /신고·검토 기록과 백업 사본은 별도로 남을 수 있습니다/);
+  assert.match(policy, /신고·검토 기록은 별도로 남을 수 있습니다/);
+  assert.match(policy, /Report and review records may remain separately/);
+  assert.doesNotMatch(policy, /백업 사본은 별도로 남을 수 있습니다|backup copies, may remain separately/);
   assert.match(policy, /열람·정정·삭제·처리정지/);
   assert.match(policy, /시행일: 2026년 10월 9일/);
   assert.match(policy, /Vercel이 요청의 IP 주소에서 제공하는 국가 코드/);
@@ -44,6 +47,11 @@ test('all policy notices are reachable from authentication and policy dialogs ar
   assert.match(auth, /onOpenPolicy\?\.\('safety'\)/);
   assert.match(app, /<LegalPolicyDialog/);
   assert.match(app, /onOpenPolicy=\{setPolicyOpen\}/);
+  assert.match(profile, /onOpenPolicy\?\.\('safety'\)/);
+  assert.match(profile, /onOpenPolicy\?\.\('privacy'\)/);
+  assert.match(profile, /onOpenPolicy\?\.\('terms'\)/);
+  assert.match(profile, /Safety & reports/);
+  assert.match(profile, /개인정보처리방침/);
 });
 
 test('privacy notice describes guest photo selection and member-only visibility', () => {
