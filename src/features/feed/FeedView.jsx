@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus, SAMPLE_STATUS } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
@@ -373,7 +374,7 @@ function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, 
   useEffect(() => setMediaIndex(Math.max(0, mediaItems.findIndex((item) => item?.id === media?.id))), [card.id, media?.id]);
   const visibleComments = comments.slice(0, visibleCount);
   const hasMore = comments.length > visibleCount;
-  return <section className="comment-panel" role="dialog" aria-modal="true" aria-label="게시물 댓글 상세">
+  return createPortal(<section className="comment-panel" role="dialog" aria-modal="true" aria-label="게시물 댓글 상세">
     <div className="comment-panel__dialog">
       <div className="comment-panel__sheet-heading"><span className="comment-panel__handle" aria-hidden="true" /><strong>댓글</strong></div>
       <button type="button" onClick={onClose} className="comment-panel__close" aria-label="댓글 상세 닫기"><span className="material-symbols-outlined">close</span></button>
@@ -385,7 +386,7 @@ function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, 
         <form className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><label className="sr-only" htmlFor="comment-draft">댓글 작성</label><span className="material-symbols-outlined text-[23px] text-[#44474c]">sentiment_satisfied</span><input id="comment-draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} maxLength="500" placeholder="댓글 달기..." className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" /><button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">게시</button></form>
       </div>
     </div>
-  </section>;
+  </section>, document.body);
 }
 
 /** 정의: 작성자 핸들의 첫 글자로 만드는 개인정보 비노출형 아바타다. */

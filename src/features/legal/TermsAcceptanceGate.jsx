@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function TermsAcceptanceGate({ locale = 'ko', status = 'required', error = '', onAccept, onRetry, onSignOut, onOpenPolicy }) {
+export default function TermsAcceptanceGate({ locale = 'ko', status = 'required', errorCode, onAccept, onRetry, onSignOut, onOpenPolicy }) {
   const korean = locale !== 'en';
   const [checked, setChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -26,7 +26,7 @@ export default function TermsAcceptanceGate({ locale = 'ko', status = 'required'
           <p role="status" className="mt-5 text-sm text-[#62656c]">{korean ? '동의 기록을 확인하고 있어요.' : 'Checking your acceptance record.'}</p>
         ) : status === 'error' ? (
           <div className="mt-5">
-            <p role="alert" className="text-sm text-[#a0354c]">{error || (korean ? '정책 동의 상태를 확인하지 못했어요.' : 'We could not verify your acceptance status.')}</p>
+            <p role="alert" className="text-sm text-[#a0354c]">{korean ? '정책 동의 상태를 확인하지 못했어요.' : 'We could not verify your acceptance status.'}{errorCode ? ` (${String(errorCode)})` : ''}</p>
             <button type="button" onClick={onRetry} className="mt-4 rounded-lg border border-[#8b6b00] px-4 py-2 font-bold text-[#725900]">{korean ? '다시 확인' : 'Retry'}</button>
           </div>
         ) : (

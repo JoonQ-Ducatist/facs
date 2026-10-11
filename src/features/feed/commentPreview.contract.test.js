@@ -17,3 +17,9 @@ test('the comment list renders persisted comments only, not the post caption as 
   assert.doesNotMatch(source, /<Avatar author=\{card\.author\} \/><p className="comment-panel__comment-text/);
   assert.match(source, /visibleComments\.map\(\(comment\)/);
 });
+
+test('comment sheet is outside the feed scrollport and above mobile navigation', () => {
+  assert.match(source, /import \{ createPortal \} from 'react-dom'/);
+  assert.match(source, /return createPortal\(<section className="comment-panel"/);
+  assert.match(source, /<\/section>, document\.body\);/);
+});

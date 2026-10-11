@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { acceptCurrentTerms, CURRENT_TERMS_VERSION } from '../../services/termsAcceptance.js';
+import { acceptCurrentTerms, CURRENT_TERMS_VERSION, getMyTermsAcceptanceStatus } from '../../services/termsAcceptance.js';
 
 const app = await readFile(new URL('../../App.jsx', import.meta.url), 'utf8');
 const gate = await readFile(new URL('./TermsAcceptanceGate.jsx', import.meta.url), 'utf8');
@@ -52,4 +52,61 @@ test('a lost or empty save response is confirmed from the durable acceptance rec
   assert.equal(result.ok, true);
   assert.equal(result.record.terms_version, CURRENT_TERMS_VERSION);
   assert.equal(calls, 2);
+});
+
+test('a temporary status read failure retries without asking for a second agreement', async () => {
+  let calls = 0;
+  const result = await getMyTermsAcceptanceStatus({ rpc: async () => {
+    calls += 1;
+    return calls === 1
+      ? { data: null, error: { message: 'Service unavailable' }, status: 503 }
+      : { data: [{ terms_version: CURRENT_TERMS_VERSION }], error: null };
+  } });
+  assert.equal(result.ok, true);
+  assert.equal(result.accepted, true);
+  assert.equal(calls, 2);
+});
+
+test('a permanent status failure stays blocked and exposes its error code', async () => {
+  let calls = 0;
+  const result = await getMyTermsAcceptanceStatus({ rpc: async () => {
+    calls += 1;
+    return { data: null, error: { code: '42501', message: 'permission denied' }, status: 403 };
+  } });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, '42501');
+  assert.equal(calls, 1);
+  assert.match(app, /error: acceptance\.error/);
+  assert.match(app, /errorCode=\{termsGate\.error\?\.code \?\? termsGate\.httpStatus/);
+});
+
+test('an expired status token is refreshed before checking the saved agreement again', async () => {
+  let reads = 0;
+  let refreshes = 0;
+  const result = await getMyTermsAcceptanceStatus({
+    auth: { refreshSession: async () => {
+      refreshes += 1;
+      return { data: { session: { access_token: 'refreshed' } }, error: null };
+    } },
+    rpc: async () => {
+      reads += 1;
+      return reads === 1
+        ? { data: null, error: { message: 'JWT expired' }, status: 401 }
+        : { data: [{ terms_version: CURRENT_TERMS_VERSION }], error: null };
+    },
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(reads, 2);
+  assert.equal(refreshes, 1);
+});
+
+test('a 401 without a valid refreshed session never bypasses the gate', async () => {
+  let reads = 0;
+  const result = await getMyTermsAcceptanceStatus({
+    auth: { refreshSession: async () => ({ data: { session: null }, error: { message: 'signed out' } }) },
+    rpc: async () => { reads += 1; return { data: null, error: { message: 'JWT expired' }, status: 401 }; },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.accepted, false);
+  assert.equal(reads, 1);
 });

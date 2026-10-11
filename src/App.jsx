@@ -259,7 +259,7 @@ export default function App() {
       const acceptance = await readTermsStatus(session.user.id);
       if (!active) return;
       if (!acceptance.ok) {
-        setTermsGate({ user: session.user, status: 'error' });
+        setTermsGate({ user: session.user, status: 'error', error: acceptance.error, httpStatus: acceptance.status });
         return;
       }
       if (!acceptance.accepted) {
@@ -1064,7 +1064,7 @@ export default function App() {
     termsStatusCache.current.delete(`${user.id}:${CURRENT_TERMS_VERSION}`);
     setTermsGate({ user, status: 'checking' });
     const result = await readTermsStatus(user.id);
-    if (!result.ok) setTermsGate({ user, status: 'error' });
+    if (!result.ok) setTermsGate({ user, status: 'error', error: result.error, httpStatus: result.status });
     else if (result.accepted) {
       acceptedTermsUserId.current = user.id;
       setTermsGate(null);
@@ -1111,7 +1111,7 @@ export default function App() {
         const acceptance = await readTermsStatus(session.user.id);
         if (!acceptance.ok) {
           authTransitionPending.current = false;
-          setTermsGate({ user: session.user, status: 'error' });
+          setTermsGate({ user: session.user, status: 'error', error: acceptance.error, httpStatus: acceptance.status });
           return result;
         }
         if (!acceptance.accepted) {
@@ -1406,7 +1406,7 @@ export default function App() {
 
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
-  if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} error={termsGate.error?.message} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
+  if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} errorCode={termsGate.error?.code ?? termsGate.httpStatus} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
   if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
