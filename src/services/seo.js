@@ -22,13 +22,14 @@ function upsertMeta(selector, attributes) {
 }
 
 /** Keeps the SPA's search and share metadata aligned with the selected language. */
-export function applySeoMetadata(locale = 'ko') {
+export function applySeoMetadata(locale = 'en') {
   if (typeof document === 'undefined') return;
   const copy = COPY[locale] ?? COPY.ko;
-  // Auth callback state and QA query flags describe a browser session, not a
-  // discoverable page. Search and share URLs therefore always canonicalize to
-  // the single public application URL.
-  const url = new URL('/', window.location.origin);
+  const origin = window.location.origin.replace(/^http:\/\/(?:www\.)?factsmack\.com$/i, 'https://www.factsmack.com')
+    .replace(/^https:\/\/factsmack\.com$/i, 'https://www.factsmack.com');
+  const url = new URL(locale === 'ko' ? '/ko/' : '/', origin);
+  const englishUrl = new URL('/', origin).href;
+  const koreanUrl = new URL('/ko/', origin).href;
   document.documentElement.lang = locale;
   document.title = copy.tabTitle;
   upsertMeta('meta[name="description"]', { name: 'description', content: copy.description });
@@ -44,4 +45,15 @@ export function applySeoMetadata(locale = 'ko') {
   let canonical = document.head.querySelector('link[rel="canonical"]');
   if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.append(canonical); }
   canonical.setAttribute('href', url.href);
+  for (const [language, href] of [['en', englishUrl], ['ko', koreanUrl], ['x-default', englishUrl]]) {
+    const selector = `link[rel="alternate"][hreflang="${language}"]`;
+    let alternate = document.head.querySelector(selector);
+    if (!alternate) {
+      alternate = document.createElement('link');
+      alternate.setAttribute('rel', 'alternate');
+      alternate.setAttribute('hreflang', language);
+      document.head.append(alternate);
+    }
+    alternate.setAttribute('href', href);
+  }
 }

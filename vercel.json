@@ -7,34 +7,6 @@
       "main": true
     }
   },
-  "redirects": [
-    {
-      "source": "/",
-      "destination": "/?locale=en",
-      "has": [
-        {
-          "type": "header",
-          "key": "x-vercel-ip-country",
-          "value": { "neq": "KR" }
-        }
-      ],
-      "missing": [{ "type": "query", "key": "locale" }],
-      "statusCode": 307
-    },
-    {
-      "source": "/",
-      "destination": "/?locale=ko",
-      "has": [
-        {
-          "type": "header",
-          "key": "x-vercel-ip-country",
-          "value": "KR"
-        }
-      ],
-      "missing": [{ "type": "query", "key": "locale" }],
-      "statusCode": 307
-    }
-  ],
   "rewrites": [
     {
       "source": "/(.*)",

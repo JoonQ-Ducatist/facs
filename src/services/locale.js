@@ -1,5 +1,5 @@
-/** Resolve explicit URL choice first, then browser preference outside Korea. */
-export const DEFAULT_LOCALE = 'ko';
+/** English is the public default; Korean has a stable /ko/ URL. */
+export const DEFAULT_LOCALE = 'en';
 export const AVAILABLE_LOCALES = ['ko', 'en'];
 export const PLANNED_LOCALES = ['zh'];
 const PENDING_AUTH_LOCALE_KEY = 'facs_pending_auth_locale';
@@ -29,30 +29,34 @@ function consumePendingAuthLocale(browser) {
 }
 
 export function resolveLocale(search = window.location.search, browser = window) {
-  const requested = new URLSearchParams(search).get('locale');
-  if (AVAILABLE_LOCALES.includes(requested)) return requested;
+  const pathname = browser?.location?.pathname ?? '/';
+  if (/^\/ko(?:\/|$)/.test(pathname)) return 'ko';
 
+  // Authentication providers return through this route. Preserve the locale
+  // selected before sign-in instead of interpreting the callback path.
   const pendingAuthLocale = consumePendingAuthLocale(browser);
   if (pendingAuthLocale) return pendingAuthLocale;
 
-  const hostname = browser?.location?.hostname;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') return DEFAULT_LOCALE;
-
-  const languagePreferences = browser?.navigator?.languages?.length
-    ? browser.navigator.languages
-    : [browser?.navigator?.language];
-  const preferredLocale = languagePreferences
-    .map((language) => String(language ?? '').toLowerCase().split('-')[0])
-    .find((language) => AVAILABLE_LOCALES.includes(language));
-
-  if (preferredLocale) return preferredLocale;
+  // Backward compatibility for links already shared with ?locale=...
+  const requested = new URLSearchParams(search).get('locale');
+  if (AVAILABLE_LOCALES.includes(requested)) return requested;
   return DEFAULT_LOCALE;
 }
 
 export function localeUrl(locale, href = window.location.href) {
   const url = new URL(href);
-  // Preserve an explicit manual selection in the URL. Removing `locale=ko`
-  // would make a browser-language heuristic able to override the user's click.
-  if (AVAILABLE_LOCALES.includes(locale)) url.searchParams.set('locale', locale);
+  if (!AVAILABLE_LOCALES.includes(locale)) return `${url.pathname}${url.search}${url.hash}`;
+
+  if (/^\/auth\/callback\/?$/.test(url.pathname)) {
+    url.searchParams.set('locale', locale);
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+
+  const basePath = url.pathname.replace(/^\/ko(?=\/|$)/, '') || '/';
+  url.pathname = locale === 'ko'
+    ? `/ko${basePath.startsWith('/') ? basePath : `/${basePath}`}`
+    : basePath;
+  if (locale === 'ko' && url.pathname === '/ko') url.pathname = '/ko/';
+  url.searchParams.delete('locale');
   return `${url.pathname}${url.search}${url.hash}`;
 }

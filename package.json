@@ -10,7 +10,7 @@
     "check:staging-schema": "node scripts/check-staging-schema.mjs",
     "check:supabase-target:staging": "node scripts/supabase-target.mjs --target=staging",
     "check:supabase-target:production": "node scripts/supabase-target.mjs --target=production",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-ko-seo-entry.mjs",
     "preview": "vite preview",
     "test": "node --test",
     "test:release": "node --test --test-reporter=dot",
