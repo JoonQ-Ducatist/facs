@@ -616,13 +616,12 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .editorial-main--scroll {
     padding-bottom: calc(76px + env(safe-area-inset-bottom) + var(--upload-keyboard-inset, 0px)) !important;
   }
-  .editorial-app--nav-hidden > header { transform: translateY(-110%); }
-  .editorial-app--nav-hidden > nav { transform: translate(-50%, calc(100% + 18px + env(safe-area-inset-bottom))); }
-  /* Feed may expand behind the hidden chrome because each card owns its own
+  .editorial-app--header-hidden > header { transform: translateY(-110%); }
+  /* Feed may expand behind the hidden header because each card owns its own
      bottom action clearance. Form and library screens keep a stable scrollport:
-     resizing it while the menu is hidden leaves the final row underneath the
-     menu when the chrome returns. */
-  .editorial-app--nav-hidden > .editorial-main--feed { inset: 0 !important; }
+     resizing it while the header is hidden can leave the final row underneath
+     the fixed navigation when the header returns. */
+  .editorial-app--header-hidden > .editorial-main--feed { inset: 0 !important; }
   .editorial-app::before,
   .editorial-app::after {
     position: fixed;

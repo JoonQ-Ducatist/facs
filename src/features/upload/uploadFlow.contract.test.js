@@ -155,7 +155,7 @@ test('Upload content owns vertical scrolling between the fixed app bars', async 
   assert.match(styles, /\.editorial-main--scroll \{ overflow-y: auto;/);
   assert.match(styles, /\.editorial-upload, \.editorial-ranking \{ min-height: max-content; flex: 0 0 auto; \}/);
   assert.match(styles, /\.editorial-main--scroll \{\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\) \+ var\(--upload-keyboard-inset, 0px\)\) !important;/);
-  assert.doesNotMatch(styles, /\.editorial-app--nav-hidden > \.editorial-main \{ inset: 0 !important; \}/);
+  assert.doesNotMatch(styles, /\.editorial-app--header-hidden > \.editorial-main \{ inset: 0 !important; \}/);
 });
 
 test('a just-published card is retained and kept canonical during feed hydration', async () => {

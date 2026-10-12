@@ -74,20 +74,20 @@ test('feed media responds to horizontal touch swipes while preserving vertical s
   assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[^}]*touch-action: pan-y/);
 });
 
-test('mobile navigation hides during portrait scrolling, returns when idle, and keeps desktop carousel arrows symmetric', async () => {
+test('mobile header hides during portrait scrolling while navigation stays fixed and carousel arrows remain symmetric', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.match(source, /function handleMainScroll\(\)[\s\S]*?matchMedia\('\(max-width: 1023px\) and \(orientation: portrait\)'\)[\s\S]*?setMobileNavigationVisible\(false\)[\s\S]*?setTimeout\(\(\) => setMobileNavigationVisible\(true\), 220\)/);
+  assert.match(source, /function handleMainScroll\(\)[\s\S]*?matchMedia\('\(max-width: 1023px\) and \(orientation: portrait\)'\)[\s\S]*?setMobileHeaderVisible\(false\)[\s\S]*?setTimeout\(\(\) => setMobileHeaderVisible\(true\), 220\)/);
   assert.match(source, /onScroll=\{handleMainScroll\}/);
   assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > nav \{[\s\S]*?border-radius: 999px/);
   assert.match(styles, /height: 48px;\s*min-height: 48px;[\s\S]*?background: rgba\(255,255,255,\.26\)[\s\S]*?backdrop-filter: blur\(10px\)/);
   assert.match(styles, /button \.material-symbols-outlined \{[\s\S]*?color: #101114 !important;[\s\S]*?wght' 500/);
   assert.match(styles, /button\[aria-current="page"\] \{[\s\S]*?background: rgba\(16,17,20,\.08\) !important/);
   assert.match(styles, /\.editorial-main \{\s*inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 0 0;\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/);
-  assert.match(styles, /\.editorial-app--nav-hidden > header \{ transform: translateY\(-110%\); \}/);
-  assert.match(styles, /\.editorial-app--nav-hidden > nav \{ transform: translate\(-50%, calc\(100% \+ 18px \+ env\(safe-area-inset-bottom\)\)\); \}/);
-  assert.match(styles, /\.editorial-app--nav-hidden > \.editorial-main--feed \{ inset: 0 !important; \}/);
-  assert.doesNotMatch(styles, /\.editorial-app--nav-hidden > \.editorial-main \{ inset: 0 !important; \}/);
+  assert.match(styles, /\.editorial-app--header-hidden > header \{ transform: translateY\(-110%\); \}/);
+  assert.doesNotMatch(styles, /\.editorial-app--header-hidden > nav/);
+  assert.match(styles, /\.editorial-app--header-hidden > \.editorial-main--feed \{ inset: 0 !important; \}/);
+  assert.doesNotMatch(styles, /\.editorial-app--header-hidden > \.editorial-main \{ inset: 0 !important; \}/);
   assert.match(styles, /\.editorial-app::before,[\s\S]*?backdrop-filter: blur\(5px\)/);
   assert.match(styles, /\.media-card-photo-nav__button--left \{ left: 16px; \}[\s\S]*?\.media-card-photo-nav__button--right \{ right: 16px; \}/);
 });

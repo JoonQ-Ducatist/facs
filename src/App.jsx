@@ -146,7 +146,7 @@ export default function App() {
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
-  const [mobileNavigationVisible, setMobileNavigationVisible] = useState(true);
+  const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
   const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
@@ -174,7 +174,7 @@ export default function App() {
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
-  const navigationIdleTimer = useRef(null);
+  const headerIdleTimer = useRef(null);
   const authCallbackHandled = useRef(false);
   const signupAnalyticsTracked = useRef(false);
   const reportedPostReasons = useRef(new Set());
@@ -196,10 +196,10 @@ export default function App() {
     return result;
   }
 
-  useEffect(() => () => window.clearTimeout(navigationIdleTimer.current), []);
+  useEffect(() => () => window.clearTimeout(headerIdleTimer.current), []);
   useEffect(() => {
-    window.clearTimeout(navigationIdleTimer.current);
-    setMobileNavigationVisible(true);
+    window.clearTimeout(headerIdleTimer.current);
+    setMobileHeaderVisible(true);
   }, [activeTab]);
 
   const authTransitionPending = useRef(false);
@@ -1408,9 +1408,9 @@ export default function App() {
 
   function handleMainScroll() {
     if (!window.matchMedia('(max-width: 1023px) and (orientation: portrait)').matches) return;
-    setMobileNavigationVisible(false);
-    window.clearTimeout(navigationIdleTimer.current);
-    navigationIdleTimer.current = window.setTimeout(() => setMobileNavigationVisible(true), 220);
+    setMobileHeaderVisible(false);
+    window.clearTimeout(headerIdleTimer.current);
+    headerIdleTimer.current = window.setTimeout(() => setMobileHeaderVisible(true), 220);
   }
 
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
@@ -1421,7 +1421,7 @@ export default function App() {
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
-  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileNavigationVisible ? '' : ' editorial-app--nav-hidden'}`}>
+  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileHeaderVisible ? '' : ' editorial-app--header-hidden'}`}>
     <SkipLink />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">

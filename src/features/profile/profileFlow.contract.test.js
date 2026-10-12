@@ -109,6 +109,14 @@ test('profile orders own posts and exposes a keyboard-safe scrap open callback',
   assert.match(source, /onKeyDown=\{\(event\) => event\.stopPropagation\(\)\}/);
 });
 
+test('profile does not fabricate a negative rating when a post has no valid ratings', async () => {
+  const source = await readFile(resolve(featureRoot, 'ProfileView.jsx'), 'utf8');
+  assert.match(source, /const yesRate = total > 0 && !isAge/);
+  assert.match(source, /const noRate = total > 0 && !isAge \? 100 - yesRate : 0/);
+  assert.match(source, /total === 0 \? <p[^>]*>\{waitingLabel\}<\/p>/);
+  assert.match(source, /locale === 'en' \? 'Waiting for the first rating' : '첫 평가를 기다리고 있어요'/);
+});
+
 test('the app hydrates private profile libraries and passes scrap open targets to Feed', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /listSupabaseMyPublishedProfileCards/);
