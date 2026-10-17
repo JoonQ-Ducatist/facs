@@ -23,11 +23,12 @@ test('all policy notices show the confirmed operator, public MVP scope, and appr
   assert.match(policy, /만 14세 이상/);
   assert.match(policy, /작성자가 게시물이나 댓글을 삭제하면 해당 원본을 제거합니다/);
   assert.match(policy, /When an author deletes a post or comment, its original record is removed/);
-  assert.match(policy, /신고·검토 기록은 별도로 남을 수 있습니다/);
-  assert.match(policy, /Report and review records may remain separately/);
+  assert.match(policy, /신고·검토 기록은 콘텐츠와 별도로 보관하며 최종 처리일부터 1년이 지난 뒤 월별 정기 파기에서 삭제합니다/);
+  assert.match(policy, /Report and review records are kept separately from content and deleted in the monthly retention purge after one year from final review/);
   assert.doesNotMatch(policy, /백업 사본은 별도로 남을 수 있습니다|backup copies, may remain separately/);
   assert.match(policy, /열람·정정·삭제·처리정지/);
   assert.match(policy, /시행일: 2026년 10월 9일/);
+  assert.match(policy, /type === 'privacy'.*시행일: 2026년 10월 17일.*Effective: October 17, 2026/);
   assert.match(policy, /Vercel이 요청의 IP 주소에서 제공하는 국가 코드/);
   assert.match(policy, /country code derived from the request IP address/);
   assert.match(policy, /쿠키\(_ga 등\)/);
