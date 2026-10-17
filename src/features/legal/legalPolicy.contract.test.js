@@ -25,6 +25,14 @@ test('all policy notices show the confirmed operator, public MVP scope, and appr
   assert.match(policy, /When an author deletes a post or comment, its original record is removed/);
   assert.match(policy, /신고·검토 기록은 콘텐츠와 별도로 보관하며 최종 처리일부터 1년이 지난 뒤 월별 정기 파기에서 삭제합니다/);
   assert.match(policy, /Report and review records are kept separately from content and deleted in the monthly retention purge after one year from final review/);
+  assert.match(policy, /자체 퍼널 분석 이벤트는 30일이 지나면 매일 정기 파기합니다/);
+  assert.match(policy, /First-party funnel analytics events are purged daily once they are older than 30 days/);
+  assert.match(policy, /GA4의 향상된 측정이 켜져 있어 페이지 조회·스크롤·외부 링크 클릭·사이트 검색·삽입 동영상 상호작용·파일 다운로드·양식 상호작용/);
+  assert.match(policy, /GA4 Enhanced Measurement is enabled: page views, scrolls, outbound link clicks, site searches, embedded video interactions, file downloads, and form interactions/);
+  assert.match(policy, /GA4 사용자·이벤트 수준 데이터의 보존 설정은 각각 2개월/);
+  assert.match(policy, /GA4 user- and event-level data retention is set to two months each/);
+  assert.match(policy, /새 활동이 있어도 사용자 데이터 보존기간을 다시 시작하지 않습니다/);
+  assert.match(policy, /new activity does not reset user-data retention/);
   assert.doesNotMatch(policy, /백업 사본은 별도로 남을 수 있습니다|backup copies, may remain separately/);
   assert.match(policy, /열람·정정·삭제·처리정지/);
   assert.match(policy, /시행일: 2026년 10월 9일/);

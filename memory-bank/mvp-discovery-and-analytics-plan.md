@@ -11,7 +11,11 @@
 - `robots.txt`, `sitemap.xml`, 한·영 기본 title/description, Open Graph·X 메타와
   `WebApplication` JSON-LD는 이미 제공한다.
 - 공개 피드의 사용자 게시물은 개인정보와 UGC 위험 때문에 색인 단위로 추가하지 않는다.
-- 서버 퍼널 이벤트와 관리자 전용 합계 RPC는 이미 있고, GA4는 아직 연결하지 않았다.
+- 서버 퍼널 이벤트와 관리자 전용 합계 RPC는 이미 있다. 2026-10-17 운영 Vercel
+  `product-test`의 Production 환경에 형식이 유효한 `VITE_GA_MEASUREMENT_ID`가
+  설정된 것도 확인했다. 아래 ANA-01은 최초 계획이며 현재 구현·고지와 일치한다고
+  간주하지 않는다. 실제 코드는 측정 ID가 있으면 GA4를 초기화하고, 별도 분석 동의
+  창을 두지 않는다. 관련 법률 검토는 사용자 결정에 따라 MVP 이후다.
 
 ## 2. 검색어·질문 묶음
 

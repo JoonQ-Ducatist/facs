@@ -9,7 +9,11 @@
 2026-10-14 사용자 결정: 외부 법률 검토와 운영 데이터 복구본 생성은 MVP 출시 이후로
 조정한다. 법률 검토를 마친 한국어 원문은 아직 없다. 2026-10-17 사용자는 신고·검토·분쟁
 기록의 종결 후 1년 보존과 월별 만료 파기, 진행 중 건의 월별 재검토를 승인했다.
-파기 마이그레이션은 2026-10-17 스테이징 검증 후 운영 DB에 단일 적용했다. 한·영 화면 문구는 이번 배포 대상이다.
+파기 마이그레이션은 2026-10-17 스테이징 검증 후 운영 DB에 단일 적용했다. 한·영 화면 문구도 같은 날 `7fc4ae9`로 운영 배포됐다.
+2026-10-17 사용자는 자체 퍼널 분석 이벤트의 30일 보존도 승인했다. 매일 만료 파기하는 SQL은
+스테이징과 운영 DB에 적용·검증했다. 사용자는 GA4 사용자 데이터 보존 2개월·새 활동 시
+재설정 끔, 향상된 측정 유지와 안내 확대도 승인했다. 한·영 안내 개정의 커밋·푸시·
+운영 배포도 별도 승인했다. 공개 화면 반영 여부는 실제 배포 결과로 확인한다.
 따라서 현행 화면 문구를 **법률 검토 완료 또는 정식 처리방침 확정**으로
 표시하지 않는다. 아래 완료 항목은 다시 구현하지 않고, 운영 결정이 필요한 항목만 남긴다.
 
@@ -97,13 +101,15 @@
 
 | 쟁점 | 확인된 근거 | FACS에서 남은 확인 |
 | --- | --- | --- |
-| 보유·파기 | 2026-09-11 시행 개인정보 보호법 제21조는 보유기간 경과·목적 달성 등 불필요해진 개인정보의 지체 없는 파기를 원칙으로 하며 법령상 보존 예외의 경우 분리 보관을 요구한다. 제30조는 처리 목적·보유기간·파기·위탁 등 처리방침 항목을 정한다. 개인정보위 2026-04-24 작성지침은 간이형 방침도 항목·목적·보유기간·위탁·권리행사 등을 명확히 하도록 안내한다. | 작성자 삭제의 운영 적용·미디어 실제 삭제 검증은 2026-10-10 완료. 신고·검토 기록의 종결 후 1년 파기 함수는 2026-10-17 운영 적용했고 월별 실행은 운영 절차로 남는다. 분석 이벤트의 보유기간은 미결정. 복구본 생성은 MVP 이후로 연기됐으며 현재 운영 복구본은 없다. |
+| 보유·파기 | 2026-09-11 시행 개인정보 보호법 제21조는 보유기간 경과·목적 달성 등 불필요해진 개인정보의 지체 없는 파기를 원칙으로 하며 법령상 보존 예외의 경우 분리 보관을 요구한다. 제30조는 처리 목적·보유기간·파기·위탁 등 처리방침 항목을 정한다. 개인정보위 2026-04-24 작성지침은 간이형 방침도 항목·목적·보유기간·위탁·권리행사 등을 명확히 하도록 안내한다. | 작성자 삭제의 운영 적용·미디어 실제 삭제 검증은 2026-10-10 완료. 신고·검토 기록의 종결 후 1년 파기 함수는 2026-10-17 운영 적용했고 월별 실행은 운영 절차로 남는다. 자체 퍼널 분석 이벤트 30일 보존·매일 파기 SQL은 스테이징과 운영에 적용·검증했다. 복구본 생성은 MVP 이후로 연기됐으며 현재 운영 복구본은 없다. |
 | 보호책임자 | 사용자가 이름과 직책을 `Joon (Manager)`로 확인했다. 현행법 제30조·제31조의 공개 요건과 사업자 예외 적용은 법률 검토가 필요하다. | 지정 책임자의 실제 권한·연락 처리 절차와 적용 가능한 예외를 정식 정책 확정 전에 검토한다. |
-| Supabase | 2026-10-14 공개 도메인에 연결된 Vercel `product-test`의 Production `VITE_SUPABASE_URL` 호스트가 Supabase Dashboard의 `FACt.Smack` ref `rrcntobfmxlwbbjtlbge`와 일치함을 읽기 전용으로 확인했다. 일반 로컬 개발의 `.env.local`과 CLI 연결은 별도 테스트 ref를 사용할 수 있다. | DB 명령 전 환경별 대상 검사 명령을 실행한다. 계약/DPA·로그·백업은 별도 확인한다. |
-| Vercel | 대시보드와 인증 API에서 계정 `joonq-ducatist`의 Hobby 플랜을 확인했다. 공개 도메인 `www.factsmack.com`과 저장소 `JoonQ-Ducatist/facs`는 프로젝트 `product-test`에 연결되어 있다. 2026-10-14 `main`의 `c9473ec` 운영 배포 `dpl_EPuq4ykFnHMUrMcBhyJaDGUmWXZi`가 Ready이고 공개 URL이 HTTP 200으로 응답했다. 별도 `facs` 프로젝트의 공개 도메인 연결은 확인되지 않았다. | Hobby 적용 약관, 로그·배포 진단 데이터 범위와 보유 설정을 실제 계정 기준으로 확인한다. API 조회에는 개인 계정의 불필요한 `teamId`를 전달하지 않는다. |
+| Supabase | 2026-10-14 공개 도메인에 연결된 Vercel `product-test`의 Production `VITE_SUPABASE_URL` 호스트가 Supabase Dashboard의 `FACt.Smack` ref `rrcntobfmxlwbbjtlbge`와 일치함을 읽기 전용으로 확인했다. 일반 로컬 개발의 `.env.local`과 CLI 연결은 별도 테스트 ref를 사용할 수 있다. 공식 Free 요금표는 API·DB 로그 접근 기간을 1일로 표시한다. https://supabase.com/pricing | DB 명령 전 환경별 대상 검사 명령을 실행한다. 계약/DPA·다른 로그 유형·백업은 별도 확인한다. |
+| Vercel | 대시보드와 인증 API에서 계정 `joonq-ducatist`의 Hobby 플랜을 확인했다. 공개 도메인 `www.factsmack.com`과 저장소 `JoonQ-Ducatist/facs`는 프로젝트 `product-test`에 연결되어 있다. 2026-10-17 최신 Production 배포는 Ready다. 공식 문서는 Hobby Runtime Logs 접근 기간을 1시간으로 안내한다. https://vercel.com/docs/logs/runtime | Hobby 적용 약관, 로그·배포 진단 데이터 범위와 보유 설정을 실제 계정 기준으로 확인한다. API 조회에는 개인 계정의 불필요한 `teamId`를 전달하지 않는다. |
 | Resend | 공식 보안·GDPR 자료는 데이터가 미국에 저장되고, 활성 Free·Pro·Scale 계정에서 이메일·로그가 30일 보유되며, 계정 종료 뒤 고객 데이터는 90일 이내 삭제되고 백업은 7일 유지된다고 안내한다. 2026-10-09 계정 Usage 화면은 Transactional·Marketing·Team Free, 이메일 월 0/3,000·일 0/100, 도메인 1/3을 표시했다. Domains 화면에서 `mail.factsmack.com`은 Verified였다. Documents 화면은 Resend 서명 DPA가 계정 가입 시 체결된다고 안내한다. https://resend.com/security · https://resend.com/security/gdpr · https://resend.com/legal/dpa | 실제 발신 템플릿과 계정에서 다운로드 가능한 DPA 실행본의 존재를 확인한다. 수신자 주소와 비밀 키는 문서화하지 않는다. |
 | Google OAuth | 2026-10-09 Supabase 운영 설정에서 Google 제공자 활성, 이메일 없는 사용자 허용 꺼짐, nonce 검사 생략 꺼짐을 확인했다. Google Auth Platform의 `FACtSmack` 웹 클라이언트 ID가 Supabase에 등록된 클라이언트와 일치한다. Data Access 화면에는 추가 scope가 등록되어 있지 않다. FACS 코드는 `signInWithOAuth`에 `scopes`나 추가 `queryParams`를 전달하지 않는다. Supabase 문서는 Google 로그인에 기본 신원·이메일·프로필 범위를 설정하도록 안내한다. https://supabase.com/docs/guides/auth/social-login/auth-google | 추가 민감·제한 scope는 코드나 Google Data Access에서 확인되지 않았다. 실제 런타임 authorization URL 및 반환 claim은 로그인 흐름에서 직접 확인하지 않았으므로 기본 이메일·프로필 외 항목을 받는다고 단정하지 않는다. |
-| GA4 및 브라우저 저장 | `src/services/ga4.js`는 유효한 측정 ID가 있으면 GA4 태그와 page_view를 자동 초기화하고, 매개변수 없는 제한 이벤트를 보낸다. 광고 개인화·Google Signals는 끄지만 Consent Mode 기본 상태를 설정하지 않는다. Google은 GA4 기본 태그가 `_ga` 및 `_ga_<id>` 쿠키로 사용자·세션을 구분한다고 설명하며, 쿠키 저장은 보통 사용자 동의로 제어해야 한다고 안내한다. https://support.google.com/analytics/answer/11397207?hl=en · https://developers.google.com/tag-platform/security/concepts/consent-mode | 현재 안내의 '익명' 표현이 실제 태그/쿠키 동작을 충분히 설명하는지, 국가별 적용 규정상 별도 선택·고지가 필요한지 법률 검토한다. 사용자가 승인한 '추가 동의 창 없음' 요구는 검토 전까지 변경하지 않는다. |
+| GA4 및 브라우저 저장 | `src/services/ga4.js`는 유효한 측정 ID가 있으면 GA4 태그와 page_view를 자동 초기화하고, 매개변수 없는 제한 이벤트를 보낸다. 2026-10-17 운영 Vercel Production에 형식이 유효한 측정 ID가 설정된 것을 확인했다. 광고 개인화·Google Signals는 끄지만 Consent Mode 기본 상태를 설정하지 않는다. Google은 GA4 기본 태그가 `_ga` 및 `_ga_<id>` 쿠키로 사용자·세션을 구분한다고 설명하며, 쿠키 저장은 보통 사용자 동의로 제어해야 한다고 안내한다. https://support.google.com/analytics/answer/11397207?hl=en · https://developers.google.com/tag-platform/security/concepts/consent-mode | 현재 안내의 '익명' 표현이 실제 태그/쿠키 동작을 충분히 설명하는지, 국가별 적용 규정상 별도 선택·고지가 필요한지 법률 검토한다. 사용자가 승인한 '추가 동의 창 없음' 요구는 검토 전까지 변경하지 않는다. |
+| GA4 보존 | 자체 퍼널 DB의 30일 기준은 GA4에는 적용되지 않는다. 2026-10-17 운영 측정 ID와 `FACt.Smack` GA4 속성(557370310)의 웹 스트림을 대조했다. 사용자 승인 후 이벤트·사용자 데이터 보존을 각각 2개월, 새 활동 시 사용자 데이터 보존기간 재설정을 끔으로 저장하고 화면 새로고침 후 재확인했다. GA4 화면은 변경된 설정이 24시간 후 적용되고 대부분의 표준 집계 보고서는 영향을 받지 않는다고 안내한다. 만료 데이터는 월별로 삭제된다. https://support.google.com/analytics/answer/7667196?hl=en | 자체 DB 30일과 GA4 2개월을 구분해 고지한다. |
+| GA4 자동 측정 | 같은 웹 스트림에서 향상된 측정이 켜져 있으며 페이지 조회, 스크롤, 이탈 클릭, 사이트 검색, 삽입 동영상 상호작용, 파일 다운로드, 양식 상호작용이 활성 항목으로 표시된다. 일부 항목은 실제 페이지 요소·조건이 충족될 때만 이벤트가 발생한다. | 사용자는 자동 측정 유지와 한·영 안내 확대의 운영 배포를 승인했다. 실제 공개 화면 반영은 배포 결과로 확인한다. |
 | 가입 약관 동의 | 약관 수락 영수증을 회원·버전·언어·시각으로 DB에 기록하는 기능은 구현됐다. | 이 기록은 개인정보 처리의 법적 근거 또는 개인정보 처리 동의 자체를 자동으로 증명하지 않는다. 현재 구현을 중복 추가하지 않고, 적절한 처리 근거와 필수/선택 항목을 법률 검토한다. |
 
 ### 해석 및 진행 제한
@@ -126,7 +132,7 @@
 | 위탁·국외 이전 | Supabase, Vercel, Google/Gmail을 사용 | 각 제공자의 처리 주체, 처리 국가, 이전 항목·목적·시기·방법·보유기간 및 고지 필요 여부 | 운영자·법률 검토 |
 | 인증·메일 제공자 | Google OAuth와 Resend custom SMTP를 사용. 2026-10-09 Google 설정·코드 대조에서 추가 scope 미확인, Resend Free·발신 도메인 상태 및 공식 보존 안내 확인 | Google OAuth runtime 반환 claim의 필요성, Resend에서 다운로드 가능한 실행 DPA와 발신 템플릿의 실제 본문 확인 여부 | 운영자 |
 | 인프라 로그·분석 | Supabase와 Vercel을 사용, 자체 퍼널 이벤트가 코드에 존재 | Supabase 백업·인증/API 로그 보관, Vercel Web Analytics·Speed Insights 활성 여부와 수집 항목 | 운영자 |
-| 자체 퍼널 분석 | 서버에는 계정·이메일·미디어 URL 없이 익명 세션 UUID, `visitor_opened`·`signup_completed`·`first_vote`·`upload_completed`·`result_viewed`, 선택적 게시물 UUID와 서버 시각만 저장. 브라우저에는 QA용 최근 이벤트 최대 500개를 저장 | 서버 이벤트 보존 기준, 브라우저 저장 항목의 삭제 방법과 운영 환경에서 QA용 상세 속성을 계속 보관할지 여부 | 운영자·법률 검토 |
+| 자체 퍼널 분석 | 서버에는 계정·이메일·미디어 URL 없이 임시 세션 UUID, `visitor_opened`·`signup_completed`·`first_vote`·`upload_completed`·`result_viewed`, 선택적 게시물 UUID와 서버 시각만 저장. 운영 브라우저의 QA 상세 이벤트는 새로 저장하지 않음. 30일 보존·매일 파기 SQL은 운영 적용·검증 완료. GA4 사용자·이벤트 데이터는 각각 2개월 설정 | 한·영 안내 개정의 실제 공개 화면 반영과 별도 GA4 보존 고지 확인 | 운영자 |
 | 권리 행사 | 공식 접수처는 `teamfactsmack@gmail.com`, 요청자 확인 후 가능한 처리를 안내 | 본인 확인 방식, 접수·회신 절차, 처리 가능 범위 | 운영자 |
 | 보호책임·고충 처리 | 운영 주체는 `Tweety and Company`, 문의 메일은 `teamfactsmack@gmail.com` | 개인정보 보호책임자 또는 고충처리 담당의 명칭과 연락 수단 | 운영자 |
 | 쿠키·브라우저 저장 | 인증 세션, 언어·UI 상태, 익명 분석 식별자를 브라우저에 저장 | 저장 항목별 목적·보유 방식과 거부/삭제 방법 | 운영자·법률 검토 |
