@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 800" role="img" aria-label="Media unavailable / 미디어를 불러올 수 없어요">
+  <path fill="#f5f4ef" d="M0 0h640v800H0z"/>
+  <g fill="none" stroke="#8b846f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="276" y="314" width="88" height="72" rx="8"/>
+    <path d="m278 370 24-24 24 24 16-16 20 20M277 311l88 80"/>
+  </g>
+  <g fill="#716c5d" text-anchor="middle" font-family="Arial, sans-serif">
+    <text x="320" y="440" font-size="23">Media unavailable</text>
+    <text x="320" y="478" font-size="21">미디어를 불러올 수 없어요</text>
+  </g>
+</svg>

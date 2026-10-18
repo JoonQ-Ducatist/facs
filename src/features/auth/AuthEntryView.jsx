@@ -27,7 +27,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [providerNotice, setProviderNotice] = useState('');
   const [rememberMe, setRememberMe] = useState(pendingEmailAuth?.rememberMe ?? true);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(true);
 
   function openEmailSignIn() {
     if (!ageConfirmed) return;

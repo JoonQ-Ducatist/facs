@@ -81,7 +81,7 @@ test('public MVP authentication exposes only enabled Google and email providers'
 
 test('email and Google sign-in require an age confirmation without blocking a pending OTP', async () => {
   const source = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
-  assert.match(source, /const \[ageConfirmed, setAgeConfirmed\] = useState\(false\)/);
+  assert.match(source, /const \[ageConfirmed, setAgeConfirmed\] = useState\(true\)/);
   assert.match(source, /I confirm that I am 14 years of age or older\./);
   assert.match(source, /만 14세 이상임을 확인합니다\./);
   assert.match(source, /if \(!ageConfirmed\) return;[\s\S]*?setEmailOpen\(true\)/);

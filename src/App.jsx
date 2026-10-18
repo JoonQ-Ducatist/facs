@@ -127,7 +127,10 @@ function CanvasStage({ children, screenKey }) {
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
-  const [policyOpen, setPolicyOpen] = useState(null);
+  const [policyOpen, setPolicyOpen] = useState(() => {
+    const policy = new URLSearchParams(window.location.search).get('policy');
+    return ['privacy', 'terms', 'safety'].includes(policy) ? policy : null;
+  });
   const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');

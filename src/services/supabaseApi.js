@@ -2,6 +2,8 @@ import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 
+const unavailableMediaUrl = new URL('../assets/media-unavailable.svg', import.meta.url).href;
+
 export const RIGHTS_CONSENT_DOCUMENT_VERSION = 'photo-rights-v1';
 
 /** Returns whether the signed-in member must accept the current rights notice before an upload. */
@@ -464,10 +466,11 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
     const signedMedia = await Promise.all(assets.map(async (asset) => {
       const { data: signed, error: signedError } = await client.storage.from('facs-media').createSignedUrl(asset.storage_path, 60 * 60);
       return signedError || !signed?.signedUrl
-        ? { failed: true }
+        // Keep the post (including its owner's Delete action) readable even if
+        // an earlier partial deletion or a Storage outage removed its media.
+        ? { id: asset.id, type: 'image', url: unavailableMediaUrl, storagePath: asset.storage_path, unavailable: true, objectPosition: 'center' }
         : { id: asset.id, type: asset.media_type, url: signed.signedUrl, storagePath: asset.storage_path, objectPosition: 'center 20%' };
     }));
-    if (signedMedia.some((item) => item?.failed)) return { failed: true };
     const media = signedMedia;
     const evaluationType = post.evaluation === 'numeric_age' ? 'NUMERIC_AGE' : 'BINARY';
     const aggregate = aggregates.get(post.id);
@@ -501,7 +504,6 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       comments: commentPreviews.has(post.id) ? [commentPreviews.get(post.id)] : [],
     };
   }));
-  if (cards.some((card) => card?.failed)) return feedReadFailure('feed-media');
   return apiSuccess(cards.filter(Boolean), { source });
 }
 
