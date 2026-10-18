@@ -10,7 +10,7 @@ import ResultCard from './ResultCard.jsx';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ locale = 'ko', categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ locale = 'ko', categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
   const [expandedPost, setExpandedPost] = useState(null);
   const [draft, setDraft] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -23,6 +23,7 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
   const firstCardId = cards[0]?.id ?? null;
+  const cardIdsKey = cards.map((card) => card.id).join('|');
   loadMoreRef.current = onLoadMore;
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
@@ -51,6 +52,34 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [cards.length, hasMore]);
+  /** Replay missed reactions only while the member can actually see this card. */
+  useEffect(() => {
+    const feed = feedRef.current;
+    if (!feed || !onVisiblePostIdsChange) return undefined;
+    const articles = [...feed.querySelectorAll('article[data-post-id]')];
+    if (!('IntersectionObserver' in window)) {
+      onVisiblePostIdsChange(new Set(articles.map((article) => article.dataset.postId)));
+      return () => onVisiblePostIdsChange(new Set());
+    }
+    const main = feed.closest('.editorial-main--feed');
+    const feedScrollable = /^(auto|scroll)$/.test(window.getComputedStyle(feed).overflowY);
+    const visibleIds = new Set();
+    const report = () => onVisiblePostIdsChange((current) => current.size === visibleIds.size && [...visibleIds].every((id) => current.has(id)) ? current : new Set(visibleIds));
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const id = entry.target.dataset.postId;
+        if (!id) continue;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.2) visibleIds.add(id);
+        else visibleIds.delete(id);
+      }
+      report();
+    }, { root: feedScrollable ? feed : main, threshold: 0.2 });
+    articles.forEach((article) => observer.observe(article));
+    return () => {
+      observer.disconnect();
+      onVisiblePostIdsChange((current) => current.size ? new Set() : current);
+    };
+  }, [cardIdsKey, onVisiblePostIdsChange]);
   /** 정의: PC에서도 스크롤바 없이 카테고리 탭 띠를 잡아 좌우로 탐색한다. */
   function startCategoryDrag(event) {
     // A tap on a category button must remain a click; only the empty rail is draggable.
@@ -205,7 +234,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     event.stopPropagation();
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
-  return <article ref={articleRef} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
+  return <article ref={articleRef} data-post-id={card.id} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
     <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={nearViewport && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
     {media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
@@ -213,7 +242,8 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     <div className="feed-top-overlay"><div className="feed-top-overlay__row"><div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/35 px-2 py-0.5 shadow-lg backdrop-blur-sm"><span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 8px ${theme.color}` }} /><span className="font-mono text-[8px] font-bold leading-none tracking-wide text-white">LIVE STREAM</span><time dateTime={card.publishedAt || undefined} className="font-mono text-[8px] leading-none text-white/75">{timestamp}</time></div><UserBadge author={card.author} canFollow={Boolean(card.author) && !isOwnPost && card.authorId !== currentUserId} canReport={Boolean(currentUserId && card.authorId) && card.authorId !== currentUserId} following={following} onToggleFollow={() => onToggleFollow?.(authorKey)} onBlock={() => onBlockAuthor?.(authorKey, card.author)} onReport={() => setReportOpen(true)} /></div><div className="feed-top-overlay__category"><CategoryBadge theme={theme} category={card.category} /></div></div>
     {media.length > 1 && <MediaProgress locale={locale} media={media} mediaIndex={mediaIndex} color={theme.color} onSelect={selectMedia} />}
     <div className="card-details absolute bottom-0 left-0 z-20 flex w-full flex-col px-4 pb-2 pt-9"><div className="mb-2 pr-[4.5rem] sm:pr-20"><h2 className="feed-card__question whitespace-pre-line font-headline text-lg font-bold leading-snug text-white sm:text-xl">{card.question}</h2></div>
-      {hasVoted || isOwnPost || liveReactions.length ? <>{isAge ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} boostRequested={boostRequested} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} boostRequested={boostRequested} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}{liveReactions.length > 0 && <LiveReactionBalloons reactions={liveReactions} />}</> : isAge ? <AgeVotePanel card={card} color={theme.color} onVote={(value) => onVote(value, card)} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
+      {hasVoted || isOwnPost ? <>{isAge ? <AgeResult locale={locale} card={card} category={theme} color={theme.color} boostRequested={boostRequested} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} /> : <Result locale={locale} card={card} category={theme} yesPercent={yesPercent} noPercent={noPercent} total={total} color={theme.color} boostRequested={boostRequested} onBoost={isOwnPost && boostEligible && !boostRequested ? () => onBoost(card) : undefined} onStartUpload={onStartUpload} uploadLabel={isOwnPost ? (locale === 'en' ? 'Get feedback on another look' : '다른 모습 평가받기') : (locale === 'en' ? 'Get feedback too' : '나도 평가받기')} />}</> : isAge ? <AgeVotePanel card={card} color={theme.color} onVote={(value) => onVote(value, card)} /> : <div className="flex w-full gap-2.5"><button type="button" onClick={() => onVote(true, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-1 text-[13px] font-extrabold tracking-wider text-[#051424] active:scale-95" style={{ borderColor: theme.color, backgroundColor: theme.color }}>YES <span className="material-symbols-outlined text-[15px]">check_circle</span></button><button type="button" onClick={() => onVote(false, card)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-surface-container-low/70 py-1 text-[13px] font-bold tracking-wider active:scale-95" style={{ borderColor: `${theme.color}aa`, color: theme.color }}>NO <span className="material-symbols-outlined text-[15px]">cancel</span></button></div>}
+      {liveReactions.length > 0 && <LiveReactionBalloons reactions={liveReactions} />}
       {card.commentsAllowed && <CommentPreview locale={locale} comments={card.comments ?? []} saved={saved} color={theme.color} notice={saveNotice} onToggleSave={toggleSaved} onShare={() => setSharePreviewOpen(true)} onExpand={() => onOpenComments({ card, media: activeMedia, timestamp })} />}
     </div>
     {isVideo && nearViewport && <div className="video-card-controls absolute inset-0 z-30 pointer-events-none"><button type="button" data-video-play-button aria-pressed={isVideoPlaying} aria-label={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} title={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} className="video-card-play-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={toggleInlinePlayback} onClick={toggleInlinePlaybackFromClick}><span className="material-symbols-outlined" aria-hidden="true">{isVideoPlaying ? 'pause' : 'play_arrow'}</span></button><button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={stopVideoControlGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>}

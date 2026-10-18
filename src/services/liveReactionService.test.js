@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { LIVE_REACTION_WINDOW_MS, applyLiveReactionToCard, isLiveReactionWindow, toLiveReaction } from './liveReactionService.js';
 
-test('live reactions expire exactly one hour after publication', () => {
+test('live reactions expire exactly 24 hours after publication', () => {
   const now = Date.parse('2026-09-10T00:00:00.000Z');
-  assert.equal(isLiveReactionWindow('2026-09-09T23:00:00.001Z', now), true);
-  assert.equal(isLiveReactionWindow('2026-09-09T23:00:00.000Z', now), false);
-  assert.equal(LIVE_REACTION_WINDOW_MS, 3_600_000);
+  assert.equal(isLiveReactionWindow('2026-09-09T00:00:00.001Z', now), true);
+  assert.equal(isLiveReactionWindow('2026-09-09T00:00:00.000Z', now), false);
+  assert.equal(LIVE_REACTION_WINDOW_MS, 86_400_000);
 });
 
 test('live reaction maps only anonymous presentation fields', () => {

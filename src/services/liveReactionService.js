@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient.js';
 
-export const LIVE_REACTION_WINDOW_MS = 60 * 60 * 1000;
+export const LIVE_REACTION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Uses the publish timestamp as a client-side guard; the database is final authority. */
 export function isLiveReactionWindow(publishedAt, now = Date.now()) {
@@ -52,7 +52,7 @@ export function applyLiveReactionToCard(card, reaction) {
   return { ...card, yesVotes: reaction.aggregate.yesCount, noVotes: reaction.aggregate.noCount };
 }
 
-/** Subscribes only after the caller has established author/evaluator eligibility. */
+/** Subscribes only after the caller has selected an accessible recent server post. */
 export function subscribeToPostLiveReactions(postId, onReaction) {
   if (!supabase || !postId || typeof onReaction !== 'function') return () => {};
   const channel = supabase

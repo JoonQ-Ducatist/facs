@@ -23,6 +23,7 @@ import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
+import { clearSignedOutMemberCaches } from './services/browserAccountCache.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
 import { blockMember, getMyBlockedMembers, unblockMember } from './services/blocksApi.js';
@@ -167,6 +168,7 @@ export default function App() {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [handleProfileRefreshKey, setHandleProfileRefreshKey] = useState(0);
   const [liveReactions, setLiveReactions] = useState([]);
+  const [visibleFeedPostIds, setVisibleFeedPostIds] = useState(() => new Set());
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
 
@@ -206,6 +208,10 @@ export default function App() {
   const authTransitionConsumed = useRef(false);
   const pendingPublishedCard = useRef(null);
   const receivedLiveReactionIds = useRef(new Set());
+  useEffect(() => {
+    receivedLiveReactionIds.current.clear();
+    setLiveReactions([]);
+  }, [authUser?.id]);
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   // Following changes are visual state for the current session. Reordering the
   // list here would replace the card under a member immediately after a tap.
@@ -618,10 +624,12 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id, supabaseCardIdsKey]);
 
-  /** Opens real-time reactions only to a post owner or a member who evaluated that exact post. */
+  /** Opens real-time reactions for every signed-in member with access to a recent server post. */
   useEffect(() => {
-    if (!authUser) return undefined;
-    const eligibleCards = cards.filter((card) => isLiveReactionWindow(card.publishedAt) && (card.authorId === authUser.id || votedIds.has(card.id)));
+    // Replaying while the splash or loading screen covers the feed consumes a
+    // 2.45-second balloon before anyone can see it.
+    if (!brandSplashComplete || !authReady || !feedHydrated || !authUser || activeTab !== 'feed') return undefined;
+    const eligibleCards = cards.filter((card) => visibleFeedPostIds.has(card.id) && isSupabasePost(card) && isLiveReactionWindow(card.publishedAt));
     let active = true;
     const showReaction = (reaction, animationDelayMs = 0) => {
       if (!reaction || receivedLiveReactionIds.current.has(reaction.id)) return;
@@ -646,7 +654,7 @@ export default function App() {
       });
     });
     return () => { active = false; unsubscribe.forEach((close) => close()); };
-  }, [authUser?.id, cards, votedIds]);
+  }, [brandSplashComplete, authReady, feedHydrated, authUser?.id, activeTab, cards, visibleFeedPostIds]);
 
   useEffect(() => {
     if (!liveReactions.length) return undefined;
@@ -1015,6 +1023,7 @@ export default function App() {
       setToast(locale === 'en' ? 'We could not sign you out. Please try again.' : '로그아웃하지 못했어요. 다시 시도해 주세요.');
       return;
     }
+    clearSignedOutMemberCaches(authUser?.id ?? termsGate?.user?.id);
     setAuthUser(null);
     setProfile(null);
     setSavedPostIds(new Set());
@@ -1453,7 +1462,7 @@ export default function App() {
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
