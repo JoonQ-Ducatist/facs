@@ -220,7 +220,11 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   assert.doesNotMatch(source, /fullscreenActive|fullscreenSnapshotRef|fullscreenRequestRef|facs-video-fullscreen-active/);
   assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
   assert.match(source, /function useVideoPoster\(url\)/);
-  assert.match(source, /function createRemoteVideoPoster\(url\)/);
+  assert.doesNotMatch(source, /createRemoteVideoPoster|document\.createElement\('video'\)/);
+  assert.match(source, /onLoadedData=\{capturePoster\}/);
+  assert.match(source, /captureVideoPoster\(event\.currentTarget\)/);
+  assert.match(source, /crossOrigin="anonymous"/);
+  assert.match(source, /poster: snapshot\?\.url === url \? snapshot\.poster : ''/);
   assert.match(source, /poster=\{videoPoster \|\| undefined\}/);
   assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
 });

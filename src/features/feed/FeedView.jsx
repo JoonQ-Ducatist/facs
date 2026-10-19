@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus } from '../../services/mockApi.js';
 import { enterNativeVideoFullscreen } from './videoFullscreen.js';
+import { captureVideoPoster } from './videoPoster.js';
 import { bindCommentViewport } from './commentViewport.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
@@ -329,7 +330,7 @@ function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return 
 function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
-  const videoPoster = useVideoPoster(isVideo && interactive ? source.url : '');
+  const { poster: videoPoster, capturePoster } = useVideoPoster(isVideo && interactive ? source.url : '');
   const localVideoRef = useRef(null);
   const videoRef = videoControlRef ?? localVideoRef;
   const protectMedia = (event) => event.preventDefault();
@@ -351,22 +352,17 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
     });
   };
   if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={loaded ? source.url : undefined} loading={loaded ? 'eager' : 'lazy'} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
-  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
+  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} crossOrigin="anonymous" poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedData={capturePoster} onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   return video;
 }
 function useVideoPoster(url) {
-  const [poster, setPoster] = useState('');
-  useEffect(() => {
-    let cancelled = false;
-    if (!url) { setPoster(''); return undefined; }
-    createRemoteVideoPoster(url).then((nextPoster) => {
-      if (!cancelled && nextPoster) setPoster(nextPoster);
-    });
-    return () => { cancelled = true; };
-  }, [url]);
-  return poster;
+  const [snapshot, setSnapshot] = useState(null);
+  const capturePoster = (event) => {
+    if (!url || snapshot?.url === url) return;
+    setSnapshot({ url, poster: captureVideoPoster(event.currentTarget) });
+  };
+  return { poster: snapshot?.url === url ? snapshot.poster : '', capturePoster };
 }
-function createRemoteVideoPoster(url) { return new Promise((resolve) => { const video = document.createElement('video'); const canvas = document.createElement('canvas'); let settled = false; const finish = (poster = '') => { if (settled) return; settled = true; window.clearTimeout(timeout); video.removeAttribute('src'); video.load(); resolve(poster); }; const capture = () => { try { if (!video.videoWidth || !video.videoHeight) return finish(''); canvas.width = video.videoWidth; canvas.height = video.videoHeight; const context = canvas.getContext('2d'); context?.drawImage(video, 0, 0, canvas.width, canvas.height); finish(canvas.toDataURL('image/jpeg', .82)); } catch { finish(''); } }; const timeout = window.setTimeout(() => finish(''), 6000); video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.muted = true; video.playsInline = true; video.onloadeddata = capture; video.onerror = () => finish(''); video.src = url; video.load(); }); }
 /** 정의: 카드 이동을 위한 접근성 레이블 포함 화살표 버튼이다. */
 /** 정의: 투표 완료 뒤 Result를 표본 상태별로 정직하게 표시하고 적격 상태에서만 Boost를 제안한다. */
 function Result({ locale, card, category, yesPercent, noPercent, total, color, boostRequested, onBoost, onStartUpload, uploadLabel }) {
