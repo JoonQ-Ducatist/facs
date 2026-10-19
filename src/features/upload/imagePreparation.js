@@ -19,7 +19,9 @@ export async function prepareImageForUpload(file) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(source.width * scale);
     canvas.height = Math.round(source.height * scale);
-    canvas.getContext('2d')?.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
     if (!(blob instanceof Blob) || blob.size >= file.size) return file;
     return new File([blob], file.name.replace(/\.jpe?g$/i, '.jpg'), { type: 'image/jpeg', lastModified: file.lastModified });
