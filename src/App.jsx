@@ -14,6 +14,7 @@ import SkipLink from './components/ui/SkipLink.jsx';
 import LocalQaAccountSwitcher from './components/ui/LocalQaAccountSwitcher.jsx';
 import LegalPolicyDialog from './features/legal/LegalPolicyDialog.jsx';
 import TermsAcceptanceGate from './features/legal/TermsAcceptanceGate.jsx';
+import PwaInstallSheet from './features/pwa/PwaInstallSheet.jsx';
 import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { initializeGa4 } from './services/ga4.js';
@@ -1429,12 +1430,13 @@ export default function App() {
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} errorCode={termsGate.error?.code ?? termsGate.httpStatus} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
-  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
+  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} /><PwaInstallSheet locale={locale} enabled={!policyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
   return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileHeaderVisible ? '' : ' editorial-app--header-hidden'}`}>
     <SkipLink />
+    <PwaInstallSheet locale={locale} enabled={!policyOpen && ['feed', 'ranking', 'profile'].includes(activeTab) && previewState === 'ready'} />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
         <button type="button" onClick={() => setActiveTab('feed')} className="app-header__brand flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">

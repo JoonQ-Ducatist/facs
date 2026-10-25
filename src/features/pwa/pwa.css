@@ -1,0 +1,40 @@
+.pwa-install-sheet { position: fixed; z-index: 65; inset: auto 12px calc(56px + env(safe-area-inset-bottom)) 12px; width: min(430px, calc(100% - 24px)); max-height: min(310px, 42dvh); margin-inline: auto; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px 2px; border: 1px solid #e3ddd5; border-radius: 20px; background: #fbf9f4; color: #182335; box-shadow: 0 8px 38px #091a2e29; font-family: Inter, 'Pretendard Variable', sans-serif; animation: pwa-slide-in .2s ease-out; }
+body:has(.auth-entry-screen) .pwa-install-sheet { bottom: calc(12px + env(safe-area-inset-bottom)); }
+body:has(.pwa-install-sheet) .auth-entry-screen__content { padding-bottom: calc(220px + env(safe-area-inset-bottom)); }
+.pwa-install-sheet__identity { display: flex; align-items: center; gap: 12px; }
+.pwa-install-sheet__identity img { flex: 0 0 52px; border-radius: 13px; }
+.pwa-install-sheet__identity > div { min-width: 0; }
+.pwa-install-sheet__eyebrow { display: block; margin-bottom: 3px; color: #9f2b50; font-size: 10px; font-weight: 750; letter-spacing: .03em; }
+.pwa-install-sheet h2 { margin: 0; font-size: 16px; font-weight: 800; line-height: 1.25; letter-spacing: -.035em; text-wrap: balance; word-break: keep-all; }
+.pwa-install-sheet__identity p { margin: 5px 0 0; color: #63646a; font-size: 11px; line-height: 1.4; }
+.pwa-install-sheet__install { display: flex; width: 100%; min-height: 42px; align-items: center; justify-content: center; gap: 8px; margin-top: 13px; border: 0; border-radius: 12px; background: #a82d50; color: #fff; font-size: 12px; font-weight: 750; }
+.pwa-install-sheet__install:hover { background: #8f2544; }
+.pwa-install-sheet__install:disabled { opacity: .65; }
+.pwa-install-sheet footer { position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 12px; margin-top: 2px; background: #fbf9f4; }
+.pwa-install-sheet footer button { min-height: 40px; padding: 0 2px; border: 0; background: none; color: #626168; font-size: 10px; text-align: left; }
+.pwa-install-sheet footer button:last-child { text-align: right; }
+.pwa-install-sheet button:focus-visible { outline: 2px solid #a82d50; outline-offset: 3px; }
+.pwa-install-sheet__guide ol { display: grid; gap: 8px; margin: 13px 0 0; padding: 0; list-style: none; }
+.pwa-install-sheet__guide li { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; line-height: 1.5; word-break: keep-all; }
+.pwa-install-sheet__guide li > span { display: flex; flex: 0 0 23px; justify-content: center; padding-top: 1px; color: #9f2b50; }
+.pwa-install-sheet__guide > p { margin: 10px 0 0; color: #6b6b71; font-size: 10px; line-height: 1.4; }
+@keyframes pwa-slide-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1023px) and (orientation: landscape) {
+  .pwa-install-sheet { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); left: auto; width: min(390px, calc(100% - 240px - env(safe-area-inset-left) - env(safe-area-inset-right))); max-height: calc(100dvh - 24px); margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 12px 14px 0; border-radius: 15px; }
+  .pwa-install-sheet__identity { gap: 9px; }
+  .pwa-install-sheet__identity img { width: 36px; height: 36px; flex-basis: 36px; border-radius: 9px; }
+  .pwa-install-sheet h2 { font-size: 13px; }
+  .pwa-install-sheet__identity p { font-size: 10px; }
+  .pwa-install-sheet__install { width: auto; max-width: 114px; min-height: 38px; margin-top: 0; padding: 8px 10px; font-size: 10px; line-height: 1.25; }
+  .pwa-install-sheet__install svg { display: none; }
+  .pwa-install-sheet footer, .pwa-install-sheet__guide { grid-column: 1 / -1; }
+  .pwa-install-sheet footer button { min-height: 36px; }
+  .pwa-install-sheet__guide ol { gap: 5px; margin-top: 8px; }
+  .pwa-install-sheet__guide > p { margin-top: 6px; }
+}
+@media (min-width: 1024px) { .pwa-install-sheet { display: none; } }
+@media (prefers-reduced-motion: reduce) { .pwa-install-sheet { animation: none; } }
+.pwa-local-check { position: fixed; z-index: 110; top: 96px; left: 12px; width: min(340px, calc(100% - 24px)); padding: 14px; border: 1px solid #d8d0c5; border-radius: 12px; background: #fffdf7; color: #182335; box-shadow: 0 4px 24px #091a2e29; font-size: 12px; }
+.pwa-local-check p { margin: 8px 0; }
+.pwa-local-check button { min-height: 40px; padding: 8px 12px; border-radius: 8px; background: #a82d50; color: white; }
+.pwa-local-check small { display: block; margin-top: 8px; color: #63646a; }

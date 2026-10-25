@@ -32,12 +32,12 @@ function installDocumentMock() {
   };
 }
 
-test('browser tab title stays concise while localized share titles remain descriptive', () => {
+test('search and share metadata stay descriptive and language-specific', () => {
   const restore = installDocumentMock();
   try {
     applySeoMetadata('ko');
-    assert.equal(document.title, 'FACt.Smack');
-    assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | 사람들의 평가를 데이터로');
+    assert.equal(document.title, 'FACt.Smack | 사진·코디·프로필 피드백');
+    assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | 사진·코디·프로필 피드백');
     assert.equal(document.head.querySelector('meta[property="og:locale"]').getAttribute('content'), 'ko_KR');
     assert.equal(document.head.querySelector('meta[property="og:locale:alternate"]').getAttribute('content'), 'en_US');
     assert.equal(document.head.querySelector('link[rel="canonical"]').getAttribute('href'), 'https://www.factsmack.com/ko/');
@@ -45,8 +45,8 @@ test('browser tab title stays concise while localized share titles remain descri
     assert.equal(document.head.querySelector('link[rel="alternate"][hreflang="ko"]').getAttribute('href'), 'https://www.factsmack.com/ko/');
 
     applySeoMetadata('en');
-    assert.equal(document.title, 'FACt.Smack');
-    assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | Feedback, made visible');
+    assert.equal(document.title, 'FACt.Smack | Photo & Outfit Feedback');
+    assert.equal(document.head.querySelector('meta[property="og:title"]').getAttribute('content'), 'FACt.Smack | Photo & Outfit Feedback');
     assert.equal(document.head.querySelector('meta[property="og:locale"]').getAttribute('content'), 'en_US');
     assert.equal(document.head.querySelector('meta[property="og:locale:alternate"]').getAttribute('content'), 'ko_KR');
     assert.equal(document.head.querySelector('link[rel="canonical"]').getAttribute('href'), 'https://www.factsmack.com/');

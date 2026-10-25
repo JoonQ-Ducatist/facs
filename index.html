@@ -68,13 +68,18 @@
     <meta name="google-site-verification" content="FFeOqEb78CLf0j4l8dONLwHoHOxFaBgeOQPjZpLSDgQ" />
     <meta name="google-site-verification" content="jdE7kyHtzGBfSWYDloQTJdbsNvKqMx7H8tFhTTLqKM0" />
     <meta name="naver-site-verification" content="a85ab107da5754084b96b1ad663c8b9449e7313d" />
-    <meta name="description" content="FACt.Smack is a transparent community for getting people’s subjective feedback on photos and everyday looks." />
+    <meta name="description" content="Get subjective photo, outfit and profile feedback from real people. Share photos or videos and collect YES/NO or perceived-age ratings on FACt.Smack." />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
     <link rel="canonical" href="https://www.factsmack.com/" />
     <link rel="alternate" hreflang="en" href="https://www.factsmack.com/" />
     <link rel="alternate" hreflang="ko" href="https://www.factsmack.com/ko/" />
     <link rel="alternate" hreflang="x-default" href="https://www.factsmack.com/" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#091a2e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="FACt.Smack" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -82,14 +87,18 @@
     <meta property="og:site_name" content="FACt.Smack" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="ko_KR" />
-    <meta property="og:title" content="FACt.Smack | Feedback, made visible" />
-    <meta property="og:description" content="FACt.Smack is a transparent community for getting people’s subjective feedback on photos and everyday looks." />
+    <meta property="og:title" content="FACt.Smack | Photo &amp; Outfit Feedback" />
+    <meta property="og:description" content="Get subjective photo, outfit and profile feedback from real people. Share photos or videos and collect YES/NO or perceived-age ratings on FACt.Smack." />
     <meta property="og:url" content="https://www.factsmack.com/" />
     <meta property="og:image" content="https://www.factsmack.com/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="FACt.Smack" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="FACt.Smack | Feedback, made visible" />
-    <meta name="twitter:description" content="FACt.Smack is a transparent community for getting people’s subjective feedback on photos and everyday looks." />
+    <meta name="twitter:title" content="FACt.Smack | Photo &amp; Outfit Feedback" />
+    <meta name="twitter:description" content="Get subjective photo, outfit and profile feedback from real people. Share photos or videos and collect YES/NO or perceived-age ratings on FACt.Smack." />
     <meta name="twitter:image" content="https://www.factsmack.com/icon-512.png" />
+    <meta name="twitter:image:alt" content="FACt.Smack" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -112,6 +121,16 @@
             "publisher": { "@id": "https://www.factsmack.com/#organization" }
           },
           {
+            "@type": "WebPage",
+            "@id": "https://www.factsmack.com/#webpage",
+            "url": "https://www.factsmack.com/",
+            "name": "FACt.Smack | Photo & Outfit Feedback",
+            "description": "Get subjective photo, outfit and profile feedback from real people.",
+            "inLanguage": "en",
+            "isPartOf": { "@id": "https://www.factsmack.com/#website" },
+            "about": { "@id": "https://www.factsmack.com/#app" }
+          },
+          {
             "@type": "WebApplication",
             "@id": "https://www.factsmack.com/#app",
             "name": "FACt.Smack",
@@ -126,7 +145,7 @@
         ]
       }
     </script>
-    <title>FACt.Smack</title>
+    <title>FACt.Smack | Photo &amp; Outfit Feedback</title>
     <!-- 정의: 한글 Pretendard Variable과 라틴 Inter Variable을 로드하는 UI 타이포그래피 의존성이다. -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -137,12 +156,14 @@
   </head>
   <body class="bg-background text-on-background font-body antialiased min-h-screen overflow-x-hidden">
     <div id="root">
+      <!-- public-discovery:start -->
       <main style="max-width:640px;margin:48px auto;padding:24px;font-family:Arial,sans-serif;line-height:1.7">
         <h1>About FACt.Smack</h1>
         <p>FACt.Smack is a photo and video community. Share your everyday looks and questions, receive subjective YES/NO or perceived-age feedback from other members, and view the collected results.</p>
         <p>Google sign-in is used to authenticate your account with your email and basic profile. FACt.Smack does not generate AI images or videos. Unlawful and non-consensual sexual content is prohibited.</p>
         <p><a href="/?policy=privacy">Privacy</a> · <a href="/?policy=terms">Terms</a> · <a href="/?policy=safety">Safety &amp; reports</a></p>
       </main>
+      <!-- public-discovery:end -->
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
