@@ -1,4 +1,8 @@
 const COPY = {
+  about: {
+    ko: { eyebrow: 'FACt.Smack', title: '서비스 안내', sections: [['FACt.Smack은 어떤 서비스인가요?', '사진·영상과 오늘의 모습에 대한 질문을 공유하고, 다른 회원의 주관적인 호감·비호감 또는 예상 나이 평가를 모아 결과를 확인하는 커뮤니티입니다.'], ['로그인과 이용 안내', 'Google 로그인은 이메일과 기본 프로필로 계정을 인증하는 데 사용합니다. AI 이미지·영상 생성 서비스가 아니며, 불법 콘텐츠와 동의 없는 성적 콘텐츠는 금지합니다.']] },
+    en: { eyebrow: 'FACt.Smack', title: 'About Us', sections: [['About FACt.Smack', 'Share photos, videos and questions about your everyday looks. Receive subjective YES/NO or perceived-age feedback from other members and view the collected results.'], ['Sign-in and use', 'Google sign-in authenticates your account using your email and basic profile. We do not generate AI images or videos. Unlawful and non-consensual sexual content is prohibited.']] },
+  },
   terms: {
     ko: { eyebrow: 'MVP 이용약관', title: '서비스 이용 원칙', sections: [['서비스 목적', 'FACt.Smack은 사진과 질문에 대한 참여자의 주관적 평가를 모아 보여주는 서비스입니다. 결과는 사실·의료·전문적 판단이 아닌 참고용 피드백입니다.'], ['가입 자격', '공개 MVP는 만 14세 이상만 이용할 수 있습니다. 법정대리인 동의가 필요한 만 14세 미만 아동은 가입할 수 없습니다.'], ['회원의 책임', '본인이 촬영했거나 공개·사용 권한을 가진 사진만 올릴 수 있습니다. 타인의 개인정보, 혐오·괴롭힘·성적 대상화 또는 불법 콘텐츠는 올릴 수 없습니다.'], ['콘텐츠 처리', '운영자는 신고 또는 정책 위반이 확인된 게시물을 숨기거나 삭제할 수 있습니다.'], ['MVP 범위', '공개 MVP 기간에는 기능과 정책이 개선될 수 있으며, 중요한 변경은 서비스 안에서 알립니다.']] },
     en: { eyebrow: 'MVP TERMS', title: 'How this service works', sections: [['Purpose', 'FACt.Smack collects subjective feedback on photos and questions. Results are reference feedback, not factual, medical, or professional judgments.'], ['Eligibility', 'The public MVP is available only to people aged 14 or older. Children under 14 who require verified parental consent may not create an account.'], ['Member responsibility', 'Only upload photos you created or have permission to use. Do not upload personal data, hateful, harassing, sexualizing, or unlawful content.'], ['Content handling', 'We may hide or remove posts when a report or policy violation requires it.'], ['MVP scope', 'Features and policies may improve during the public MVP. Material changes will be announced in the service.']] },
@@ -20,13 +24,13 @@ export default function LegalPolicyDialog({ type = 'terms', locale = 'ko', onClo
     <section role="dialog" aria-modal="true" aria-labelledby="legal-policy-title" className="max-h-[82dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-[#fbf9f4] text-[#1b1c19] shadow-2xl" onClick={(event) => event.stopPropagation()}>
       <header className="sticky top-0 flex items-start justify-between border-b border-[#e4e2dd] bg-[#fbf9f4] px-5 py-4">
         <div><p className="text-[10px] font-bold tracking-[0.14em] text-[#8a7000]">{copy.eyebrow}</p><h1 id="legal-policy-title" className="mt-1 text-lg font-bold">{copy.title}</h1></div>
-        <button type="button" onClick={onClose} aria-label={korean ? '정책 화면 닫기' : 'Close policy'} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d7d1c5] text-[#575850]"><span className="material-symbols-outlined text-base" aria-hidden="true">close</span></button>
+        <button type="button" onClick={onClose} aria-label={type === 'about' ? (korean ? '서비스 안내 닫기' : 'Close About Us') : (korean ? '정책 화면 닫기' : 'Close policy')} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d7d1c5] text-[#575850]"><span className="material-symbols-outlined text-base" aria-hidden="true">close</span></button>
       </header>
       <div className="space-y-5 px-5 py-5">{copy.sections.map(([heading, body]) => <section key={heading}><h2 className="text-sm font-bold">{heading}</h2><p className="mt-1.5 text-sm leading-6 text-[#5f625e]">{body}</p></section>)}</div>
       <footer className="border-t border-[#e4e2dd] px-5 py-3 text-[10px] leading-relaxed text-[#7b7d78]">
         <p>{korean ? '운영 주체: Tweety and Company' : 'Operator: Tweety and Company'} · {korean ? '개인정보 보호책임자: Joon (Manager)' : 'Privacy Officer: Joon (Manager)'}</p>
         <p>{korean ? '문의: ' : 'Contact: '}<a href="mailto:teamfactsmack@gmail.com" className="underline">teamfactsmack@gmail.com</a></p>
-        <p className="mt-1">{type === 'privacy' ? (korean ? '시행일: 2026년 10월 18일' : 'Effective: October 18, 2026') : (korean ? '시행일: 2026년 10월 9일' : 'Effective: October 9, 2026')}</p>
+        {type !== 'about' && <p className="mt-1">{type === 'privacy' ? (korean ? '시행일: 2026년 10월 18일' : 'Effective: October 18, 2026') : (korean ? '시행일: 2026년 10월 9일' : 'Effective: October 9, 2026')}</p>}
       </footer>
     </section>
   </div>;

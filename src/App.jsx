@@ -130,7 +130,7 @@ export default function App() {
   const [locale, setLocale] = useState(() => resolveLocale());
   const [policyOpen, setPolicyOpen] = useState(() => {
     const policy = new URLSearchParams(window.location.search).get('policy');
-    return ['privacy', 'terms', 'safety'].includes(policy) ? policy : null;
+    return ['privacy', 'terms', 'safety', 'about'].includes(policy) ? policy : null;
   });
   const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);

@@ -169,12 +169,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
             <a href="/?policy=terms" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('terms'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Terms' : '이용약관'}</a>
             <a href="/?policy=privacy" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('privacy'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Privacy' : '개인정보 처리방침'}</a>
             <a href="/?policy=safety" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('safety'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Safety & reports' : '안전·신고'}</a>
+            <a href="/?policy=about" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('about'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'About Us' : '서비스 안내'}</a>
           </div>
-        </section>
-        <section aria-labelledby="service-purpose-title" className="mx-auto mt-4 w-[90%] max-w-[370px] rounded-xl bg-black/35 p-3.5 text-left text-[11px] leading-relaxed text-white/85">
-          <h2 id="service-purpose-title" className="mb-1 font-bold text-white">{locale === 'en' ? 'About FACt.Smack' : 'FACt.Smack은 어떤 서비스인가요?'}</h2>
-          <p>{locale === 'en' ? 'Share photos, videos and questions about your everyday looks. Receive subjective YES/NO or perceived-age feedback from other members and view the collected results.' : '사진·영상과 오늘의 모습에 대한 질문을 공유하고, 다른 회원의 주관적인 호감·비호감 또는 예상 나이 평가를 모아 결과를 확인하는 커뮤니티입니다.'}</p>
-          <p className="mt-2">{locale === 'en' ? 'Google sign-in authenticates your account using your email and basic profile. We do not generate AI images or videos. Unlawful and non-consensual sexual content is prohibited.' : 'Google 로그인은 이메일과 기본 프로필로 계정을 인증하는 데 사용합니다. AI 이미지·영상 생성 서비스가 아니며, 불법 콘텐츠와 동의 없는 성적 콘텐츠는 금지합니다.'}</p>
         </section>
       </div>
     </main>
