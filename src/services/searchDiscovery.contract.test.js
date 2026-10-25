@@ -45,6 +45,6 @@ test('public discovery metadata identifies the service without presenting subjec
   }
   assert.throws(() => localizeSeoHtml(html.replace('<!-- public-discovery:start -->', ''), 'ko'), /Missing SEO template/);
   const authView = await readFile(new URL('../features/auth/AuthEntryView.jsx', import.meta.url), 'utf8');
-  assert.match(authView, /discovery\.faq\.map/);
-  assert.match(authView, /discovery\.intro/);
+  assert.doesNotMatch(authView, /discovery\.faq\.map|discovery\.intro/);
+  assert.match(authView, /About FACt\.Smack/);
 });
