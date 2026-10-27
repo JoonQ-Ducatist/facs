@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PageHeading from '../../components/ui/PageHeading.jsx';
+import { ANALYTICS_EVENT, trackEvent } from '../../services/analytics.js';
 import { getMyRightsConsentStatus, RIGHTS_CONSENT_DOCUMENT_VERSION } from '../../services/supabaseApi.js';
 import { prepareImageForUpload } from './imagePreparation.js';
 
@@ -53,7 +54,7 @@ function getQuestionSuggestions(category, media, locale) {
 }
 
 /** 정의: 복수 미디어 선택·정렬·질문 입력·사전 검증을 제공하는 개발용 업로드 화면이다. 실제 저장·검토는 백엔드 단계에서 처리한다. */
-export default function UploadView({ isActive = true, categories, locale = 'ko', publicHandle = '', onSubmit, onMessage, onOpenProfile }) {
+export default function UploadView({ isActive = true, categories, locale = 'ko', publicHandle = '', isFirstUpload = false, starter = null, onDraftStateChange, onSubmit, onMessage, onOpenProfile }) {
   const inputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const questionRef = useRef(null);
@@ -77,6 +78,9 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   const [draggingMediaId, setDraggingMediaId] = useState(null);
   const [dragOverMediaId, setDragOverMediaId] = useState(null);
   const mediaDragRef = useRef(null);
+  const appliedStarterId = useRef(null);
+  const mediaSelectedTracked = useRef(false);
+  const publishAttemptTracked = useRef(false);
 
   const imageCount = media.filter((item) => item.type === 'image').length;
   const videoCount = media.filter((item) => item.type === 'video').length;
@@ -86,6 +90,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   const canAddVideo = videoCount < MAX_VIDEOS;
   const canAddMedia = canAddImage || canAddVideo;
   const canOpenDropzone = !media.length && canAddMedia;
+  const showDetails = !isFirstUpload || media.length > 0;
   const acceptedTypes = [canAddImage && 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif', canAddVideo && 'video/mp4,video/quicktime'].filter(Boolean).join(',');
   const limitNoticeMessage = limitNotice?.kind === 'image'
     ? (locale === 'en' ? `You can select up to ${MAX_IMAGES} photos.` : `사진은 최대 ${MAX_IMAGES}개까지만 선택할 수 있어요.`)
@@ -107,6 +112,17 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
     });
     return () => { active = false; };
   }, [isActive]);
+
+  useEffect(() => {
+    onDraftStateChange?.(Boolean(media.length || question.trim()));
+  }, [media.length, onDraftStateChange, question]);
+
+  useEffect(() => {
+    if (!isActive || !starter?.id || appliedStarterId.current === starter.id || media.length || question.trim()) return;
+    if (categories[starter.category]) setCategory(starter.category);
+    setQuestion(starter.question ?? '');
+    appliedStarterId.current = starter.id;
+  }, [categories, isActive, media.length, question, starter]);
 
   useEffect(() => () => {
     previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
@@ -168,7 +184,13 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
         accepted.push(makeItem(uploadFile, url, type));
       }
     }
-    if (accepted.length) setMedia((items) => [...items, ...accepted]);
+    if (accepted.length) {
+      setMedia((items) => [...items, ...accepted]);
+      if (!mediaSelectedTracked.current) {
+        mediaSelectedTracked.current = true;
+        trackEvent(ANALYTICS_EVENT.MEDIA_SELECTED, { locale });
+      }
+    }
     const limitMessage = limitWarningKind === 'video'
       ? (locale === 'en' ? `You can select up to ${MAX_VIDEOS} video.` : '동영상은 최대 1개까지만 선택할 수 있어요.')
       : limitWarningKind === 'image'
@@ -328,6 +350,10 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   /** 정의: 닉네임·질문·미디어 조건을 검사한 뒤 UI용 새 카드 데이터를 부모에 전달한다. @param {SubmitEvent} event 폼 제출 이벤트 */
   async function submit(event) {
     event.preventDefault();
+    if (!publishAttemptTracked.current) {
+      publishAttemptTracked.current = true;
+      trackEvent(ANALYTICS_EVENT.PUBLISH_ATTEMPTED, { locale });
+    }
     const nextFieldErrors = {};
     if (question.trim() && question.trim().length < 4) nextFieldErrors.question = '질문은 4자 이상으로 작성하거나 추천 질문을 선택해 주세요.';
     const isAgeEvaluation = selectedTheme.evaluationType === 'NUMERIC_AGE';
@@ -353,6 +379,8 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
       setRightsConfirmed(false);
       setError('');
       setMediaAlert('');
+      mediaSelectedTracked.current = false;
+      publishAttemptTracked.current = false;
     } catch {
       setError(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
     } finally {
@@ -362,7 +390,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
 
   return <section className="editorial-upload w-full pb-3 pt-1">
     {limitNotice && <div key={limitNotice.id} role="alert" aria-live="assertive" className="upload-limit-tooltip"><span className="material-symbols-outlined" aria-hidden="true">warning</span><span>{limitNoticeMessage}</span></div>}
-    <PageHeading eyebrow="CREATE A LOOKBOOK" title="새로운 룩 공유하기" description="사진 최대 5개와 10초 이하 동영상 1개를 함께 선택할 수 있습니다." action={<button type="button" onClick={openCamera} aria-label="카메라로 촬영하기" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#fbf9f4] text-cyan-glow"><span className="material-symbols-outlined text-lg">add_a_photo</span></button>} />
+    <PageHeading eyebrow="CREATE A LOOKBOOK" title={locale === 'en' ? 'Share a new look' : '새로운 룩 공유하기'} description={isFirstUpload ? (locale === 'en' ? 'Start with one photo. You can add more if you want.' : '사진 한 장이면 충분해요. 원하면 더 추가할 수 있어요.') : (locale === 'en' ? 'Choose up to 5 photos and one video up to 10 seconds.' : '사진 최대 5개와 10초 이하 동영상 1개를 함께 선택할 수 있습니다.')} action={<button type="button" onClick={openCamera} aria-label={locale === 'en' ? 'Take a photo' : '카메라로 촬영하기'} className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#fbf9f4] text-cyan-glow"><span className="material-symbols-outlined text-lg">add_a_photo</span></button>} />
     <form className="flex flex-col gap-3.5" onSubmit={submit} onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch}>
       <div role={canOpenDropzone ? 'button' : undefined} tabIndex={canOpenDropzone ? 0 : undefined} onClick={() => canOpenDropzone && inputRef.current?.click()} onKeyDown={(event) => { if (canOpenDropzone && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canOpenDropzone ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
         <input id="upload-media-input" ref={inputRef} type="file" multiple accept={acceptedTypes} className="sr-only" onChange={handleFileChange} />
@@ -370,6 +398,9 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
         {mediaAlert && <div role="alert" aria-live="assertive" className="upload-media-alert mb-3 flex items-start gap-2 rounded-md border border-[#b45309]/45 bg-[#fff7ed] px-3 py-2 text-left text-xs leading-relaxed text-[#92400e]"><span className="material-symbols-outlined mt-px text-base" aria-hidden="true">warning</span><span>{mediaAlert}</span></div>}
         {!media.length ? <div className="flex min-h-[164px] flex-col items-center justify-center text-center"><span className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-2xl">upload_file</span></span><p className="font-headline text-sm font-bold text-white">사진 또는 짧은 동영상 선택</p><p className="mt-1 font-mono text-[11px] text-slate-400">이미지 5개 + 동영상 1개 · 동영상 최대 10초 · 파일당 15MB</p><label htmlFor="upload-media-input" onClick={(event) => event.stopPropagation()} className="mt-3 cursor-pointer rounded-full border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-medium text-cyan-glow">로컬 디바이스에서 파일 찾기</label><span className="mt-2 hidden text-[11px] text-[#5f9f9a] sm:block">파일을 이 영역에 끌어다 놓아도 바로 추가할 수 있어요</span></div> : <><div className="mb-2 flex items-center justify-between text-[11px] font-mono"><span className="text-slate-300">이미지 <strong style={{ color: selectedTheme.color }}>{imageCount}/{MAX_IMAGES}</strong> · 동영상 <strong style={{ color: selectedTheme.color }}>{videoCount}/{MAX_VIDEOS}</strong></span><span className="text-slate-500">{canAddImage ? '사진 또는 동영상을 추가할 수 있어요' : canAddVideo ? '동영상 1개를 더 추가할 수 있어요' : '최대 선택 완료'}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{media.map((item, index) => <MediaPreview key={item.id} item={item} index={index} color={selectedTheme.color} onRemove={() => removeMedia(item.id)} onMove={(direction) => moveMedia(index, direction)} canMovePrevious={index > 0} canMoveNext={index < media.length - 1} isDragging={draggingMediaId === item.id} isDragOver={dragOverMediaId === item.id} onTouchStart={beginMediaTouchDrag} onTouchMove={moveMediaTouchDrag} onTouchEnd={endMediaTouchDrag} onTouchCancel={clearMediaTouchDrag} onNativeDragStart={startNativeMediaDrag} onNativeDragOver={overNativeMediaDrag} onNativeDrop={dropNativeMedia} onNativeDragEnd={endNativeMediaDrag} />)}{canAddImage && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="사진 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">add</span></button>}{canAddVideo && <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }} aria-label="동영상 추가" className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[#c5a059]/60 bg-[#f9f7f2] text-cyan-glow"><span className="material-symbols-outlined text-xl">videocam</span></button>}</div></>}
       </div>
+      <p className="rounded-md border border-[#d7e7de] bg-[#f3f8f5] px-3 py-2 text-[11px] leading-relaxed text-[#426653]"><span className="font-bold">{locale === 'en' ? 'You stay in control.' : '공개 여부는 직접 결정해요.'}</span> {locale === 'en' ? 'Nothing is posted until you tap Upload. Choose who can see it, and permanently delete your post anytime.' : '업로드 버튼을 누르기 전에는 공개되지 않으며, 공개 범위를 선택하고 게시물을 언제든 영구 삭제할 수 있어요.'}</p>
+      {isFirstUpload && media.length > 0 && <p role="status" aria-live="polite" className="sr-only">{locale === 'en' ? 'Media selected. Choose a category, visibility, and feedback question next.' : '미디어를 선택했습니다. 이제 카테고리, 공개 범위, 평가 질문을 선택해 주세요.'}</p>}
+      {showDetails && <>
       <fieldset><legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300">1. 카테고리 선택</legend><div className="upload-category-grid grid grid-cols-3 gap-2">{Object.entries(categories).map(([id, item]) => <button key={id} type="button" onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch} onClick={() => setCategory(id)} className="flex min-w-0 items-center justify-center gap-1 rounded-md border px-2 py-2 font-body text-xs transition-all" style={category === id ? { borderColor: item.color, color: item.color, backgroundColor: `${item.color}14`, fontWeight: 700 } : { borderColor: '#c4c6cd', color: '#44474c', backgroundColor: '#ffffff' }}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: item.color, color: item.color }}><span className="material-symbols-outlined text-[13px]">{item.icon}</span></span><span>{item.label}</span></button>)}</div></fieldset>
       <fieldset className="rounded-lg border border-[#ddd8cd] bg-[#f5f3ee] p-3"><legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-[#74777d]">{locale === 'en' ? '2. Visibility' : '2. 공개 범위'}</legend><div role="radiogroup" aria-label={locale === 'en' ? 'Visibility' : '공개 범위'} className="grid grid-cols-2 gap-2"><VisibilityChoice selected={visibility === 'public'} icon="public" label={locale === 'en' ? 'Public' : '전체 공개'} description={locale === 'en' ? 'Anyone can see this post in the feed.' : '피드에서 누구나 볼 수 있어요.'} onSelect={() => setVisibility('public')} /><VisibilityChoice selected={visibility === 'followers'} icon="group" label={locale === 'en' ? 'Followers only' : '팔로워만'} description={locale === 'en' ? 'Only you and your followers can see this post.' : '나와 나를 팔로우한 사람만 볼 수 있어요.'} onSelect={() => setVisibility('followers')} /></div></fieldset>
       <div><label htmlFor="question-input" className="mb-1 block text-[12px] font-bold uppercase tracking-wider text-slate-300">3. 어떤 점을 평가받고 싶나요?</label><div className="mb-2 rounded-lg bg-[#f5f3ee] p-2.5"><p className="mb-1.5 font-mono text-[11px] text-slate-400">{selectedTheme.label} · {media.length ? '선택한 사진·영상에 맞춰 제안하는 질문' : '사진을 올리면 상황에 맞게 다듬어지는 추천 질문'}</p><div className="upload-question-suggestions flex flex-wrap gap-1.5">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => chooseQuestionSuggestion(suggestion)} style={{ borderColor: question === suggestion ? selectedTheme.color : '#c4c6cd', color: question === suggestion ? selectedTheme.color : '#44474c', backgroundColor: question === suggestion ? `${selectedTheme.color}12` : '#ffffff' }} className="rounded-md border px-2 py-1.5 text-left text-[12px] transition-colors">{suggestion}</button>)}</div></div><div className="relative"><textarea ref={questionRef} id="question-input" rows="2" value={question} maxLength="140" onPointerDown={(event) => event.stopPropagation()} onClick={() => questionRef.current?.focus()} onFocus={() => revealQuestionInput(true)} onChange={(event) => { setQuestion(event.target.value); setFieldErrors((errors) => ({ ...errors, question: undefined })); }} aria-invalid={Boolean(fieldErrors.question)} aria-describedby={fieldErrors.question ? 'question-error' : undefined} placeholder="예: 오늘 이 룩, 저와 잘 어울리나요?" className="upload-question-input w-full resize-none rounded-md border border-surface-container-high bg-white p-2.5 pr-32 text-sm text-white placeholder:text-slate-500 focus:border-cyan-glow focus:outline-none" />{question && <button type="button" onClick={clearQuestion} className="absolute right-2 top-2 rounded-full px-2 py-1 text-[12px] text-slate-500 transition-colors hover:bg-[#f5f3ee] hover:text-[#1b1c19]">지우고 다시 작성</button>}</div>{fieldErrors.question && <p id="question-error" role="alert" className="mt-1 text-xs text-[#9b5c55]">{fieldErrors.question}</p>}</div>
@@ -381,6 +412,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
       {error && <p role="alert" aria-live="assertive" className="text-xs text-[#9b5c55]">{error}</p>}
       <button type="submit" disabled={isPublishing || (rightsConsentRequired && !rightsConfirmed)} aria-describedby={rightsConsentRequired && !rightsConfirmed ? 'rights-consent-hint' : undefined} className="ui-primary-action mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#0e1c2d] bg-primary-container py-2 font-body text-sm font-bold text-white shadow-[0_4px_20px_rgba(0,0,0,.08)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-65"><span className="material-symbols-outlined text-base">{isPublishing ? 'progress_activity' : 'arrow_upward'}</span>{isPublishing ? (locale === 'en' ? 'Saving your post...' : '사진을 저장하고 있어요...') : (locale === 'en' ? 'Upload to feed' : '피드에 업로드하기')}</button>
       <p className="text-center text-[10px] text-slate-500">선택한 사진은 안전하게 저장된 뒤 공개 피드에 등록됩니다.</p>
+      </>}
     </form>
   </section>;
 }

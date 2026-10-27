@@ -23,6 +23,9 @@ export default function OperationsDashboard({ locale = 'ko', sessionKey = '', on
     [korean ? '방문' : 'Visits', m.unique_visitors],
     [korean ? '가입 완료' : 'Sign-ups', m.signups_completed],
     [korean ? '첫 평가' : 'First votes', m.first_votes],
+    [korean ? '업로드 화면 열기' : 'Upload opened', m.upload_opens],
+    [korean ? '사진·영상 선택' : 'Media selected', m.media_selections],
+    [korean ? '게시 시도' : 'Publish attempted', m.publish_attempts],
     [korean ? '업로드 완료' : 'Uploads', m.uploads_completed],
     [korean ? '결과 확인' : 'Results viewed', m.results_viewed],
   ];

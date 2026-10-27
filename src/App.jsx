@@ -175,6 +175,9 @@ export default function App() {
   const [visibleFeedPostIds, setVisibleFeedPostIds] = useState(() => new Set());
   const [toast, setToast] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
+  const [hasUploadDraft, setHasUploadDraft] = useState(false);
+  const [uploadStarter, setUploadStarter] = useState(null);
+  const [publishedConfirmation, setPublishedConfirmation] = useState(null);
 
   useEffect(() => { initializeGa4(); }, []);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
@@ -189,6 +192,7 @@ export default function App() {
   const feedPage = useRef({ cursor: null, hasMore: false, loading: false, userId: null });
   const termsStatusCache = useRef(new Map());
   const acceptedTermsUserId = useRef(null);
+  const uploadOpenedTracked = useRef(false);
 
   async function readTermsStatus(memberId) {
     const cacheKey = `${memberId}:${CURRENT_TERMS_VERSION}`;
@@ -916,6 +920,7 @@ export default function App() {
       mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { postId: publishedCard.id, category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
+    setPublishedConfirmation({ id: publishedCard.id });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
     return { ok: true, data: publishedCard };
   }
@@ -996,7 +1001,7 @@ export default function App() {
     return result.error ? { ok: false, message: result.error.message } : { ok: true, data: result.data };
   }, []);
 
-  function openUpload() {
+  function openUpload(starter = null) {
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
     if (profileLoading) {
       setToast(locale === 'en' ? 'Checking your public ID before opening Upload.' : '업로드를 열기 전에 공개 아이디를 확인하고 있어요.');
@@ -1011,6 +1016,12 @@ export default function App() {
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
+    if (starter?.category && starter?.question && !hasUploadDraft) setUploadStarter({ ...starter, id: starter.id ?? `${starter.category}:${Date.now()}` });
+    if (!uploadOpenedTracked.current) {
+      uploadOpenedTracked.current = true;
+      trackEvent(ANALYTICS_EVENT.UPLOAD_OPENED, { locale });
+    }
+    setPublishedConfirmation(null);
     setActiveTab('upload');
   }
 
@@ -1467,9 +1478,9 @@ export default function App() {
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
-          <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
+          <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
@@ -1487,7 +1498,7 @@ export default function App() {
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label={locale === 'en' ? 'Primary navigation' : '주요 메뉴'}>
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
-      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span><span className="mobile-nav-label">{labels[locale]}</span></button>)}</div>
+      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`relative flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span>{id === 'upload' && hasUploadDraft && <span className="absolute right-4 top-1 h-2 w-2 rounded-full bg-[#E65B7A] ring-2 ring-white" aria-hidden="true" />}<span className="mobile-nav-label">{labels[locale]}</span></button>)}</div>
       <div className="desktop-policy-links" aria-label={locale === 'ko' ? '정책 안내' : 'Policy information'}>
         <button type="button" onClick={() => setPolicyOpen('safety')}>{locale === 'ko' ? '안전·신고' : 'Safety'}</button>
         <button type="button" onClick={() => setPolicyOpen('privacy')}>{locale === 'ko' ? '개인정보' : 'Privacy'}</button>

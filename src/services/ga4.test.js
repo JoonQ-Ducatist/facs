@@ -21,6 +21,8 @@ test('GA4 emits only allowed event names after its configuration gate', () => {
   assert.equal(trackGa4Event('email_entered', { environment: { VITE_GA_MEASUREMENT_ID: 'G-TEST123' }, windowRef }), false);
   assert.equal(scripts.length, 1);
   assert.deepEqual(calls.at(-1), ['event', 'upload_completed']);
+  assert.equal(trackGa4Event('upload_opened', { environment: { VITE_GA_MEASUREMENT_ID: 'G-TEST123' }, windowRef }), true);
+  assert.deepEqual(calls.at(-1), ['event', 'upload_opened']);
   assert.equal(trackGa4Event('first_vote', { environment: { VITE_GA_MEASUREMENT_ID: 'G-TEST123' }, windowRef }), true);
   assert.deepEqual(calls.slice(-2), [['event', 'first_vote'], ['event', 'vote_completed']]);
   assert.equal(calls.filter(([name]) => name === 'config').length, 1);

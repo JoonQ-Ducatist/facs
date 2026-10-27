@@ -1,4 +1,4 @@
-const EVENT_NAMES = new Set(['visitor_opened', 'signup_completed', 'first_vote', 'vote_completed', 'upload_completed', 'result_viewed', 'share_requested', 'boost_requested']);
+const EVENT_NAMES = new Set(['visitor_opened', 'signup_completed', 'first_vote', 'vote_completed', 'upload_opened', 'media_selected', 'publish_attempted', 'upload_completed', 'result_viewed', 'share_requested', 'boost_requested']);
 const PRODUCTION_HOSTS = new Set(['www.factsmack.com', 'factsmack.com']);
 
 function productionOrigin(windowRef) {

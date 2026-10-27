@@ -11,7 +11,7 @@ import ResultCard from './ResultCard.jsx';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ locale = 'ko', categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ locale = 'ko', categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
   const [expandedPost, setExpandedPost] = useState(null);
   const [draft, setDraft] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -96,6 +96,7 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
       <CategoryButton label="셔플" active={activeCategory === 'ALL'} color="#00f0ff" idleColor="#735c00" icon="shuffle" onClick={onShuffle} />
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
+    {publishedConfirmation ? <FeedUploadNudge locale={locale} kind="published" onAction={onDismissPublishedConfirmation} /> : draftReminder ? <FeedUploadNudge locale={locale} kind="draft" onAction={onStartUpload} /> : showParticipationPrompt ? <FeedUploadNudge locale={locale} kind="prompt" onAction={onStartUpload} /> : null}
 
     {cards.length ? <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
       <div className="media-carousel media-carousel--scroll relative w-full">
@@ -123,6 +124,26 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
       setLoadingMore(false);
     }
   }
+}
+
+const DAILY_UPLOAD_PROMPTS = [
+  { category: 'SocialProfile', ko: '이 프로필 사진, 첫인상이 좋아 보이나요?', en: 'Does this profile photo make a good first impression?' },
+  { category: 'Outfit', ko: '오늘 이 룩, 잘 어울려 보이나요?', en: 'Does today’s look suit me?' },
+  { category: 'Work', ko: '이 업무용 사진, 신뢰감 있어 보이나요?', en: 'Does this work photo feel confident and trustworthy?' },
+  { category: 'Date', ko: '첫 만남에 이 사진, 호감이 가나요?', en: 'Would this photo make a good first-date impression?' },
+];
+
+/** A compact, non-blocking prompt that never replaces or restricts the feed. */
+function FeedUploadNudge({ locale, kind, onAction }) {
+  const korean = locale !== 'en';
+  const prompt = DAILY_UPLOAD_PROMPTS[Math.floor(Date.now() / 86_400_000) % DAILY_UPLOAD_PROMPTS.length];
+  const content = kind === 'published'
+    ? { icon: 'check_circle', title: korean ? '게시 완료' : 'Post published', body: korean ? '피드 맨 앞에 공개됐어요. 평가는 프로필에서도 확인할 수 있어요.' : 'It is now first in the feed. You can also follow results from your profile.', action: korean ? '확인' : 'Got it' }
+    : kind === 'draft'
+      ? { icon: 'edit_note', title: korean ? '작성 중인 게시물이 있어요' : 'You have an unfinished post', body: korean ? '선택한 사진과 작성 내용은 이번 방문 동안 그대로 유지돼요.' : 'Your selected media and details stay here for this visit.', action: korean ? '계속 작성' : 'Continue' }
+      : { icon: 'add_a_photo', title: korean ? '오늘의 한 장' : 'One photo for today', body: korean ? prompt.ko : prompt.en, action: korean ? '평가받기' : 'Get feedback' };
+  const action = kind === 'prompt' ? () => onAction?.({ category: prompt.category, question: korean ? prompt.ko : prompt.en }) : onAction;
+  return <aside className="mx-4 mb-1.5 flex shrink-0 items-center gap-2 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[#1b1c19] shadow-sm" aria-label={content.title}><span className="material-symbols-outlined text-[19px] text-[#d94c70]" aria-hidden="true">{content.icon}</span><div className="min-w-0 flex-1"><strong className="block text-[11px]">{content.title}</strong><p className="truncate text-[10px] text-[#66686d]">{content.body}</p></div><button type="button" onClick={action} className="shrink-0 rounded-full border border-[#d94c70]/60 px-2.5 py-1 text-[10px] font-bold text-[#a22d50]">{content.action}</button></aside>;
 }
 
 function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
