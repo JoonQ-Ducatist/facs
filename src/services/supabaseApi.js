@@ -3,8 +3,48 @@ import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 
 const unavailableMediaUrl = new URL('../assets/media-unavailable.svg', import.meta.url).href;
+const STAGING_SUPABASE_HOST = 'zvaheyfumpmzrolsbtrf.supabase.co';
+const AUTH_FEATURED_CACHE_PREFIX = 'facs_auth_featured_v1';
+const AUTH_FEATURED_CACHE_TTL_MS = 9 * 60 * 1000;
+const STAGING_AUTH_FEATURED_CARDS = Object.freeze([
+  ['#10243b', '#c52a52'],
+  ['#1f2f45', '#c5a059'],
+  ['#172b35', '#5d7a87'],
+  ['#2c2438', '#b55b78'],
+  ['#1d3140', '#8b7350'],
+].map(([from, to], index) => ({
+  id: `staging-auth-${index + 1}`,
+  imageUrl: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 1280"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="720" height="1280" fill="url(#g)"/><circle cx="570" cy="220" r="180" fill="white" opacity=".08"/><circle cx="120" cy="1040" r="240" fill="white" opacity=".05"/></svg>`)}`,
+  participationCount: 0,
+  objectPosition: 'center',
+})));
 
 export const RIGHTS_CONSENT_DOCUMENT_VERSION = 'photo-rights-v1';
+
+function clientHostname(client) {
+  try { return new URL(client?.supabaseUrl ?? '').hostname; } catch { return ''; }
+}
+
+function browserSessionStorage() {
+  try { return globalThis.sessionStorage ?? null; } catch { return null; }
+}
+
+function readAuthFeaturedCache(cache, key, now) {
+  if (!cache?.getItem) return null;
+  try {
+    const parsed = JSON.parse(cache.getItem(key) ?? 'null');
+    if (!parsed || parsed.expiresAt <= now || !Array.isArray(parsed.cards)) return null;
+    if (!parsed.cards.every((card) => card && typeof card.id === 'string' && typeof card.imageUrl === 'string')) return null;
+    return parsed.cards;
+  } catch {
+    return null;
+  }
+}
+
+function writeAuthFeaturedCache(cache, key, cards, now) {
+  if (!cache?.setItem) return;
+  try { cache.setItem(key, JSON.stringify({ expiresAt: now + AUTH_FEATURED_CACHE_TTL_MS, cards })); } catch { /* Private browsing and full storage must not break sign-in. */ }
+}
 
 /** Returns whether the signed-in member must accept the current rights notice before an upload. */
 export async function getMyRightsConsentStatus(client = supabase) {
@@ -412,11 +452,19 @@ function feedReadFailure(source) {
  * Reads the anonymous login hero's intentionally small public-photo contract.
  * This must never reuse the signed-in member's personalized feed RPC.
  */
-export async function listSupabaseAuthFeaturedPhotos({ limit = 5, candidatePoolSize = 20, client = supabase } = {}) {
+export async function listSupabaseAuthFeaturedPhotos({ limit = 5, candidatePoolSize = 20, client = supabase, cache = browserSessionStorage(), now = Date.now() } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
-  if (typeof client.rpc !== 'function' || !client.storage?.from) return apiSuccess([], { source: 'degraded' });
   const pageSize = Math.min(Math.max(limit, 1), 10);
   const poolSize = Math.min(Math.max(candidatePoolSize, pageSize), 30);
+  // Local and preview QA use the staging project. Inline placeholders keep the
+  // auth layout realistic without repeatedly downloading private test media.
+  if (clientHostname(client) === STAGING_SUPABASE_HOST) {
+    return apiSuccess(STAGING_AUTH_FEATURED_CARDS.slice(0, pageSize), { source: 'staging-lightweight' });
+  }
+  if (typeof client.rpc !== 'function' || !client.storage?.from) return apiSuccess([], { source: 'degraded' });
+  const cacheKey = `${AUTH_FEATURED_CACHE_PREFIX}:${pageSize}:${poolSize}`;
+  const cachedCards = readAuthFeaturedCache(cache, cacheKey, now);
+  if (cachedCards) return apiSuccess(cachedCards, { source: 'browser-cache' });
   const { data, error } = await client.rpc('get_auth_featured_public_photos', {
     page_size: pageSize,
     candidate_pool_size: poolSize,
@@ -435,7 +483,10 @@ export async function listSupabaseAuthFeaturedPhotos({ limit = 5, candidatePoolS
       participationCount: Number(item.participation_count ?? 0),
     };
   }));
-  return apiSuccess(featured.filter(Boolean), { source: 'supabase-auth-featured' });
+  const cards = featured.filter(Boolean);
+  // Do not preserve a transient Storage signing outage as a blank login hero.
+  if (cards.length) writeAuthFeaturedCache(cache, cacheKey, cards, now);
+  return apiSuccess(cards, { source: 'supabase-auth-featured' });
 }
 
 /** Converts an already-authorized ordered ID RPC response into protected Feed cards. */
