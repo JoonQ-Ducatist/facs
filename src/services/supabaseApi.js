@@ -565,6 +565,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       mediaType: media[0].type,
       media,
       objectPosition: 'center 20%',
+      participationCount: aggregate ? aggregate.totalVotes : null,
       yesVotes: aggregate?.yesCount ?? 0,
       noVotes: aggregate?.noCount ?? 0,
       ageMin: post.age_min,

@@ -9,6 +9,12 @@ const MAX_EVENTS = 500;
 
 /** 정의: 허용된 제품 이벤트만 저장해 화면 문구·사용자 입력·사진 URL 등 식별 가능 데이터를 수집하지 않는다. */
 export const ANALYTICS_EVENT = {
+  RATING_FEED_VIEWED: 'rating_feed_viewed',
+  RATING_PROMPT_STARTED: 'rating_prompt_started',
+  RATING_VOTE_SAVED: 'rating_vote_saved',
+  RATING_SKIPPED: 'rating_skipped',
+  RATING_RETURNED: 'rating_returned',
+  RATING_SESSION_COMPLETED: 'rating_session_completed',
   VISITOR_OPENED: 'visitor_opened',
   SIGNUP_COMPLETED: 'signup_completed',
   FIRST_VOTE: 'first_vote',
