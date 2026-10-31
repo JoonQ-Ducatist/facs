@@ -2,6 +2,10 @@ import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 
+// In-memory only, scoped to the exact unchanged selection, account and client.
+// Keep a completed upload's receipt when publication/URL responses fail so Retry cannot create a second public post.
+const pendingPublications = new WeakMap();
+
 const unavailableMediaUrl = new URL('../assets/media-unavailable.svg', import.meta.url).href;
 const STAGING_SUPABASE_HOST = 'zvaheyfumpmzrolsbtrf.supabase.co';
 const AUTH_FEATURED_CACHE_PREFIX = 'facs_auth_featured_v1';
@@ -332,43 +336,63 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 권리 보유 동의가 필요해요.');
   }
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
-  const inputMedia = media.map((item) => ({
-    type: item.type,
-    mimeType: resolveUploadMimeType(item.file, item.type),
-    byteSize: item.file?.size,
-    durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
-  }));
-  const { data: prepared, error: prepareError } = await client.rpc('create_post_upload_with_visibility', {
-    input_category: toDatabaseCategory(category),
-    input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
-    input_question: question,
-    input_age_min: evaluationType === 'NUMERIC_AGE' ? ageMin : null,
-    input_age_max: evaluationType === 'NUMERIC_AGE' ? ageMax : null,
-    input_media: inputMedia,
-    input_visibility: visibility,
-    input_rights_confirmed: submitsCurrentRightsConsent,
-    input_rights_document_version: submitsCurrentRightsConsent ? rightsConsent.documentVersion : null,
-  });
-  if (prepareError || !prepared?.length) return normalizeSupabaseError(prepareError, '업로드를 준비하지 못했어요.');
-
-  const uploads = [...prepared].sort((a, b) => a.media_position - b.media_position);
-  for (const [index, target] of uploads.entries()) {
-    const source = media[index]?.file;
-    if (!source) return apiFailure(API_ERROR.VALIDATION_FAILED, '선택한 파일 정보를 찾지 못했어요.');
-    const { error } = await client.storage.from('facs-media').upload(target.storage_path, source, {
-      contentType: resolveUploadMimeType(source, media[index]?.type),
-      upsert: false,
+  const signature = JSON.stringify([identity.user.id, category, evaluationType, question, visibility, ageMin, ageMax]);
+  let pending = pendingPublications.get(media);
+  if (pending?.signature !== signature || pending?.client !== client) pending = null;
+  if (!pending) {
+    const inputMedia = media.map((item) => ({
+      type: item.type,
+      mimeType: resolveUploadMimeType(item.file, item.type),
+      byteSize: item.file?.size,
+      durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
+    }));
+    const { data: prepared, error: prepareError } = await client.rpc('create_post_upload_with_visibility', {
+      input_category: toDatabaseCategory(category),
+      input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
+      input_question: question,
+      input_age_min: evaluationType === 'NUMERIC_AGE' ? ageMin : null,
+      input_age_max: evaluationType === 'NUMERIC_AGE' ? ageMax : null,
+      input_media: inputMedia,
+      input_visibility: visibility,
+      input_rights_confirmed: submitsCurrentRightsConsent,
+      input_rights_document_version: submitsCurrentRightsConsent ? rightsConsent.documentVersion : null,
     });
-    if (error) return normalizeSupabaseError(error, '사진을 안전하게 저장하지 못했어요.');
-  }
+    if (prepareError || !prepared?.length) return normalizeSupabaseError(prepareError, '업로드를 준비하지 못했어요.');
 
-  const { data: post, error: publishError } = await client.rpc('publish_post_upload', { target_post_id: uploads[0].post_id });
-  if (publishError || !post) return normalizeSupabaseError(publishError, '게시물을 공개하지 못했어요.');
+    const uploads = [...prepared].sort((a, b) => a.media_position - b.media_position);
+    for (const [index, target] of uploads.entries()) {
+      const source = media[index]?.file;
+      if (!source) return apiFailure(API_ERROR.VALIDATION_FAILED, '선택한 파일 정보를 찾지 못했어요.');
+      const { error } = await client.storage.from('facs-media').upload(target.storage_path, source, {
+        contentType: resolveUploadMimeType(source, media[index]?.type),
+        upsert: false,
+      });
+      if (error) return normalizeSupabaseError(error, '사진을 안전하게 저장하지 못했어요.');
+    }
+    pending = { signature, client, uploads, post: null };
+    pendingPublications.set(media, pending);
+  } else if (!pending.post) {
+    // A lost publish response may hide a successful transaction. Read its exact
+    // owner-scoped ID before retrying the same draft; never prepare another one.
+    const { data: existing, error: recoveryError } = await client.from('posts')
+      .select('id,published_at,status').eq('id', pending.uploads[0].post_id).eq('author_id', identity.user.id).maybeSingle();
+    if (recoveryError || !existing) return normalizeSupabaseError(recoveryError, '기존 게시 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    if (existing.status === 'published') pending.post = existing;
+    else if (existing.status !== 'draft') return apiFailure(API_ERROR.INTERNAL_ERROR, '기존 게시 상태를 확인하지 못했어요.');
+  }
+  const { uploads } = pending;
+  if (!pending.post) {
+    const { data: post, error: publishError } = await client.rpc('publish_post_upload', { target_post_id: uploads[0].post_id });
+    if (publishError || !post) return normalizeSupabaseError(publishError, '게시물을 공개하지 못했어요.');
+    pending.post = post;
+  }
+  const post = pending.post;
   const urlResults = await Promise.all(uploads.map(async (target) => {
     const { data, error } = await client.storage.from('facs-media').createSignedUrl(target.storage_path, 60 * 60);
     return error ? null : { id: target.asset_id, url: data.signedUrl, storagePath: target.storage_path, type: media[target.media_position]?.type };
   }));
   if (urlResults.some((item) => !item)) return apiFailure(API_ERROR.INTERNAL_ERROR, '업로드는 완료됐지만 사진 주소를 만들지 못했어요.');
+  pendingPublications.delete(media);
   return apiSuccess({ post, media: urlResults });
 }
 

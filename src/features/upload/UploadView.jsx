@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PageHeading from '../../components/ui/PageHeading.jsx';
+import UploadPostPreview from './UploadPostPreview.jsx';
 import { ANALYTICS_EVENT, trackEvent } from '../../services/analytics.js';
 import { getMyRightsConsentStatus, RIGHTS_CONSENT_DOCUMENT_VERSION } from '../../services/supabaseApi.js';
 import { prepareImageForUpload } from './imagePreparation.js';
@@ -75,6 +76,8 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDragActive, setIsDragActive] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const publishingRef = useRef(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [draggingMediaId, setDraggingMediaId] = useState(null);
   const [dragOverMediaId, setDragOverMediaId] = useState(null);
   const mediaDragRef = useRef(null);
@@ -105,7 +108,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   }, [limitNotice]);
 
   useEffect(() => {
-    if (!isActive) return undefined;
+    if (!isActive) { setPreviewOpen(false); return undefined; }
     let active = true;
     void getMyRightsConsentStatus().then((result) => {
       if (active && result.data) setRightsConsentRequired(result.data.required);
@@ -350,6 +353,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   /** 정의: 닉네임·질문·미디어 조건을 검사한 뒤 UI용 새 카드 데이터를 부모에 전달한다. @param {SubmitEvent} event 폼 제출 이벤트 */
   async function submit(event) {
     event.preventDefault();
+    if (publishingRef.current) return;
     if (!publishAttemptTracked.current) {
       publishAttemptTracked.current = true;
       trackEvent(ANALYTICS_EVENT.PUBLISH_ATTEMPTED, { locale });
@@ -366,6 +370,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
     if (!media.length) { setError('사진 또는 동영상을 선택해 주세요.'); inputRef.current?.click(); return; }
     const primary = media[0];
     const actualAgeProvided = shareActualAge && Number.isInteger(Number(actualAge));
+    publishingRef.current = true;
     setIsPublishing(true);
     try {
       const result = await onSubmit({ author: publicHandle, category, evaluationType: selectedTheme.evaluationType ?? 'BINARY', visibility, question: question.trim() || (isAgeEvaluation ? '사람들은 저를 몇 살로 볼까요?' : '호감과 신뢰감을 평가해 주세요.'), subtext: isAgeEvaluation ? '참여자의 주관적인 평가를 모으고 있어요.' : '실시간 평가를 수집 중입니다', imageUrl: primary.url, mediaType: primary.type, media, objectPosition: 'center 20%', yesVotes: 0, noVotes: 0, ageMin: isAgeEvaluation ? parsedAgeMin : undefined, ageMax: isAgeEvaluation ? parsedAgeMax : undefined, ageEstimate: isAgeEvaluation ? 0 : undefined, ageVoteCount: isAgeEvaluation ? 0 : undefined, actualAgeProvided, rightsConsent: rightsConsentRequired ? { confirmed: true, documentVersion: RIGHTS_CONSENT_DOCUMENT_VERSION } : undefined, timestamp: '방금 전', isMyUpload: true, commentsAllowed: true, comments: [], categoryIcon: selectedTheme.icon });
@@ -384,6 +389,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
     } catch {
       setError(locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.');
     } finally {
+      publishingRef.current = false;
       setIsPublishing(false);
     }
   }
@@ -410,10 +416,13 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
         : <p role="status" className="rounded-md border border-[#d7e7de] bg-[#f3f8f5] px-3 py-2 text-[11px] leading-relaxed text-[#426653]">{locale === 'en' ? 'Your rights confirmation for this notice version is saved.' : '이 버전의 사진·영상 권리 확인이 저장되어 있습니다.'}</p>}
       <div><p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-300">{selectedTheme.evaluationType === 'NUMERIC_AGE' ? '6.' : '4.'} {locale === 'en' ? 'Posting ID' : '게시 아이디'}</p><div className="flex items-center gap-2 rounded-xl border border-surface-container-high bg-surface-container px-3 py-2 text-xs text-white sm:text-sm"><span className="material-symbols-outlined text-[16px] text-cyan-glow">person</span><span className="font-semibold">@{publicHandle}</span><button type="button" onClick={onOpenProfile} className="ml-auto shrink-0 text-[10px] font-semibold text-cyan-glow underline underline-offset-2 hover:text-white">{locale === 'en' ? 'Change in Profile' : '프로필에서 변경'}</button></div></div>
       {error && <p role="alert" aria-live="assertive" className="text-xs text-[#9b5c55]">{error}</p>}
+      {error && media.length > 0 && <p data-no-translate className="text-[11px] leading-relaxed text-[#5b5e63]">{locale === 'en' ? 'Your selected files and question are still here. You can edit them or try Upload to feed again.' : '선택한 파일과 질문은 그대로 있어요. 내용을 수정하거나 피드에 업로드하기를 다시 눌러 주세요.'}</p>}
+      <button data-no-translate type="button" disabled={!media.length || isPublishing} onClick={() => setPreviewOpen(true)} className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#c5a059]/60 bg-white px-3 py-2 text-sm font-bold text-[#735c00] disabled:opacity-50"><span className="material-symbols-outlined text-base" aria-hidden="true">visibility</span>{locale === 'en' ? 'Preview before posting' : '등록 전 미리보기'}</button>
       <button type="submit" disabled={isPublishing || (rightsConsentRequired && !rightsConfirmed)} aria-describedby={rightsConsentRequired && !rightsConfirmed ? 'rights-consent-hint' : undefined} className="ui-primary-action mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#0e1c2d] bg-primary-container py-2 font-body text-sm font-bold text-white shadow-[0_4px_20px_rgba(0,0,0,.08)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-65"><span className="material-symbols-outlined text-base">{isPublishing ? 'progress_activity' : 'arrow_upward'}</span>{isPublishing ? (locale === 'en' ? 'Saving your post...' : '사진을 저장하고 있어요...') : (locale === 'en' ? 'Upload to feed' : '피드에 업로드하기')}</button>
       <p className="text-center text-[10px] text-slate-500">선택한 사진은 안전하게 저장된 뒤 공개 피드에 등록됩니다.</p>
       </>}
     </form>
+    {previewOpen && isActive && media.length > 0 && <UploadPostPreview locale={locale} media={media} publicHandle={publicHandle} theme={selectedTheme} visibility={visibility} question={question.trim() || (selectedTheme.evaluationType === 'NUMERIC_AGE' ? '사람들은 저를 몇 살로 볼까요?' : '호감과 신뢰감을 평가해 주세요.')} ageMin={ageMin} ageMax={ageMax} onClose={() => setPreviewOpen(false)} />}
   </section>;
 }
 
