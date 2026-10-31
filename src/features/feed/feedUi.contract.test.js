@@ -86,7 +86,8 @@ test('mobile header hides during portrait scrolling while navigation stays fixed
   assert.match(styles, /\.editorial-main \{\s*inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 0 0;\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/);
   assert.match(styles, /\.editorial-app--header-hidden > header \{ transform: translateY\(-110%\); \}/);
   assert.doesNotMatch(styles, /\.editorial-app--header-hidden > nav/);
-  assert.match(styles, /\.editorial-app--header-hidden > \.editorial-main--feed \{ inset: 0 !important; \}/);
+  assert.doesNotMatch(styles, /\.editorial-app--header-hidden[^{}]*>[^{}]*\.editorial-main[^{}]*\{/);
+  assert.doesNotMatch(styles, /transition:\s*inset/);
   assert.doesNotMatch(styles, /\.editorial-app--header-hidden > \.editorial-main \{ inset: 0 !important; \}/);
   assert.match(styles, /\.editorial-app::before,[\s\S]*?backdrop-filter: blur\(5px\)/);
   assert.match(styles, /\.media-card-photo-nav__button--left \{ left: 16px; \}[\s\S]*?\.media-card-photo-nav__button--right \{ right: 16px; \}/);

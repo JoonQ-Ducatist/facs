@@ -611,17 +611,14 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .editorial-main {
     inset: calc(44px + env(safe-area-inset-top)) 0 0 0;
     padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
-    transition: inset .2s ease;
   }
   .editorial-main--scroll {
     padding-bottom: calc(76px + env(safe-area-inset-bottom) + var(--upload-keyboard-inset, 0px)) !important;
   }
   .editorial-app--header-hidden > header { transform: translateY(-110%); }
-  /* Feed may expand behind the hidden header because each card owns its own
-     bottom action clearance. Form and library screens keep a stable scrollport:
-     resizing it while the header is hidden can leave the final row underneath
-     the fixed navigation when the header returns. */
-  .editorial-app--header-hidden > .editorial-main--feed { inset: 0 !important; }
+  /* Animate only the header's transform. The feed scrollport must keep its
+     origin and height while the header hides/returns, otherwise iOS scroll
+     anchoring can retrigger the scroll handler and bounce every idle cycle. */
   .editorial-app::before,
   .editorial-app::after {
     position: fixed;
