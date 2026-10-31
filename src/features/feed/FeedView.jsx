@@ -8,6 +8,7 @@ import { bindCommentViewport } from './commentViewport.js';
 import MothMark from '../../components/brand/MothMark.jsx';
 import { formatPublishedTime } from '../../services/publishedTime.js';
 import ResultCard from './ResultCard.jsx';
+import ParticipationFeedback from './ParticipationFeedback.jsx';
 import RatingParticipation, { useRatingParticipation } from './RatingParticipation.jsx';
 import { DEMO_POST_IDS, participationCount } from './ratingParticipation.js';
 import ShareResultCard from './ShareResultCard.jsx';
@@ -100,8 +101,9 @@ export default function FeedView({ locale = 'ko', categories, cards, activeCateg
       {Object.entries(categories).map(([id, category]) => <CategoryButton key={id} label={category.label} active={activeCategory === id} color={category.color} onClick={() => onCategoryChange(id)} />)}
     </div>
     {ratingEligible && <RatingParticipation locale={locale} participation={participation} />}
-    {publishedConfirmation ? <FeedUploadNudge locale={locale} kind="published" onAction={onDismissPublishedConfirmation} /> : draftReminder ? <FeedUploadNudge locale={locale} kind="draft" onAction={onStartUpload} /> : showParticipationPrompt ? <FeedUploadNudge locale={locale} kind="prompt" onAction={onStartUpload} /> : null}
+    {publishedConfirmation ? <FeedUploadNudge locale={locale} kind="published" onAction={onDismissPublishedConfirmation} onShare={publishedConfirmation.card?.visibility === 'public' ? () => onShare?.(publishedConfirmation.card) : undefined} /> : draftReminder ? <FeedUploadNudge locale={locale} kind="draft" onAction={onStartUpload} /> : showParticipationPrompt ? <FeedUploadNudge locale={locale} kind="prompt" onAction={onStartUpload} /> : null}
 
+    {ratingEligible && <div className="mx-4 mb-1.5 shrink-0 text-right"><ParticipationFeedback locale={locale} className="min-h-8 text-[10px] text-[#66686d] underline underline-offset-2" /></div>}
     {cards.length ? <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
       <div className="media-carousel media-carousel--scroll relative w-full">
         {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={boostedPostIds?.has(item.id) || item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={participation.vote} onNext={(card, skip) => participation.next(card, skip)} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
@@ -138,16 +140,16 @@ const DAILY_UPLOAD_PROMPTS = [
 ];
 
 /** A compact, non-blocking prompt that never replaces or restricts the feed. */
-function FeedUploadNudge({ locale, kind, onAction }) {
+function FeedUploadNudge({ locale, kind, onAction, onShare }) {
   const korean = locale !== 'en';
   const prompt = DAILY_UPLOAD_PROMPTS[Math.floor(Date.now() / 86_400_000) % DAILY_UPLOAD_PROMPTS.length];
   const content = kind === 'published'
-    ? { icon: 'check_circle', title: korean ? '게시 완료' : 'Post published', body: korean ? '피드 맨 앞에 공개됐어요. 평가는 프로필에서도 확인할 수 있어요.' : 'It is now first in the feed. You can also follow results from your profile.', action: korean ? '확인' : 'Got it' }
+    ? { icon: 'check_circle', title: korean ? '게시 완료' : 'Post published', body: korean ? '선택한 공개 범위로 등록됐어요. 평가는 프로필에서도 확인할 수 있어요.' : 'Your post uses the visibility you selected. You can follow results from your profile.', action: korean ? '확인' : 'Got it' }
     : kind === 'draft'
       ? { icon: 'edit_note', title: korean ? '작성 중인 게시물이 있어요' : 'You have an unfinished post', body: korean ? '선택한 사진과 작성 내용은 이번 방문 동안 그대로 유지돼요.' : 'Your selected media and details stay here for this visit.', action: korean ? '계속 작성' : 'Continue' }
       : { icon: 'add_a_photo', title: korean ? '오늘의 한 장' : 'One photo for today', body: korean ? prompt.ko : prompt.en, action: korean ? '평가받기' : 'Get feedback' };
   const action = kind === 'prompt' ? () => onAction?.({ category: prompt.category, question: korean ? prompt.ko : prompt.en }) : onAction;
-  return <aside className="mx-4 mb-1.5 flex shrink-0 items-center gap-2 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[#1b1c19] shadow-sm" aria-label={content.title}><span className="material-symbols-outlined text-[19px] text-[#d94c70]" aria-hidden="true">{content.icon}</span><div className="min-w-0 flex-1"><strong className="block text-[11px]">{content.title}</strong><p className="truncate text-[10px] text-[#66686d]">{content.body}</p></div><button type="button" onClick={action} className="shrink-0 rounded-full border border-[#d94c70]/60 px-2.5 py-1 text-[10px] font-bold text-[#a22d50]">{content.action}</button></aside>;
+  return <aside className="mx-4 mb-1.5 flex shrink-0 items-center gap-2 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[#1b1c19] shadow-sm" aria-label={content.title}><span className="material-symbols-outlined text-[19px] text-[#d94c70]" aria-hidden="true">{content.icon}</span><div className="min-w-0 flex-1"><strong className="block text-[11px]">{content.title}</strong><p className="truncate text-[10px] text-[#66686d]">{content.body}</p></div><div data-no-translate className="flex shrink-0 flex-col items-end gap-1">{onShare && <button type="button" onClick={onShare} className="min-h-8 rounded-full border border-[#735c00]/50 px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{korean ? '친구에게 의견 요청' : 'Ask friends for feedback'}</button>}<button type="button" onClick={action} className="min-h-8 shrink-0 rounded-full border border-[#d94c70]/60 px-2.5 py-1 text-[10px] font-bold text-[#a22d50]">{content.action}</button></div></aside>;
 }
 
 function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onNext, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {

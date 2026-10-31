@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { categories, initialCards } from './data/cards.js';
 import FeedView from './features/feed/FeedView.jsx';
+import MyRatingNotifications from './features/feed/MyRatingNotifications.jsx';
 import { isRatingMember } from './features/feed/ratingParticipation.js';
 import UploadView from './features/upload/UploadView.jsx';
 import RankingView from './features/ranking/RankingView.jsx';
@@ -156,6 +157,7 @@ export default function App() {
   const [cards, setCards] = useState(initialCards);
   const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
+  const [profileLibraryError, setProfileLibraryError] = useState(false);
   const [scrapCards, setScrapCards] = useState(null);
   const [feedHydrated, setFeedHydrated] = useState(() => !supabase);
   const [feedLoadError, setFeedLoadError] = useState(false);
@@ -171,6 +173,7 @@ export default function App() {
   const [boostedPostIds, setBoostedPostIds] = useState(() => new Set());
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const refreshMyRatings = useCallback(() => setProfileRefreshKey(value => value + 1), []);
   const [handleProfileRefreshKey, setHandleProfileRefreshKey] = useState(0);
   const [liveReactions, setLiveReactions] = useState([]);
   const [visibleFeedPostIds, setVisibleFeedPostIds] = useState(() => new Set());
@@ -457,6 +460,7 @@ export default function App() {
   /** Clears private libraries only when the signed-in account changes. */
   useEffect(() => {
     setProfileCards(null);
+    setProfileLibraryError(false);
     setScrapCards(null);
     pendingPublishedCard.current = null;
     setFeaturedPostId(null);
@@ -468,6 +472,7 @@ export default function App() {
     if (!authUser) return undefined;
     Promise.all([listSupabaseMyPublishedProfileCards(), listSupabaseMyScrapFeedCards()]).then(([profileResult, scrapResult]) => {
       if (!active) return;
+      setProfileLibraryError(Boolean(profileResult.error));
       if (!profileResult.error) {
         const hydratedProfileCards = profileResult.data ?? [];
         const justPublished = pendingPublishedCard.current;
@@ -922,7 +927,7 @@ export default function App() {
       mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { postId: publishedCard.id, category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
-    setPublishedConfirmation({ id: publishedCard.id });
+    setPublishedConfirmation({ id: publishedCard.id, card: publishedCard });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
     return { ok: true, data: publishedCard };
   }
@@ -1472,7 +1477,7 @@ export default function App() {
             <span aria-hidden="true">{locale === 'ko' ? 'EN' : '한국어'}</span>
             <span className="sr-only">{locale === 'ko' ? 'English' : '한국어'}</span>
           </button>
-          <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-container" onClick={() => setToast('새 알림은 없습니다.')} aria-label="알림"><span className="material-symbols-outlined text-[22px] text-on-surface-variant">notifications</span><span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-[#c5a059] ring-2 ring-background" /></button>
+          <MyRatingNotifications locale={locale} memberId={authUser?.id} cards={profileCards} error={profileLibraryError} onRefresh={refreshMyRatings} onOpenCard={openScrapCard} />
           <button type="button" onClick={() => setActiveTab('profile')} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필">{profile?.avatar_path ? <img className="h-full w-full rounded-full object-cover" src={getProfileAvatarUrl(profile.avatar_path)} alt="내 프로필" /> : <span className="material-symbols-outlined text-[22px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}</button>
         </div>
       </div>

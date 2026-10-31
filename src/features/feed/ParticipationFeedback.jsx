@@ -1,0 +1,10 @@
+import { useState } from 'react';
+import { Dialog, DialogClose, DialogContent } from '../../components/ui/Dialog.jsx';
+import { trackEvent } from '../../services/analytics.js';
+import { FEEDBACK_OPTIONS, FEEDBACK_SESSION_KEY, sendParticipationFeedback } from './participationFeedback.js';
+
+export default function ParticipationFeedback({locale='en',className=''}) {
+ const en=locale==='en';const[open,setOpen]=useState(false);const[done,setDone]=useState(()=>{try{return Boolean(sessionStorage.getItem(FEEDBACK_SESSION_KEY));}catch{return false;}});
+ if(done)return <span data-no-translate className={className}>{en?'Thanks for your feedback.':'의견을 남겨주셔서 고마워요.'}</span>;
+ return <><button data-no-translate type="button" className={className} onClick={()=>setOpen(true)}>{en?'What is holding you back?':'참여를 망설이는 이유가 있나요?'}</button><Dialog open={open} onOpenChange={setOpen}><DialogContent title={en?'Help us make participation easier':'더 편하게 참여할 수 있도록 알려 주세요'} aria-describedby="participation-feedback-description"><section data-no-translate className="max-h-[85dvh] w-full max-w-sm overflow-y-auto rounded-xl border border-[#e4e2dd] bg-[#fbf9f4] p-4 text-[#1b1c19] shadow-xl"><h2 className="text-base font-bold">{en?'What is holding you back?':'참여를 망설이는 이유가 있나요?'}</h2><p id="participation-feedback-description" className="mt-2 text-xs leading-relaxed text-[#66686d]">{en?'Optional: choose one reason. We measure only the selected category, without your name, photo or written response.':'선택 사항이에요. 이유 하나만 골라 주세요. 이름·사진·주관식 답변 없이 선택한 항목만 집계합니다.'}</p><div className="mt-3 flex flex-col gap-2">{FEEDBACK_OPTIONS.map(option=><button type="button" key={option.id} className="min-h-10 rounded-lg border border-[#d7d1c5] bg-white px-3 py-2 text-left text-xs" onClick={()=>{sendParticipationFeedback(option.id,{emit:trackEvent});setDone(true);setOpen(false);}}>{en?option.en:option.ko}</button>)}</div><DialogClose asChild><button type="button" className="mt-3 min-h-9 w-full text-xs text-[#66686d] underline">{en?'Close without answering':'응답하지 않고 닫기'}</button></DialogClose></section></DialogContent></Dialog></>;
+}

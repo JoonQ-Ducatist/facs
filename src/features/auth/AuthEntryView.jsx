@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import MothMark from '../../components/brand/MothMark.jsx';
+import ParticipationFeedback from '../feed/ParticipationFeedback.jsx';
 import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
@@ -169,6 +170,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
             <a href="/?policy=terms" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('terms'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Terms' : '이용약관'}</a>
             <a href="/?policy=privacy" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('privacy'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Privacy' : '개인정보 처리방침'}</a>
             <a href="/?policy=safety" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('safety'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Safety & reports' : '안전·신고'}</a>
+            <ParticipationFeedback locale={locale} className="min-h-8 text-[10px] text-white/70 underline underline-offset-2" />
             <a href="/?policy=about" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('about'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'About Us' : '서비스 안내'}</a>
           </div>
         </section>

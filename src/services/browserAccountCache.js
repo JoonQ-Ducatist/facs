@@ -7,6 +7,7 @@ export function clearSignedOutMemberCaches(memberId, browser = globalThis.window
     const exactKeys = [
       `facs_voted_posts_${memberId}`,
       `facs_rating_days_v1:${memberId}`,
+      `facs_rating_notices_v1:${memberId}`,
       `facs_local_follow_targets:${memberId}`,
       `facs_blocked_members:${memberId}`,
       'facs_local_scrap_post_ids',
