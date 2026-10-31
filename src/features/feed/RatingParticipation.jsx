@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../services/analytics.js';
+import { scrollFeedCardIntoView } from './feedCardScroll.js';
 import { confirmedRating, dayKey, demoStarter, nextUnrated, readRatingState, retainedDays, weekParticipation, writeRatingState } from './ratingParticipation.js';
 
 export function useRatingParticipation({ cards, votedIds, userId, eligible, onVote, hasMore }) {
@@ -33,7 +34,7 @@ export function useRatingParticipation({ cards, votedIds, userId, eligible, onVo
   function moveTo(card) {
     if(!card)return;
     const element=document.querySelector(`article[data-post-id="${card.id}"]`);
-    element?.scrollIntoView({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+    scrollFeedCardIntoView(element);
   }
   function next(card,skip=false) {
     const current=stateRef.current;
