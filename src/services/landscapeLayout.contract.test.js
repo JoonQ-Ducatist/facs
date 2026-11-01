@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serviceRoot = fileURLToPath(new URL('.', import.meta.url));
-const landscapeQuery = '@media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px)';
+const landscapeQuery = '@media (orientation: landscape) and (max-width: 1023px)';
 const portraitMatrix = [
   [390, 844],
   [360, 800],

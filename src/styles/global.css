@@ -326,11 +326,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .feed-result__next { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 }
 
-/* 정의: 태블릿에서는 스마트폰에 맞춘 카드 크기를 유지하되, 화면 중앙에서 안정적으로 보여 준다. */
-@media (min-width: 600px) and (max-width: 1023px) {
-  .app-stage { padding: 0; }
-  .app-canvas { width: min(100%, 430px); box-shadow: 0 0 36px rgba(14,28,45,.12); }
-}
+/* Tablets share the full-width mobile canvas; only desktop content columns are constrained. */
 
 /* 정의: 데스크톱 스플래시는 모바일과 같은 집중형 캔버스를 유지해 배경 사진 확대를 막는다. */
 .app-stage:has(.auth-entry-screen), .app-stage:has(.brand-splash) { background: #051424; }
@@ -340,13 +336,13 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
    dark entry background continuous when mobile browser chrome changes size. */
 .auth-entry-screen { min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 .auth-entry-screen__content { min-height: 100%; }
-@media (min-width: 600px) {
+@media (min-width: 1024px) and (hover: hover) {
   .auth-entry-screen, .brand-splash { width: min(430px, 100%); margin: 0 auto; box-shadow: 0 0 42px rgba(0,0,0,.3); }
 }
 
-@media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
-  /* Override the 600px+ centered 430px canvas rule: landscape phones need a
-     full-width dark surface so the image continues behind the auth controls. */
+@media (orientation: landscape) and (max-width: 1023px) {
+  /* Narrow landscape devices keep a full-width dark auth surface and
+     enough scrollable space for the sign-in controls. */
   .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
   .auth-entry-screen__content { min-height: 460px; }
   .auth-entry-screen__content { padding-bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom))); }
@@ -438,7 +434,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
    메뉴가 본문 폭을 다시 계산하면 카드 비율과 제어가 깨지므로, 메뉴 열은 216px로
    고정하고 피드는 원래 430px 폭을 유지한다. Instagram처럼 카드 전체는 피드의
    세로 스크롤로 보며, 메뉴 선택은 PC와 동일한 좌측 메뉴에서 수행한다. */
-@media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
+@media (orientation: landscape) and (max-width: 1023px) {
   .app-stage { padding: 0; }
   .app-canvas { width: 100%; max-width: none; box-shadow: none; }
   .editorial-app { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
@@ -520,7 +516,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .editorial-main--feed .media-carousel--scroll > .feed-post-card { height: min(760px, calc(100dvh - 76px)); min-height: 540px; }
 }
 
-@media (orientation: landscape) and (max-height: 599px) and (max-width: 1023px) {
+@media (orientation: landscape) and (max-width: 1023px) {
   .editorial-main--feed { overflow-y: auto !important; }
   .editorial-main--feed .media-carousel--scroll > .feed-post-card { height: min(520px, calc(100dvh - 34px)); min-height: 380px; }
 }
