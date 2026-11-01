@@ -1,3 +1,4 @@
+import FeedViewMenu from './features/feed/FeedViewMenu.jsx';
 import { isFeedPostAvailable } from './features/growth/availability.js';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { categories, initialCards } from './data/cards.js';
@@ -242,6 +243,13 @@ export default function App() {
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
   const visibleCards = useMemo(() => displayCards.filter(card => isFeedPostAvailable(card) && (activeCategory === 'ALL' || card.category === activeCategory) && (feedMode !== 'waiting' || (card.visibility === 'public' && card.authorId !== authUser?.id))), [activeCategory, displayCards,feedMode,authUser?.id]);
+  function selectFeedView(mode) {
+    setFeedMode(mode);
+    setFeaturedPostId(null);
+    setCurrentIndex(0);
+    setActiveTab('feed');
+  }
+
   const safeIndex = resolveFeedCardIndex(visibleCards, currentIndex, activeCategory, featuredPostId);
   const currentCard = visibleCards[safeIndex];
   const isCurrentUserPost = Boolean(currentCard && (currentCard.authorId === authUser?.id || (currentCard.isMyUpload && !currentCard.authorId)));
@@ -1520,7 +1528,7 @@ export default function App() {
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
       {wideNavigation && <MyRatingNotifications locale={locale} memberId={authUser?.id} cards={profileCards} error={profileLibraryError} onRefresh={refreshMyRatings} onOpenCard={openScrapCard} showLabel />}
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
-      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`relative flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span>{id === 'upload' && hasUploadDraft && <span className="absolute right-4 top-1 h-2 w-2 rounded-full bg-[#E65B7A] ring-2 ring-white" aria-hidden="true" />}<span className="mobile-nav-label">{labels[locale]}</span></button>)}</div>
+      <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => { const button = <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`relative flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span>{id === 'upload' && hasUploadDraft && <span className="absolute right-4 top-1 h-2 w-2 rounded-full bg-[#E65B7A] ring-2 ring-white" aria-hidden="true" />}<span className="mobile-nav-label">{labels[locale]}</span></button>; return id === 'feed' ? <div key={id} className="feed-nav-entry">{button}<FeedViewMenu locale={locale} mode={feedMode} wide={wideNavigation} onSelect={selectFeedView} /></div> : button; })}</div>
       <div className="desktop-policy-links" aria-label={locale === 'ko' ? '정책 안내' : 'Policy information'}>
         <button type="button" onClick={() => setPolicyOpen('safety')}>{locale === 'ko' ? '안전·신고' : 'Safety'}</button>
         <button type="button" onClick={() => setPolicyOpen('privacy')}>{locale === 'ko' ? '개인정보' : 'Privacy'}</button>
