@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { categories, initialCards } from './data/cards.js';
 import FeedView from './features/feed/FeedView.jsx';
 import MyRatingNotifications from './features/feed/MyRatingNotifications.jsx';
+import { disablePush } from './services/growthApi.js';
+import { useWideNavigation } from './services/navigationLayout.js';
 import { isRatingMember } from './features/feed/ratingParticipation.js';
 import UploadView from './features/upload/UploadView.jsx';
 import RankingView from './features/ranking/RankingView.jsx';
@@ -129,6 +131,7 @@ function CanvasStage({ children, screenKey }) {
 
 /** 정의: 인증 진입, 탭 상태, 피드 목업 데이터와 사용자 상호작용을 조합하는 루트 화면 컴포넌트다. */
 export default function App() {
+  const wideNavigation = useWideNavigation();
   const [locale, setLocale] = useState(() => resolveLocale());
   const [policyOpen, setPolicyOpen] = useState(() => {
     const policy = new URLSearchParams(window.location.search).get('policy');
@@ -163,6 +166,7 @@ export default function App() {
   const [feedLoadError, setFeedLoadError] = useState(false);
   const [hasMoreFeed, setHasMoreFeed] = useState(false);
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const [feedMode,setFeedMode] = useState('all');
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(initialCards.findIndex((card) => card.id === sharedPostId), 0));
   const [featuredPostId, setFeaturedPostId] = useState(null);
   const [votedIds, setVotedIds] = useState(() => new Set());
@@ -236,7 +240,7 @@ export default function App() {
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
-  const visibleCards = useMemo(() => activeCategory === 'ALL' ? displayCards : displayCards.filter((card) => card.category === activeCategory), [activeCategory, displayCards]);
+  const visibleCards = useMemo(() => displayCards.filter(card => (activeCategory === 'ALL' || card.category === activeCategory) && (feedMode !== 'waiting' || (card.visibility === 'public' && card.authorId !== authUser?.id))), [activeCategory, displayCards,feedMode,authUser?.id]);
   const safeIndex = resolveFeedCardIndex(visibleCards, currentIndex, activeCategory, featuredPostId);
   const currentCard = visibleCards[safeIndex];
   const isCurrentUserPost = Boolean(currentCard && (currentCard.authorId === authUser?.id || (currentCard.isMyUpload && !currentCard.authorId)));
@@ -298,7 +302,7 @@ export default function App() {
       // once, without adding an account identifier to analytics.
       if (!signupAnalyticsTracked.current) {
         signupAnalyticsTracked.current = true;
-        trackEvent(ANALYTICS_EVENT.SIGNUP_COMPLETED);
+        trackEvent(ANALYTICS_EVENT.AUTHENTICATED_ENTRY);
       }
 
       // A direct OTP verification does not carry a callback URL. Treat the
@@ -524,7 +528,7 @@ export default function App() {
   useEffect(() => {
     let active = true;
     const requestedCategory = activeCategory === 'ALL' ? null : activeCategory;
-    const pageState = { cursor: null, hasMore: false, loading: false, userId: authUser?.id ?? null, category: requestedCategory };
+    const pageState = { cursor: null, hasMore: false, loading: false, userId: authUser?.id ?? null, category: requestedCategory, mode: feedMode };
     feedPage.current = pageState;
     setHasMoreFeed(false);
     if (!authUser) { setFeedHydrated(true); return undefined; }
@@ -532,7 +536,7 @@ export default function App() {
     setFeedLoadError(false);
     async function hydrateFeed() {
       try {
-        const result = await listSupabasePublishedFeedCards({ category: requestedCategory, limit: 10, cursor: null });
+        const result = await listSupabasePublishedFeedCards({ category: requestedCategory, limit: 10, cursor: null, mode: feedMode });
         if (!active) return;
         if (result.error) {
           setFeedLoadError(true);
@@ -547,7 +551,7 @@ export default function App() {
           const justPublished = pendingPublishedCard.current
             ?? existing.find((card) => card.id === featuredPostId)
             ?? null;
-          const belongsInPage = justPublished && (!requestedCategory || justPublished.category === requestedCategory);
+          const belongsInPage = feedMode !== 'waiting' && justPublished && (!requestedCategory || justPublished.category === requestedCategory);
           const localOnly = existing.filter((card) => !isSupabasePost(card) && card.id !== justPublished?.id);
           const serverPublished = hydratedServerCards.find((card) => card.id === justPublished?.id);
           const featured = belongsInPage
@@ -564,14 +568,14 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, feedRefreshKey, activeCategory, featuredPostId]);
+  }, [authUser?.id, feedRefreshKey, activeCategory, featuredPostId,feedMode]);
 
   async function loadMoreFeed() {
     const pageState = feedPage.current;
     if (!authUser || pageState.userId !== authUser.id || !pageState.hasMore || pageState.loading) return false;
     pageState.loading = true;
     try {
-      const result = await listSupabasePublishedFeedCards({ category: pageState.category, limit: 10, cursor: pageState.cursor });
+      const result = await listSupabasePublishedFeedCards({ category: pageState.category, limit: 10, cursor: pageState.cursor, mode:pageState.mode });
       if (feedPage.current !== pageState || result.error) return false;
       const nextCards = (result.data ?? []).map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
       if (nextCards.length) {
@@ -724,7 +728,7 @@ export default function App() {
   /** 정의: 모바일은 시스템 공유 시트, 그 외 환경은 링크 복사를 우선해 설치된 SNS·메신저와 미래 앱 딥링크를 함께 지원한다. */
   async function shareCard(card) {
     trackEvent(ANALYTICS_EVENT.SHARE_REQUESTED, { category: card.category, evaluationType: card.evaluationType, locale });
-    const url = buildShareUrl(card.id, locale);
+    const url = buildShareUrl(card.id, locale,window.location.href,card.visibility === 'public' && card.allowSharePreview === true);
     const shareData = locale === 'en'
       ? { title: 'FACt.Smack Feedback', text: `Share your feedback on @${card.author}.`, url }
       : { title: 'FACt.Smack 평가', text: `@${card.author}의 평가에 참여해 보세요.`, url };
@@ -887,6 +891,8 @@ export default function App() {
       ageMax: card.ageMax ?? null,
       media: card.media,
       rightsConsent: card.rightsConsent,
+      comparisonMode: card.comparisonMode ?? null,
+      allowSharePreview: card.visibility === 'public' && card.allowSharePreview === true,
     });
     if (result.error) {
       const message = locale === 'en' ? 'Your photo could not be uploaded. Please try again.' : '사진을 업로드하지 못했어요. 다시 시도해 주세요.';
@@ -927,6 +933,7 @@ export default function App() {
       mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     });
     trackEvent(ANALYTICS_EVENT.UPLOAD_COMPLETED, { postId: publishedCard.id, category: publishedCard.category, evaluationType: publishedCard.evaluationType, locale });
+    setFeedMode('all');
     setPublishedConfirmation({ id: publishedCard.id, card: publishedCard });
     setToast(locale === 'en' ? 'Your new post is now first in the feed.' : '새 사진이 피드 맨 앞에 등록되었습니다.');
     return { ok: true, data: publishedCard };
@@ -1040,6 +1047,7 @@ export default function App() {
       setIsGuest(true);
       return;
     }
+    try { await disablePush(); } catch { /* Never block sign-out on an unavailable push provider. */ }
     const result = await signOutCurrentSession();
     if (!result.ok) {
       setToast(locale === 'en' ? 'We could not sign you out. Please try again.' : '로그아웃하지 못했어요. 다시 시도해 주세요.');
@@ -1052,6 +1060,7 @@ export default function App() {
     setVotedIds(new Set());
     setIsSharedGuest(false);
     setActiveCategory('ALL');
+    setFeedMode('all');
     setCurrentIndex(0);
     setActiveTab('feed');
     setIsGuest(true);
@@ -1093,7 +1102,7 @@ export default function App() {
     setActiveTab('feed');
     if (!signupAnalyticsTracked.current) {
       signupAnalyticsTracked.current = true;
-      trackEvent(ANALYTICS_EVENT.SIGNUP_COMPLETED);
+      trackEvent(ANALYTICS_EVENT.AUTHENTICATED_ENTRY);
     }
     return { ok: true };
   }
@@ -1452,7 +1461,7 @@ export default function App() {
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
-  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileHeaderVisible ? '' : ' editorial-app--header-hidden'}`}>
+  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}:${feedMode}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileHeaderVisible ? '' : ' editorial-app--header-hidden'}`}>
     <SkipLink />
     <PwaInstallSheet locale={locale} enabled={!policyOpen && ['feed', 'ranking', 'profile'].includes(activeTab) && previewState === 'ready'} />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
@@ -1477,7 +1486,7 @@ export default function App() {
             <span aria-hidden="true">{locale === 'ko' ? 'EN' : '한국어'}</span>
             <span className="sr-only">{locale === 'ko' ? 'English' : '한국어'}</span>
           </button>
-          <MyRatingNotifications locale={locale} memberId={authUser?.id} cards={profileCards} error={profileLibraryError} onRefresh={refreshMyRatings} onOpenCard={openScrapCard} />
+          {!wideNavigation && <MyRatingNotifications locale={locale} memberId={authUser?.id} cards={profileCards} error={profileLibraryError} onRefresh={refreshMyRatings} onOpenCard={openScrapCard} />}
           <button type="button" onClick={() => setActiveTab('profile')} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#c5a059]/60 p-0.5" aria-label="프로필">{profile?.avatar_path ? <img className="h-full w-full rounded-full object-cover" src={getProfileAvatarUrl(profile.avatar_path)} alt="내 프로필" /> : <span className="material-symbols-outlined text-[22px] text-[#8d8d87]" aria-hidden="true">account_circle</span>}</button>
         </div>
       </div>
@@ -1485,11 +1494,11 @@ export default function App() {
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
-        {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards} categories={displayCategories} onOpen={openRankingCard} />}
+        {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards.filter(card=>!card.comparisonMode)} categories={displayCategories} onOpen={openRankingCard} />}
         {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
         {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
         {activeTab === 'operations' && canViewOperations && <OperationsDashboard locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
@@ -1504,6 +1513,7 @@ export default function App() {
 
     <nav className="fixed bottom-0 z-50 w-full border-t border-[#e4e2dd] bg-[#fbf9f4]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.03)] backdrop-blur-xl" aria-label={locale === 'en' ? 'Primary navigation' : '주요 메뉴'}>
       <button type="button" onClick={() => setActiveTab('feed')} className="desktop-nav-brand" aria-label="FACt.Smack 피드로 이동"><MothMark width="30" height="24" className="h-6 w-[30px] object-contain brightness-[.45] contrast-200" alt="" /><BrandWordmark /></button>
+      {wideNavigation && <MyRatingNotifications locale={locale} memberId={authUser?.id} cards={profileCards} error={profileLibraryError} onRefresh={refreshMyRatings} onOpenCard={openScrapCard} showLabel />}
       <button type="button" className="desktop-nav-language" onClick={() => switchLocale(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}><span className="desktop-nav-language__mark" aria-hidden="true">{locale === 'ko' ? 'A' : '가'}</span><span>{locale === 'ko' ? 'English' : '한국어'}</span></button>
       <div className="desktop-nav-items mx-auto flex h-[44px] max-w-none items-center justify-around px-2">{tabs.map(([id, icon, labels, color]) => <button key={id} type="button" onClick={() => openTab(id)} onPointerUp={(event) => { if (event.pointerType === 'touch') { event.preventDefault(); openTab(id); } }} aria-label={labels[locale]} aria-current={activeTab === id ? 'page' : undefined} style={activeTab === id ? { color } : undefined} className={`relative flex h-[38px] w-16 flex-col items-center justify-center transition-all ${activeTab === id ? 'scale-[1.03]' : 'text-slate-400 hover:text-[#1b1c19]'}`}><span className="material-symbols-outlined text-[20px]">{icon}</span>{id === 'upload' && hasUploadDraft && <span className="absolute right-4 top-1 h-2 w-2 rounded-full bg-[#E65B7A] ring-2 ring-white" aria-hidden="true" />}<span className="mobile-nav-label">{labels[locale]}</span></button>)}</div>
       <div className="desktop-policy-links" aria-label={locale === 'ko' ? '정책 안내' : 'Policy information'}>

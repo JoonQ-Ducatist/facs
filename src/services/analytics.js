@@ -16,7 +16,8 @@ export const ANALYTICS_EVENT = {
   RATING_RETURNED: 'rating_returned',
   RATING_SESSION_COMPLETED: 'rating_session_completed',
   VISITOR_OPENED: 'visitor_opened',
-  SIGNUP_COMPLETED: 'signup_completed',
+  SIGNUP_COMPLETED: 'signup_completed', // Legacy server series: completed authenticated entry, not new accounts.
+  AUTHENTICATED_ENTRY: 'authenticated_entry',
   FIRST_VOTE: 'first_vote',
   VOTE_COMPLETED: 'vote_completed',
   UPLOAD_OPENED: 'upload_opened',
@@ -94,7 +95,7 @@ export function trackEvent(name, properties = {}) {
   trackGa4Event(name);
   // Analytics must never delay a vote, upload, or navigation. The adapter only
   // receives the optional server post UUID, never the local QA properties.
-  void recordAnalyticsEvent(name, { postId: properties.postId }).catch(() => {});
+  void recordAnalyticsEvent(name === ANALYTICS_EVENT.AUTHENTICATED_ENTRY ? ANALYTICS_EVENT.SIGNUP_COMPLETED : name, { postId: properties.postId }).catch(() => {});
 }
 
 /** 정의: 개발·QA에서 퍼널 순서만 점검할 수 있는 읽기 전용 스냅샷이다. */

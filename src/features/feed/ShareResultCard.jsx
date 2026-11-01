@@ -1,3 +1,4 @@
+import { binaryLabels } from '../growth/comparison.js';
 /** Compact, share-only result preview. It stays outside the feed result layout. */
 export default function ShareResultCard({ locale = 'ko', card, category, color, total = 0, yesPercent = 0, noPercent = 0, onClose, onShare }) {
   const korean = locale !== 'en';
@@ -24,7 +25,7 @@ export default function ShareResultCard({ locale = 'ko', card, category, color, 
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-white/70">@{card?.author ?? (korean ? '사용자' : 'member')}</p>
           <p className="mt-1 text-xs font-semibold text-white/85">{korean ? `유효 평가 ${total.toLocaleString()}명` : `Valid ratings ${total.toLocaleString()}`}</p>
-          {ageResult ? <p className="mt-2 text-lg font-bold" style={{ color }}>{hasAggregate ? `${Number(card.ageEstimate ?? 0).toFixed(1)}${korean ? '세' : ' years'}` : (korean ? '결과 수집 중' : 'Collecting results')}</p> : <div className="mt-2 flex items-center gap-2 text-xs font-bold"><span style={{ color }}>YES {yesPercent}%</span><span className="text-[#ffb1c4]">NO {noPercent}%</span></div>}
+          {ageResult ? <p className="mt-2 text-lg font-bold" style={{ color }}>{hasAggregate ? `${Number(card.ageEstimate ?? 0).toFixed(1)}${korean ? '세' : ' years'}` : (korean ? '결과 수집 중' : 'Collecting results')}</p> : <div className="mt-2 flex items-center gap-2 text-xs font-bold"><span style={{ color }}>{binaryLabels(card)[0]} {yesPercent}%</span><span className="text-[#ffb1c4]">{binaryLabels(card)[1]} {noPercent}%</span></div>}
         </div>
       </div>
       <div className="flex items-center justify-between gap-3 px-4 pb-4">

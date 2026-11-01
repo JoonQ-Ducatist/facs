@@ -1,6 +1,7 @@
 import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
+import { growthRequest } from './growthApi.js';
 
 // In-memory only, scoped to the exact unchanged selection, account and client.
 // Keep a completed upload's receipt when publication/URL responses fail so Retry cannot create a second public post.
@@ -297,6 +298,7 @@ export async function submitSupabaseVote({ postId, evaluationType, value, client
     perceived_age: isAge ? value : null,
   });
   if (error) return normalizeSupabaseError(error, '의견을 저장하지 못했어요.');
+  if(client===supabase)void growthRequest('notify-first-rating',{postId});
   const aggregate = await getSupabaseAggregate(postId, client);
   // The immutable vote is already stored at this point. A temporary aggregate
   // read failure must not make the UI offer a duplicate submission.
@@ -328,7 +330,7 @@ export async function createSupabaseDraft({ category, evaluationType, question, 
  * the post only after every object is present in Storage. The browser never
  * chooses an account-identifying storage path or writes a ready asset state.
  */
-export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media, rightsConsent, client = supabase }) {
+export async function createSupabasePublishedPost({ category, evaluationType, question, visibility = 'public', ageMin = null, ageMax = null, media, rightsConsent, comparisonMode = null, allowSharePreview = false, client = supabase }) {
   const identity = await requireUser(client);
   if (identity.error) return identity.error;
   const submitsCurrentRightsConsent = rightsConsent?.confirmed === true && rightsConsent.documentVersion === RIGHTS_CONSENT_DOCUMENT_VERSION;
@@ -336,7 +338,7 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
     return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 권리 보유 동의가 필요해요.');
   }
   if (!Array.isArray(media) || !media.length) return apiFailure(API_ERROR.VALIDATION_FAILED, '사진 또는 동영상을 선택해 주세요.');
-  const signature = JSON.stringify([identity.user.id, category, evaluationType, question, visibility, ageMin, ageMax]);
+  const signature = JSON.stringify([identity.user.id, category, evaluationType, question, visibility, ageMin, ageMax, comparisonMode, allowSharePreview]);
   let pending = pendingPublications.get(media);
   if (pending?.signature !== signature || pending?.client !== client) pending = null;
   if (!pending) {
@@ -346,7 +348,8 @@ export async function createSupabasePublishedPost({ category, evaluationType, qu
       byteSize: item.file?.size,
       durationMs: item.type === 'video' ? Math.round(item.duration * 1000) : null,
     }));
-    const { data: prepared, error: prepareError } = await client.rpc('create_post_upload_with_visibility', {
+    const { data: prepared, error: prepareError } = await client.rpc(comparisonMode || allowSharePreview ? 'create_post_upload_with_options' : 'create_post_upload_with_visibility', {
+      ...(comparisonMode || allowSharePreview ? {input_comparison_mode:comparisonMode,input_allow_share_preview:allowSharePreview} : {}),
       input_category: toDatabaseCategory(category),
       input_evaluation: evaluationType === 'NUMERIC_AGE' ? 'numeric_age' : 'binary',
       input_question: question,
@@ -444,17 +447,17 @@ export function fromDatabaseCategory(category) {
  * visible. Signed URLs stay short-lived and are recreated whenever the feed
  * is refreshed.
  */
-export async function listSupabasePublishedFeedCards({ category = null, limit = 10, cursor = null, client = supabase } = {}) {
+export async function listSupabasePublishedFeedCards({ category = null, limit = 10, cursor = null, mode = 'all', client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
   if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
   const pageSize = Math.min(Math.max(limit, 1), 20);
   const categoryFilter = category ? toDatabaseCategory(category) : null;
-  const { data: orderedPosts, error: orderError } = await client.rpc('get_personalized_feed_post_page', {
+  const { data: orderedPosts, error: orderError } = await client.rpc(mode === 'waiting' ? 'get_waiting_feed_post_page' : 'get_personalized_feed_post_page', {
     page_size: pageSize + 1,
     category_filter: categoryFilter,
     after_post_id: cursor,
   });
-  if (orderError?.code === 'PGRST202' || orderError?.code === '42883') {
+  if (mode !== 'waiting' && (orderError?.code === 'PGRST202' || orderError?.code === '42883')) {
     const legacyPage = await client.rpc('get_personalized_feed_post_ids', { page_size: 20, category_filter: categoryFilter });
     if (legacyPage.error) return feedReadFailure('feed-order');
     const result = await listSupabaseCardsInServerOrder(legacyPage.data, { client, source: 'supabase-legacy-feed' });
@@ -519,7 +522,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
   if (!postIds.length) return apiSuccess([], { source });
   const { data, error } = await client
     .from('posts')
-    .select('id,author_id,category,evaluation,question,comments_allowed,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle,avatar_path,bio),post_media(position,media_assets(id,storage_path,media_type))')
+    .select('id,author_id,category,evaluation,question,visibility,comparison_mode,allow_share_preview,comments_allowed,age_min,age_max,published_at,profiles!posts_author_id_fkey(handle,avatar_path,bio),post_media(position,media_assets(id,storage_path,media_type))')
     .eq('status', 'published')
     .in('id', postIds);
   if (error) return feedReadFailure('feed-posts');
@@ -560,6 +563,9 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       category: fromDatabaseCategory(post.category),
       evaluationType,
       question: post.question,
+      visibility: post.visibility,
+      comparisonMode: post.comparison_mode ?? null,
+      allowSharePreview: post.allow_share_preview === true,
       subtext: evaluationType === 'NUMERIC_AGE' ? '참여자의 주관적인 평가를 모으고 있어요.' : '실시간 평가를 수집 중입니다',
       imageUrl: media[0].url,
       mediaType: media[0].type,
