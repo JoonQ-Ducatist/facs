@@ -1,3 +1,4 @@
+import { isFeedPostAvailable } from './features/growth/availability.js';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { categories, initialCards } from './data/cards.js';
 import FeedView from './features/feed/FeedView.jsx';
@@ -240,7 +241,7 @@ export default function App() {
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
 
-  const visibleCards = useMemo(() => displayCards.filter(card => (activeCategory === 'ALL' || card.category === activeCategory) && (feedMode !== 'waiting' || (card.visibility === 'public' && card.authorId !== authUser?.id))), [activeCategory, displayCards,feedMode,authUser?.id]);
+  const visibleCards = useMemo(() => displayCards.filter(card => isFeedPostAvailable(card) && (activeCategory === 'ALL' || card.category === activeCategory) && (feedMode !== 'waiting' || (card.visibility === 'public' && card.authorId !== authUser?.id))), [activeCategory, displayCards,feedMode,authUser?.id]);
   const safeIndex = resolveFeedCardIndex(visibleCards, currentIndex, activeCategory, featuredPostId);
   const currentCard = visibleCards[safeIndex];
   const isCurrentUserPost = Boolean(currentCard && (currentCard.authorId === authUser?.id || (currentCard.isMyUpload && !currentCard.authorId)));
@@ -1263,6 +1264,10 @@ export default function App() {
   /** Returns a saved post to Feed so the profile can hand it to the feed preview layer. */
   function openScrapCard(card) {
     if (!card) return;
+    if (!isFeedPostAvailable(card)) {
+      setToast(locale === 'en' ? 'A/B comparisons are temporarily hidden from the feed.' : 'A/B 비교는 피드에서 잠시 숨겨져 있어요.');
+      return;
+    }
     setCards((items) => items.some((item) => item.id === card.id)
       ? items.map((item) => item.id === card.id ? { ...item, ...card } : item)
       : [card, ...items]);
