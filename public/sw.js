@@ -1,3 +1,4 @@
+importScripts('/push-message.js');
 /* Network-only PWA: never cache posts, media, authentication responses or app bundles. */
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || event.request.mode !== 'navigate' || new URL(event.request.url).origin !== self.location.origin) return;
@@ -6,10 +7,10 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push',event=>{
  let value;try{value=event.data?.json();}catch{return;}
- if(!value||typeof value.body!=='string')return;
- let url;try{url=new URL(value.url,self.location.origin);}catch{return;}
- if(url.origin!==self.location.origin||!['/','/ko/'].includes(url.pathname)||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(url.searchParams.get('post')||''))return;
- event.waitUntil(self.registration.showNotification('FACt.Smack',{body:value.body.slice(0,160),icon:'/icon-192.png',badge:'/icon-192.png',tag:String(value.tag||'rating').slice(0,80),data:{url:url.href}}));
+ const message=self.facsPushMessage(value);if(!message)return;
+ event.waitUntil(self.registration.showNotification('FACt.Smack',{body:message.body,icon:'/icon-192.png',badge:'/icon-192.png',tag:message.tag,data:{url:message.url}}).then(async()=>{
+  if(message.test){const windows=await clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows)client.postMessage({type:'facs-push-test-received'});}
+ }));
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();let url;try{url=new URL(event.notification.data?.url);if(url.origin!==self.location.origin)return;}catch{return;}url=url.href;

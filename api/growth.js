@@ -1,3 +1,4 @@
+import { sendOwnPushTest } from '../server/pushTest.js';
 import webpush from'web-push';
 import{body,clients,endpointHash,failure,identity,json,sameOrigin,UUID,validPushSubscription,HOME}from'../server/growthCore.js';
 import{gaOverview,youtubeComments,youtubeOverview}from'../server/growthIntegrations.js';
@@ -16,6 +17,7 @@ export async function POST(request){
  try{
   if(!sameOrigin(request))return json({ok:false,code:'FORBIDDEN'},403);
   const input=await body(request),ctx=await identity(request);if(!ctx.service)throw Error('UNAVAILABLE');
+  if(input.action==='test-push')return await sendOwnPushTest({ctx,endpoint:input.endpoint,locale:input.locale});
   if(input.action==='push-subscribe'){
    if(!validPushSubscription(input.subscription))throw Error('INPUT');
    const sub={endpoint:input.subscription.endpoint,keys:{p256dh:input.subscription.keys.p256dh,auth:input.subscription.keys.auth}};

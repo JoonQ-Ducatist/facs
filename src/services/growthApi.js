@@ -22,3 +22,10 @@ export async function disablePush(){
  const saved=await growthRequest('push-unsubscribe',{endpoint:subscription.endpoint});
  const browser=await subscription.unsubscribe();try{localStorage.removeItem('facs-push-member');}catch{}if(!saved.ok&&!browser)throw Error('UNAVAILABLE');
 }
+
+export async function sendDevicePushTest(locale) {
+ const registration=await navigator.serviceWorker.getRegistration();
+ const subscription=await registration?.pushManager.getSubscription();
+ if(!subscription)return {ok:false,code:'NO_SUBSCRIPTION'};
+ return growthRequest('test-push',{endpoint:subscription.endpoint,locale});
+}

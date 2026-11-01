@@ -1,0 +1,10 @@
+# Operator own-device notification diagnostic · 2026-11-01
+
+Prior main8f96eed was already READY/synced/clean. No old archived QA/experimental branch was merged or deployed. User requested any pending work deployed then next task; continued the outstanding actual push receipt verification.
+
+- Clearly labeled test notifications are separated from first-rating delivery. Admin-only API checks actual role through authenticated member client, selects only own member_id + current endpoint hash, uses existing budget table's unique(day,scope) for one test per administrator per KST calendar day. No new schema, credentials, post, vote, first-rating record or analytics event.
+- UI test button is only rendered for app admin and a locally enabled subscription. Push-service acceptance and service-worker receipt use different messages. Endpoint/key contents are never logged or displayed. Current device only; no broadcast or other-member delivery.
+- Service worker parser preserves existing valid first-rating destinations; a distinct test type accepts only same-origin / or /ko/ and exact ?notification_test=1. Test receipt message is posted only after showNotification resolves. This callback alone is not proof of OS-visible notification or iOS receipt.
+- Five focused automated tests passed in server/pushTest.test.js: unauthenticated/nonadmin denied; missing/other-account device denied; own test labeled and no fake activity; atomic duplicate budget; worker normal/test destination restrictions. JSX parse passed. Sixth selected case is actual current-browser opt-in/send/receipt, outcome recorded in task artifact. No full local build/suite, repetitive media QA or staged project resume.
+- Main-linked Vercel www.factsmack.com Production host rrcntobfmxlwbbjtlbge.supabase.co matched actual Dashboard project ref before release. One Git production deployment; no additional CLI deploy or Preview. No new deployment frequency restriction (user put that proposal on hold).
+- Gemini product-policy pass only: operator-only labeled own-device test does not fabricate member activity. No Gemini implementation/QA/Git review.
