@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { observeFeedImage, retainedImageSource } from './imageLoading.js';
+import { renewMediaUrl } from './renewMediaUrl.js';
 import { createPortal } from 'react-dom';
 import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus } from '../../services/mockApi.js';
@@ -281,7 +282,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
   return <article ref={articleRef} data-post-id={card.id} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
-    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(slide.type === 'video' || String(slide.type ?? '').startsWith('video/') ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
+    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia locale={locale} card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(slide.type === 'video' || String(slide.type ?? '').startsWith('video/') ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
     {!comparison && media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
     <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
@@ -374,12 +375,31 @@ function ReportDialog({ locale, author, onClose, onSubmit }) {
 /** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
 function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="rounded-full p-0"><span className="block rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'rgba(255,255,255,.52)' }} /></button>)}</div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
-function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
+function CardMedia({ locale = 'en', card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
+  const [recovered, setRecovered] = useState(null);
+  const [imageError, setImageError] = useState(null);
+  const [renewing, setRenewing] = useState(false);
+  const attemptedImage = useRef(null);
+  const currentImage = useRef(source.url);
+  currentImage.current = source.url;
+  const effectiveUrl = recovered?.original === source.url ? recovered.url : source.url;
   const requestedImage = useRef(null);
-  const imageSrc = retainedImageSource(requestedImage.current, source.url, loaded);
+  const imageSrc = retainedImageSource(requestedImage.current, effectiveUrl, loaded);
   useEffect(() => { if (!isVideo && imageSrc) requestedImage.current = imageSrc; }, [isVideo, imageSrc]);
+  useEffect(() => { setRecovered(null); setImageError(null); setRenewing(false); attemptedImage.current = null; }, [source.url]);
+  async function recoverImage(manual = false) {
+    const original = source.url;
+    setImageError(original);
+    if (renewing || (!manual && attemptedImage.current === original)) return;
+    attemptedImage.current = original;
+    setRenewing(true);
+    const url = await renewMediaUrl(source.storagePath);
+    if (currentImage.current !== original) return;
+    setRenewing(false);
+    if (url && url !== imageSrc) { setRecovered({ original, url }); setImageError(null); }
+  }
   const { poster: videoPoster, capturePoster } = useVideoPoster(isVideo && interactive ? source.url : '');
   const localVideoRef = useRef(null);
   const videoRef = videoControlRef ?? localVideoRef;
@@ -401,7 +421,7 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
       source: String(video.currentSrc || source.url || '').split('?')[0],
     });
   };
-  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={imageSrc} loading={imageSrc ? 'eager' : 'lazy'} decoding="async" alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
+  if (!isVideo) return <><img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={imageSrc} loading={imageSrc ? 'eager' : 'lazy'} decoding="async" alt={`${card.author}의 ${card.category} 사진`} draggable="false" onError={() => { if (imageSrc) void recoverImage(); }} onLoad={() => setImageError(null)} onContextMenu={protectMedia} onDragStart={protectMedia} />{imageError === source.url && <button type="button" disabled={renewing} onClick={() => void recoverImage(true)} className="absolute left-1/2 top-1/3 z-30 -translate-x-1/2 rounded-full border border-white/60 bg-black/75 px-4 py-2 text-xs font-semibold text-white" aria-label={locale === 'ko' ? '사진 다시 불러오기' : 'Retry photo'}>{renewing ? (locale === 'ko' ? '불러오는 중…' : 'Loading…') : (locale === 'ko' ? '사진 다시 불러오기' : 'Retry photo')}</button>}</>;
   const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} crossOrigin="anonymous" poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedData={capturePoster} onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   return video;
 }
@@ -450,7 +470,7 @@ function CommentPreview({ locale, comments, saved, color, notice, onToggleSave, 
 }
 
 /** 정의: PC에서는 사진과 댓글을 나란히 보여 주는 게시물 상세 모달, 모바일에서는 확장 댓글 영역을 제공한다. */
-function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onEdit, onDelete }) {
+function CommentPanel({ locale = 'en', card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onEdit, onDelete }) {
   const panelRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -466,7 +486,7 @@ function CommentPanel({ card, timestamp, media, comments, currentUserId, draft, 
     <div className="comment-panel__dialog">
       <div className="comment-panel__sheet-heading"><span className="comment-panel__handle" aria-hidden="true" /><strong>댓글</strong></div>
       <button type="button" onClick={onClose} className="comment-panel__close" aria-label="댓글 상세 닫기"><span className="material-symbols-outlined">close</span></button>
-      <div className="comment-panel__media"><CardMedia card={card} media={mediaItems[mediaIndex]} className="h-full w-full object-contain" muted />{mediaItems.length > 1 && <>{mediaIndex > 0 && <button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className="comment-panel__media-nav comment-panel__media-nav--left"><span className="material-symbols-outlined">chevron_left</span></button>}{mediaIndex < mediaItems.length - 1 && <button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className="comment-panel__media-nav comment-panel__media-nav--right"><span className="material-symbols-outlined">chevron_right</span></button>}<span className="comment-panel__media-count">{mediaIndex + 1} / {mediaItems.length}</span></>}</div>
+      <div className="comment-panel__media"><CardMedia locale={locale} card={card} media={mediaItems[mediaIndex]} className="h-full w-full object-contain" muted />{mediaItems.length > 1 && <>{mediaIndex > 0 && <button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className="comment-panel__media-nav comment-panel__media-nav--left"><span className="material-symbols-outlined">chevron_left</span></button>}{mediaIndex < mediaItems.length - 1 && <button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className="comment-panel__media-nav comment-panel__media-nav--right"><span className="material-symbols-outlined">chevron_right</span></button>}<span className="comment-panel__media-count">{mediaIndex + 1} / {mediaItems.length}</span></>}</div>
       <div className="comment-panel__content">
         <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
         <div className="comment-panel__comments">{visibleComments.length ? visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><div className="min-w-0 flex-1">{editingCommentId === comment.id ? <form className="flex items-center gap-1" onSubmit={async (event) => { event.preventDefault(); if (await onEdit?.(comment.id, editingBody)) setEditingCommentId(null); }}><input aria-label="댓글 수정" value={editingBody} onChange={(event) => setEditingBody(event.target.value)} maxLength="500" className="min-w-0 flex-1 border-b border-[#735c00] bg-transparent py-0.5 text-xs text-[#1b1c19] focus:outline-none" autoFocus /><button type="submit" disabled={!editingBody.trim()} className="text-[11px] font-bold text-[#735c00] disabled:opacity-40">저장</button><button type="button" onClick={() => setEditingCommentId(null)} className="text-[11px] text-[#74777d]">취소</button></form> : <div className="flex items-start gap-1"><p className="comment-panel__comment-text min-w-0 flex-1 text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p>{comment.authorId === currentUserId && <span className="flex shrink-0 items-center gap-0.5"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }} aria-label="댓글 수정" title="댓글 수정" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#735c00]"><Pencil size={13} /></button><button type="button" onClick={() => onDelete?.(comment.id)} aria-label="댓글 삭제" title="댓글 삭제" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#cb2b58]"><Trash2 size={13} /></button></span>}</div>}</div></div>{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>) : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
