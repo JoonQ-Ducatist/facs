@@ -1,4 +1,5 @@
 import { OPTIONAL_UPLOAD_ENABLED } from '../growth/availability.js';
+import { defaultQuestion } from './defaultQuestion.js';
 import { validateComparison } from '../growth/comparison.js';
 import { useEffect, useRef, useState } from 'react';
 import PageHeading from '../../components/ui/PageHeading.jsx';
@@ -93,7 +94,7 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
   const videoCount = media.filter((item) => item.type === 'video').length;
   const selectedTheme = categories[category];
   const activeComparisonMode = OPTIONAL_UPLOAD_ENABLED ? comparisonMode : null;
-  const fallbackQuestion = activeComparisonMode==='A_B' ? (locale==='en'?'Which photo do you prefer: A or B?':'A와 B 중 어떤 사진이 더 좋은가요?') : selectedTheme.evaluationType==='NUMERIC_AGE' ? '사람들은 저를 몇 살로 볼까요?' : '호감과 신뢰감을 평가해 주세요.';
+  const fallbackQuestion = defaultQuestion(locale, selectedTheme.evaluationType, activeComparisonMode);
   const suggestions = getQuestionSuggestions(category, media, locale);
   const canAddImage = imageCount < MAX_IMAGES;
   const canAddVideo = videoCount < MAX_VIDEOS;
