@@ -45,6 +45,26 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .auth-entry-screen > .relative { padding-top: calc(2.5rem + env(safe-area-inset-top)); }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .splash-auth-card { transition: transform .2s cubic-bezier(.2,.7,.2,1); }
+/* Authentication shares the product's ivory surface; photos remain decorative. */
+.auth-entry-photo-wash { background: rgba(249,247,242,.9); }
+.auth-entry-screen .splash-language-toggle { background: #f9f7f2; color: #735c00; border-color: #c5a059; }
+.auth-entry-screen .auth-entry-brand { color: #1b1c19; }
+.auth-entry-screen .auth-entry-brand img { filter: brightness(.25); }
+.auth-entry-screen h1 { color: #1b1c19; text-shadow: none; }
+.auth-entry-screen section.mb-4 { filter: none; }
+.auth-entry-screen section.mb-4 > p { color: #735c00; }
+.auth-entry-screen .splash-auth-card { background: #f9f7f2; border-color: #ded8ca; box-shadow: 0 14px 38px rgba(27,28,25,.08); }
+.auth-entry-screen .splash-auth-card > p,
+.auth-entry-screen .splash-auth-card > label { color: #52554f; }
+.auth-entry-screen .auth-entry-links,
+.auth-entry-screen .auth-entry-links :is(a,button,span) { color: #52554f; text-decoration-color: #8b8069; }
+.auth-entry-screen .auth-entry-links a:hover,
+.auth-entry-screen .auth-entry-links button:hover { color: #735c00; }
+.auth-entry-screen .splash-auth-card button.rounded-full:not([type="submit"]) { color: #1b1c19; background: #fff; border-color: #c5a059; }
+.auth-entry-screen .splash-auth-card button.rounded-full .material-symbols-outlined { color: #735c00; }
+.auth-entry-screen .splash-auth-card .shadow-inner { background: #fff; border-color: #c5a059; }
+.auth-entry-screen .splash-auth-card input:not([type="checkbox"]) { background: #fff; color: #1b1c19; border-color: #a78d58; }
+.auth-entry-screen .splash-auth-card input::placeholder { color: #62665f; }
 .brand-wordmark__facs { color: var(--xc-brand-red); }
 .brand-ai-mark { align-items: center; justify-content: center; height: 1.15rem; min-width: 1.65rem; padding: 0 .25rem; border: 1px solid rgba(197,160,89,.7); border-radius: .2rem; color: var(--xc-accent); font-family: Inter, sans-serif; font-size: .56rem; font-weight: 800; line-height: 1; letter-spacing: .06em; }
 @media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }

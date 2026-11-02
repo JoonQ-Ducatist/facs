@@ -1,11 +1,12 @@
 import { sendOwnPushTest } from '../server/pushTest.js';
 import webpush from'web-push';
 import{body,clients,endpointHash,failure,identity,json,sameOrigin,UUID,validPushSubscription,HOME}from'../server/growthCore.js';
-import{gaOverview,youtubeComments,youtubeOverview}from'../server/growthIntegrations.js';
+import{gaOverview,youtubeComments,youtubeOverview,surveyOverview}from'../server/growthIntegrations.js';
 export async function GET(request){
  try{const action=new URL(request.url).searchParams.get('action');
   if(action==='push-config')return json({ok:true,available:Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY&&process.env.VAPID_PUBLIC_KEY&&process.env.VAPID_PRIVATE_KEY),publicKey:process.env.VAPID_PUBLIC_KEY||null});
   const ctx=await identity(request,{admin:true});
+  if(action==='survey')return json({ok:true,data:await surveyOverview(ctx.service)});
   if(action==='youtube')return json({ok:true,data:await youtubeOverview(ctx.service)});
   if(action==='youtube-comments')return json({ok:true,data:await youtubeComments()});
   if(action==='members'){const r=await ctx.member.rpc('get_growth_member_metrics',{window_hours:720});if(r.error)throw Error('UNAVAILABLE');return json({ok:true,data:r.data});}

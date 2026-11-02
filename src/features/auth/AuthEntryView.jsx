@@ -103,11 +103,11 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
   const activeCard = popularCards[activeIndex] ?? sourceCards[0] ?? null;
 
   return (
-    <main data-app-scroll-root className="auth-entry-screen relative mx-auto max-w-none bg-[#051424] text-white shadow-2xl">
+    <main data-app-scroll-root className="auth-entry-screen relative mx-auto max-w-none bg-[#f9f7f2] text-[#1b1c19] shadow-2xl">
       <div className="absolute inset-0" aria-hidden="true">
         {activeCard && <img key={activeCard.id} className="splash-media h-full w-full object-cover" style={{ objectPosition: activeCard.objectPosition }} src={activeCard.imageUrl} alt="" />}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,28,45,0.62)_0%,rgba(14,28,45,0.08)_35%,rgba(14,28,45,0.9)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(197,160,89,0.18),transparent_30%),radial-gradient(circle_at_84%_30%,rgba(255,255,255,0.1),transparent_26%)]" />
+        <div className="auth-entry-photo-wash absolute inset-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(197,160,89,0.08),transparent_30%)]" />
       </div>
 
       <div className="auth-entry-screen__content relative z-10 flex min-h-full flex-col px-5 pb-6 pt-10">
@@ -166,12 +166,16 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
             <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="mt-px h-3 w-3 shrink-0 accent-[#c52a52]" />
             <span>{locale === 'en' ? 'Keep me signed in. Do not use this on a shared device.' : '로그인 상태 유지 · 공용 기기에서는 선택하지 마세요.'}</span>
           </label>
-          <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] font-medium leading-relaxed text-white/75" aria-label={locale === 'en' ? 'Policy links' : '정책 안내 링크'}>
+          <div className="auth-entry-links mt-3 flex flex-col items-center gap-1 text-center text-[10px] font-medium leading-relaxed text-white/75" aria-label={locale === 'en' ? 'Policy links' : '정책 안내 링크'}>
+            <div className="flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 [&>a]:inline-flex [&>a]:min-h-8 [&>a]:items-center">
             <a href="/?policy=terms" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('terms'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Terms' : '이용약관'}</a>
             <a href="/?policy=privacy" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('privacy'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Privacy' : '개인정보 처리방침'}</a>
             <a href="/?policy=safety" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('safety'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'Safety & reports' : '안전·신고'}</a>
-            <ParticipationFeedback locale={locale} className="min-h-8 text-[10px] text-white/70 underline underline-offset-2" />
-            <a href="/?policy=about" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('about'); }} className="underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'About Us' : '서비스 안내'}</a>
+            </div>
+            <a href="/?policy=about" onClick={(event) => { event.preventDefault(); onOpenPolicy?.('about'); }} className="inline-flex min-h-8 items-center underline decoration-white/55 underline-offset-2 hover:text-white">{locale === 'en' ? 'About Us' : '서비스 안내'}</a>
+            <div className="flex min-h-8 w-full items-center justify-center">
+              <ParticipationFeedback locale={locale} className="max-w-full min-h-8 whitespace-normal break-keep text-center text-[10px] leading-relaxed text-white/70 underline underline-offset-2" />
+            </div>
           </div>
         </section>
       </div>

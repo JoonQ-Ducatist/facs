@@ -1,11 +1,15 @@
 import {analyticsAccessToken}from'./googleAccess.js';
+import {readSurveyEvents} from './participationSurvey.js';
+export async function surveyOverview(service,env=process.env,fetcher=fetch) {
+ return cached(service,'participation-survey-v1',async()=>readSurveyEvents(await analyticsAccessToken(env,fetcher),env.GA4_PROPERTY_ID||'557370310',fetcher),6*3600000);
+}
 const VIDEO_IDS=['vrn3p8Ek98Y','9zBftxM_T5c','Cd4Dm-01q7Q','a0zPqOo37PI','c9d_o9FVnwg'];
 const CHANNEL='UC0pz3RcOkIPTij-ARaDbEsw';
-async function cached(service,key,load){
+async function cached(service,key,load,ttlMs=24*3600000){
  if(!service)throw Error('UNAVAILABLE');
  const r=await service.from('growth_integration_cache').select('payload,expires_at').eq('cache_key',key).maybeSingle();
  if(!r.error&&r.data&&Date.parse(r.data.expires_at)>Date.now())return{...r.data.payload,cached:true};
- const payload=await load();const result=await service.from('growth_integration_cache').upsert({cache_key:key,payload,expires_at:new Date(Date.now()+24*3600000).toISOString(),updated_at:new Date().toISOString()});
+ const payload=await load();const result=await service.from('growth_integration_cache').upsert({cache_key:key,payload,expires_at:new Date(Date.now()+ttlMs).toISOString(),updated_at:new Date().toISOString()});
  if(result.error)throw Error('UNAVAILABLE');return{...payload,cached:false};
 }
 export async function youtubeOverview(service,env=process.env,fetcher=fetch){
