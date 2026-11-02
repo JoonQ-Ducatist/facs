@@ -134,8 +134,8 @@ test('feed pages content and activates media only near the scroll viewport', asy
   assert.match(app, /\[authUser\?\.id, feedRefreshKey, activeCategory, featuredPostId\]/);
   assert.match(source, /rootMargin: '480px 0px'/);
   assert.match(source, /interactive=\{nearViewport && index === mediaIndex\}/);
-  assert.match(source, /loaded=\{nearViewport && Math\.abs\(index - mediaIndex\) <= 1\}/);
-  assert.match(source, /src=\{loaded \? source\.url : undefined\}/);
+  assert.ok(source.includes('imagePrepared) && Math.abs(index - mediaIndex) <= 1'));
+  assert.match(source, /src=\{imageSrc\}/);
   assert.match(source, /rootMargin: '640px 0px'/);
 });
 
@@ -189,7 +189,7 @@ test('signed-in viewers can report another author with every approved reason and
 test('feed cards render protected media and adjacent slides only when loaded', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   assert.match(source, /media-primary__track[\s\S]*?media\.map\(\(slide, index\)/);
-  assert.match(source, /loaded=\{nearViewport && Math\.abs\(index - mediaIndex\) <= 1\}/);
+  assert.ok(source.includes('imagePrepared) && Math.abs(index - mediaIndex) <= 1'));
   assert.match(source, /onContextMenu=\{protectMedia\}/);
   assert.match(source, /onDragStart=\{protectMedia\}/);
   assert.match(source, /media\.length > 1 && <MediaProgress/);

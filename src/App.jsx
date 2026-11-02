@@ -156,6 +156,9 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
+  const pendingCommentReturn = useRef(null);
+  const [commentState, setCommentState] = useState(null);
+  useEffect(() => { setCommentState(null); pendingCommentReturn.current = null; setResumeUploadAfterHandle(false); setUploadStarter(null); }, [authUser?.id]);
   const [activeTab, setActiveTab] = useState('feed');
   const [categoryRailVisible, setCategoryRailVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
@@ -855,6 +858,8 @@ export default function App() {
   /** Writes real-post comments through Supabase and keeps mock-only cards local. */
   async function addComment(cardId, body) {
     if (!isConfiguredHandle(profile?.handle)) {
+      pendingCommentReturn.current = cardId;
+      setResumeUploadAfterHandle(false);
       setActiveTab('profile');
       setToast(locale === 'en' ? 'Set your public ID before commenting.' : '댓글을 남기기 전에 공개 아이디를 설정해 주세요.');
       return false;
@@ -1028,6 +1033,11 @@ export default function App() {
       setResumeUploadAfterHandle(false);
       setActiveTab('upload');
       setToast(locale === 'en' ? 'Your public ID is ready. Continue your upload.' : '공개 아이디를 저장했어요. 업로드를 계속해 주세요.');
+    } else if (pendingCommentReturn.current) {
+      const postId = pendingCommentReturn.current;
+      pendingCommentReturn.current = null;
+      setFeedMode('all'); setActiveCategory('ALL'); setFeaturedPostId(postId); setCurrentIndex(0); setActiveTab('feed');
+      setToast(locale === 'en' ? 'Your public ID is ready. Continue your comment.' : '공개 아이디를 저장했어요. 작성하던 댓글을 이어서 확인해 주세요.');
     } else {
       setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
     }
@@ -1063,6 +1073,8 @@ export default function App() {
   }, []);
 
   function openUpload(starter = null) {
+    pendingCommentReturn.current = null;
+    if (starter?.category && starter?.question && !hasUploadDraft) setUploadStarter({ ...starter, id: starter.id ?? `${starter.category}:${Date.now()}` });
     if (isSharedGuest || !authUser) { setIsSharedGuest(false); setIsGuest(true); return; }
     if (profileLoading) {
       setToast(locale === 'en' ? 'Checking your public ID before opening Upload.' : '업로드를 열기 전에 공개 아이디를 확인하고 있어요.');
@@ -1077,7 +1089,6 @@ export default function App() {
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
-    if (starter?.category && starter?.question && !hasUploadDraft) setUploadStarter({ ...starter, id: starter.id ?? `${starter.category}:${Date.now()}` });
     if (!uploadOpenedTracked.current) {
       uploadOpenedTracked.current = true;
       trackEvent(ANALYTICS_EVENT.UPLOAD_OPENED, { locale });
@@ -1171,7 +1182,7 @@ export default function App() {
 
   function openTab(id) {
     if (id === 'upload') { openUpload(); return; }
-    if (id !== 'profile') setResumeUploadAfterHandle(false);
+    if (id !== 'profile') { setResumeUploadAfterHandle(false); pendingCommentReturn.current = null; }
     if (id !== 'profile') setProfileNotice('');
     setActiveTab(id);
   }
@@ -1548,7 +1559,7 @@ export default function App() {
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView commentState={commentState} onCommentStateChange={setCommentState} feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>

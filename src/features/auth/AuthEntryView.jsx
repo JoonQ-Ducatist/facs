@@ -132,7 +132,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
 
         <section className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
-            {locale === 'en' ? 'Join to see yourself through more views.' : <>가입하고 오늘의 내 모습을 확인해 보세요.<span className="block text-white/55">Join to see yourself through more views.</span></>}
+            {locale === 'en' ? 'Sign in to rate a look. Share a photo when you’re ready.' : '로그인하고 먼저 평가해 보세요. 내 사진은 원할 때 올리면 돼요.'}
           </p>
           <label className="mb-3 flex cursor-pointer items-start gap-2 text-left text-[10px] leading-relaxed text-white/75">
             <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-px h-3.5 w-3.5 shrink-0 accent-[#c52a52]" />

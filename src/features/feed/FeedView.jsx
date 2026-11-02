@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { observeFeedImage, retainedImageSource } from './imageLoading.js';
 import { createPortal } from 'react-dom';
 import { Bookmark, Pencil, Share2, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { getSampleStatus } from '../../services/mockApi.js';
@@ -16,10 +17,16 @@ import { DEMO_POST_IDS, participationCount } from './ratingParticipation.js';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ commentState, onCommentStateChange, locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
   const participation = useRatingParticipation({ cards, votedIds, userId: currentUserId, eligible: ratingEligible, onVote, hasMore });
-  const [expandedPost, setExpandedPost] = useState(null);
-  const [draft, setDraft] = useState('');
+  const [localCommentState, setLocalCommentState] = useState(null);
+  const context = commentState === undefined ? localCommentState : commentState;
+  const updateContext = onCommentStateChange ?? setLocalCommentState;
+  const expandedPost = context?.post ?? null;
+  const draft = context?.body ?? '';
+  const setExpandedPost = post => updateContext(state => ({ ...state, post }));
+  const setDraft = body => updateContext(state => ({ ...state, body }));
+
   const [clockNow, setClockNow] = useState(() => Date.now());
   const categoryRailRef = useRef(null);
   const categoryDrag = useRef(null);
@@ -108,7 +115,7 @@ export default function FeedView({ locale = 'ko', feedMode = 'all', onFeedModeCh
     {ratingEligible && <div className="mx-4 mb-1.5 shrink-0 text-right"><ParticipationFeedback locale={locale} className="min-h-8 text-[10px] text-[#66686d] underline underline-offset-2" /></div>}
     {(cards.length || hasMore) ? <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
       <div className="media-carousel media-carousel--scroll relative w-full">
-        {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={boostedPostIds?.has(item.id) || item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={participation.vote} onNext={(card, skip) => participation.next(card, skip)} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { setExpandedPost(post); setDraft(''); void onLoadComments?.(post.card.id); }} />)}
+        {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={boostedPostIds?.has(item.id) || item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={participation.vote} onNext={(card, skip) => participation.next(card, skip)} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { updateContext(previous => ({ post, postId: post.card.id, body: previous?.postId === post.card.id ? previous.body : '' })); void onLoadComments?.(post.card.id); }} />)}
       </div>
       {hasMore && <div ref={pageSentinelRef} className="feed-page-sentinel" aria-live="polite">
         {!cards.length || loadMoreError || !('IntersectionObserver' in window) ? <button type="button" disabled={loadingMore} onClick={() => void requestNextPage()}>{loadingMore ? (locale === 'en' ? 'Loading…' : '불러오는 중…') : (locale === 'en' ? 'Load more' : '더 불러오기')}</button> : null}
@@ -157,6 +164,7 @@ function FeedUploadNudge({ locale, kind, onAction, onShare }) {
 function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onNext, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
   const [mediaIndex, setMediaIndex] = useState(0);
   const [nearViewport, setNearViewport] = useState(false);
+  const [imagePrepared, setImagePrepared] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
@@ -166,6 +174,11 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
   const mediaTrackRef = useRef(null);
   const mediaSwipeStart = useRef(null);
   useEffect(() => { setMediaIndex(0); setIsVideoPlaying(false); setSaveNotice(''); }, [card.id]);
+  useEffect(() => {
+    setImagePrepared(false);
+    if (!articleRef.current) return undefined;
+    return observeFeedImage(articleRef.current, () => setImagePrepared(true));
+  }, [card.id]);
   useEffect(() => {
     const article = articleRef.current;
     if (!article) return undefined;
@@ -268,7 +281,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
   return <article ref={articleRef} data-post-id={card.id} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
-    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={nearViewport && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
+    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(slide.type === 'video' || String(slide.type ?? '').startsWith('video/') ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
     {!comparison && media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
     <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
@@ -364,6 +377,9 @@ function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return 
 function CardMedia({ card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
   const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
+  const requestedImage = useRef(null);
+  const imageSrc = retainedImageSource(requestedImage.current, source.url, loaded);
+  useEffect(() => { if (!isVideo && imageSrc) requestedImage.current = imageSrc; }, [isVideo, imageSrc]);
   const { poster: videoPoster, capturePoster } = useVideoPoster(isVideo && interactive ? source.url : '');
   const localVideoRef = useRef(null);
   const videoRef = videoControlRef ?? localVideoRef;
@@ -385,7 +401,7 @@ function CardMedia({ card, media, className, muted = false, showFullscreen = fal
       source: String(video.currentSrc || source.url || '').split('?')[0],
     });
   };
-  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={loaded ? source.url : undefined} loading={loaded ? 'eager' : 'lazy'} alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
+  if (!isVideo) return <img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={imageSrc} loading={imageSrc ? 'eager' : 'lazy'} decoding="async" alt={`${card.author}의 ${card.category} 사진`} draggable="false" onContextMenu={protectMedia} onDragStart={protectMedia} />;
   const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} crossOrigin="anonymous" poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedData={capturePoster} onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
   return video;
 }
