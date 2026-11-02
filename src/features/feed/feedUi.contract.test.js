@@ -74,17 +74,18 @@ test('feed media responds to horizontal touch swipes while preserving vertical s
   assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[^}]*touch-action: pan-y/);
 });
 
-test('mobile header hides during portrait scrolling while navigation stays fixed and carousel arrows remain symmetric', async () => {
+test('portrait scrolling keeps the header fixed and toggles only categories without changing layout', async () => {
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.match(source, /function handleMainScroll\(\)[\s\S]*?matchMedia\('\(max-width: 1023px\) and \(orientation: portrait\)'\)[\s\S]*?setMobileHeaderVisible\(false\)[\s\S]*?setTimeout\(\(\) => setMobileHeaderVisible\(true\), 220\)/);
+  assert.match(source, /function handleMainScroll\(\)[\s\S]*?activeTab !== 'feed'[\s\S]*?setCategoryRailVisible\(delta < 0\)/);
+  assert.doesNotMatch(source, /setMobileHeaderVisible|headerIdleTimer/);
   assert.match(source, /onScroll=\{handleMainScroll\}/);
   assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{[\s\S]*?\.editorial-app > nav \{[\s\S]*?border-radius: 999px/);
   assert.match(styles, /height: 48px;\s*min-height: 48px;[\s\S]*?background: rgba\(255,255,255,\.26\)[\s\S]*?backdrop-filter: blur\(10px\)/);
   assert.match(styles, /button \.material-symbols-outlined \{[\s\S]*?color: #101114 !important;[\s\S]*?wght' 500/);
   assert.match(styles, /button\[aria-current="page"\] \{[\s\S]*?background: rgba\(16,17,20,\.08\) !important/);
   assert.match(styles, /\.editorial-main \{\s*inset: calc\(44px \+ env\(safe-area-inset-top\)\) 0 0 0;\s*padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/);
-  assert.match(styles, /\.editorial-app--header-hidden > header \{ transform: translateY\(-110%\); \}/);
+  assert.match(styles, /\.editorial-app--categories-hidden \.editorial-main--feed > \.feed-category-rail \{ transform: translateY\(-110%\); opacity: 0; visibility: hidden; pointer-events: none; \}/);
   assert.doesNotMatch(styles, /\.editorial-app--header-hidden > nav/);
   assert.doesNotMatch(styles, /\.editorial-app--header-hidden[^{}]*>[^{}]*\.editorial-main[^{}]*\{/);
   assert.doesNotMatch(styles, /transition:\s*inset/);

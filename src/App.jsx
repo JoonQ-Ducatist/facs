@@ -158,7 +158,7 @@ export default function App() {
   const [isSharedGuest, setIsSharedGuest] = useState(() => Boolean(sharedPostId));
   const [resumeUploadAfterHandle, setResumeUploadAfterHandle] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
-  const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
+  const [categoryRailVisible, setCategoryRailVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
   const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
@@ -193,7 +193,7 @@ export default function App() {
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);
-  const headerIdleTimer = useRef(null);
+  const categoryScrollTop = useRef(0);
   const authCallbackHandled = useRef(false);
   const signupAnalyticsTracked = useRef(false);
   const reportedPostReasons = useRef(new Set());
@@ -216,10 +216,9 @@ export default function App() {
     return result;
   }
 
-  useEffect(() => () => window.clearTimeout(headerIdleTimer.current), []);
   useEffect(() => {
-    window.clearTimeout(headerIdleTimer.current);
-    setMobileHeaderVisible(true);
+    categoryScrollTop.current = 0;
+    setCategoryRailVisible(true);
   }, [activeTab]);
 
   const authTransitionPending = useRef(false);
@@ -1460,10 +1459,13 @@ export default function App() {
   }
 
   function handleMainScroll() {
-    if (!window.matchMedia('(max-width: 1023px) and (orientation: portrait)').matches) return;
-    setMobileHeaderVisible(false);
-    window.clearTimeout(headerIdleTimer.current);
-    headerIdleTimer.current = window.setTimeout(() => setMobileHeaderVisible(true), 220);
+    if (activeTab !== 'feed' || !window.matchMedia('(max-width: 1023px) and (orientation: portrait)').matches) return;
+    const top = Math.max(0, mainRef.current?.scrollTop ?? 0);
+    const delta = top - categoryScrollTop.current;
+    if (top <= 8) setCategoryRailVisible(true);
+    else if (Math.abs(delta) >= 4) setCategoryRailVisible(delta < 0);
+    else return;
+    categoryScrollTop.current = top;
   }
 
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
@@ -1474,7 +1476,7 @@ export default function App() {
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
-  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}:${feedMode}`}><div className={`editorial-app h-full bg-background text-on-background font-body${mobileHeaderVisible ? '' : ' editorial-app--header-hidden'}`}>
+  return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}:${feedMode}`}><div className={`editorial-app h-full bg-background text-on-background font-body${categoryRailVisible ? '' : ' editorial-app--categories-hidden'}`}>
     <SkipLink />
     <PwaInstallSheet locale={locale} enabled={!policyOpen && ['feed', 'ranking', 'profile'].includes(activeTab) && previewState === 'ready'} />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">

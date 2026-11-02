@@ -196,7 +196,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
   const isAge = card.evaluationType === 'NUMERIC_AGE';
   const total = isAge ? card.ageVoteCount : card.yesVotes + card.noVotes;
   const yesPercent = isAge || total === 0 ? 0 : Math.round((card.yesVotes / total) * 100);
-  const noPercent = 100 - yesPercent;
+  const noPercent = total > 0 ? 100 - yesPercent : 0;
   const timestamp = formatPublishedTime(card.publishedAt, { locale, now: clockNow }) || card.timestamp;
   const authorKey = card.authorId ?? `sample:${String(card.author).trim().toLowerCase()}`;
   function selectMedia(nextIndex) {
@@ -283,7 +283,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     </div>
     {isVideo && nearViewport && <div className="video-card-controls absolute inset-0 z-30 pointer-events-none"><button type="button" data-video-play-button aria-pressed={isVideoPlaying} aria-label={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} title={locale === 'en' ? (isVideoPlaying ? 'Pause video' : 'Play video') : (isVideoPlaying ? '동영상 일시정지' : '동영상 재생')} className="video-card-play-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={toggleInlinePlayback} onClick={toggleInlinePlaybackFromClick}><span className="material-symbols-outlined" aria-hidden="true">{isVideoPlaying ? 'pause' : 'play_arrow'}</span></button><button type="button" data-video-fullscreen-button aria-label={locale === 'en' ? 'View video fullscreen' : '동영상 전체 화면'} title={locale === 'en' ? 'Fullscreen' : '전체 화면'} className="video-fullscreen-button" onPointerDown={stopVideoControlGesture} onPointerMove={stopVideoControlGesture} onPointerUp={stopVideoControlGesture} onClick={enterFullscreen}><span className="material-symbols-outlined" aria-hidden="true">fullscreen</span></button></div>}
     {reportOpen && <ReportDialog locale={locale} author={card.author} onClose={() => setReportOpen(false)} onSubmit={(reason) => onReportPost?.(card.id, reason)} />}
-    {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} total={total} yesPercent={yesPercent} noPercent={noPercent} onClose={() => setSharePreviewOpen(false)} onShare={() => onShare(card)} />}
+    {sharePreviewOpen && <ShareResultCard locale={locale} card={card} category={theme} color={theme.color} canViewResults={hasVoted || isOwnPost} onClose={() => setSharePreviewOpen(false)} onShare={() => onShare(card)} />}
   </article>;
 }
 

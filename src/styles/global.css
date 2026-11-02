@@ -528,7 +528,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 }
 
 @media (max-width: 1023px) and (orientation: portrait) {
-  .editorial-app > header { transition: transform .2s ease; }
+  .editorial-main--feed > .feed-category-rail { transition: transform .18s ease, opacity .18s ease; }
   .editorial-app > nav {
     position: fixed !important;
     inset: auto auto calc(10px + env(safe-area-inset-bottom)) 50% !important;
@@ -611,10 +611,9 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .editorial-main--scroll {
     padding-bottom: calc(76px + env(safe-area-inset-bottom) + var(--upload-keyboard-inset, 0px)) !important;
   }
-  .editorial-app--header-hidden > header { transform: translateY(-110%); }
-  /* Animate only the header's transform. The feed scrollport must keep its
-     origin and height while the header hides/returns, otherwise iOS scroll
-     anchoring can retrigger the scroll handler and bounce every idle cycle. */
+  .editorial-app--categories-hidden .editorial-main--feed > .feed-category-rail { transform: translateY(-110%); opacity: 0; visibility: hidden; pointer-events: none; }
+  /* Keep the header and scrollport fixed. Only the rail's paint changes;
+     removing layout height would retrigger iOS scroll anchoring and bounce. */
   .editorial-app::before,
   .editorial-app::after {
     position: fixed;
@@ -712,3 +711,8 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
  .editorial-app > nav > .desktop-nav-items .feed-view-trigger { width:44px !important; min-width:44px; right:0; }
  .editorial-app > nav > .desktop-nav-items .feed-nav-entry > button:first-child { padding-right:44px !important; }
 }
+
+/* A body portal escapes the card clipping/containment. Short viewports scroll
+   inside the dialog while the modal prevents gestures reaching the feed. */
+.share-result-card { max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+@media (prefers-reduced-motion: reduce) { .editorial-main--feed > .feed-category-rail { transition: none; } }
