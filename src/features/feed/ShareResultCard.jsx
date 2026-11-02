@@ -13,7 +13,7 @@ export default function ShareResultCard({ locale = 'ko', card, category, color, 
   const title = korean ? `${categoryLabel} 공유 카드` : `${categoryLabel} share card`;
 
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent title={title} aria-describedby={undefined}
+    <DialogContent title={title} aria-describedby={undefined} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
       onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}>
     <section className="share-result-card w-full max-w-sm overflow-y-auto overscroll-contain rounded-2xl border border-white/30 bg-[#061225]/95 text-white shadow-2xl">

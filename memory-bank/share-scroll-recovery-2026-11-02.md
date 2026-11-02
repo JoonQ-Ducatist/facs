@@ -20,3 +20,9 @@ Case4 is an isolated component fixture with synthetic local cards, not real auth
 Release target: actual Vercel domain www.factsmack.com -> product-test prj_TO6nO7SfgNp0rzrBpxNDK1DMTrJq / team_73YMuIOoV5ob2rEKH6sRsquE. Its Production VITE_SUPABASE_URL host rrcntobfmxlwbbjtlbge.supabase.co matches the live Supabase Dashboard ref and displayed project URL. Vercel connector returned403; existing authorized CLI supplied the same read-only target confirmation. No DB migration or permission changes required.
 
 Artifacts: /Users/joonkyou.park/.codex/visualizations/2026/10/14/01a13ab1-2cda-7c01-83bb-823c08d8f48e/share-scroll-fix-2026-11-02/ . Main Git push is the sole production deployment trigger. Do not issue an additional CLI deploy for the same SHA.
+
+## Final interaction correction and explicit release authorization
+
+Final inspection found the common full-viewport DialogContent catches backdrop clicks inside its own box. Added a target/currentTarget guard so only clicks on the blank backdrop dismiss this share dialog. Verified locally: open -> blank-area click -> closed, feed restored; clicking card content does not qualify. This is a follow-up within focused browser case4, justified by the newly found dismissal regression.
+
+Initial release8aa5de6 reached READY with www.factsmack.com assigned. An attempted in-progress cancellation was rejected by automatic review (no cancellation occurred). User subsequently explicitly canceled deployment-count limits until further instruction and requested immediate deployment of this exact correction. Proceed with one final Git push; no CLI duplicate deploy, provider restrictions still respected. There is no active agent-imposed per-day deployment count limit.
