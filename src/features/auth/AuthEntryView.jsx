@@ -125,7 +125,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
 
         <div className="flex-1" />
 
-        <section className="auth-entry-headline mb-4 text-center drop-shadow-md">
+        <div className="auth-entry-actions">
+        <section className="auth-entry-headline mb-4 text-center">
           <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-[#ecd8a8]">YOUR LOOK, MORE VIEWS</p>
           <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? 'Ready to be seen differently?' : '오늘의 나를, 다른 시선으로 만나보세요.'}</h1>
         </section>
@@ -178,6 +179,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
             </div>
           </div>
         </section>
+        </div>
       </div>
     </main>
   );

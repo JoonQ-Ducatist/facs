@@ -46,16 +46,18 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .splash-auth-card { transition: transform .2s cubic-bezier(.2,.7,.2,1); }
 /* Authentication shares the product's ivory surface; photos remain decorative. */
-.auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.12) 0%,rgba(249,247,242,.18) 40%,rgba(249,247,242,.72) 65%,rgba(249,247,242,.96) 85%,#f9f7f2 100%); }
-.auth-entry-screen .auth-entry-headline { width: fit-content; max-width: 100%; align-self: center; padding: 8px 12px; border-radius: 14px; background: rgba(249,247,242,.94); }
-.auth-entry-screen .auth-entry-brand { padding: 2px 6px; border-radius: 8px; background: rgba(249,247,242,.94); }
+.auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.92) 0%,rgba(249,247,242,.08) 17%,rgba(249,247,242,.04) 100%); }
+.auth-entry-actions { position: relative; isolation: isolate; width: 100%; flex: 0 0 auto; }
+.auth-entry-actions::before { content: ''; position: absolute; z-index: -1; inset: -120px -20px -24px; pointer-events: none; background: linear-gradient(180deg,rgba(249,247,242,0) 0px,rgba(249,247,242,.95) 100px,#f9f7f2 180px); }
+.auth-entry-screen .auth-entry-headline { width: 100%; max-width: 100%; padding: 0; border-radius: 0; background: transparent; }
+.auth-entry-screen .auth-entry-brand { padding: 2px 6px; background: transparent; }
 .auth-entry-screen .splash-language-toggle { background: #f9f7f2; color: #735c00; border-color: #c5a059; }
 .auth-entry-screen .auth-entry-brand { color: #1b1c19; }
 .auth-entry-screen .auth-entry-brand img { filter: brightness(.25); }
 .auth-entry-screen h1 { color: #1b1c19; text-shadow: none; }
 .auth-entry-screen section.mb-4 { filter: none; }
 .auth-entry-screen section.mb-4 > p { color: #735c00; }
-.auth-entry-screen .splash-auth-card { background: #f9f7f2; border-color: #ded8ca; box-shadow: 0 14px 38px rgba(27,28,25,.08); }
+.auth-entry-screen .splash-auth-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; }
 .auth-entry-screen .splash-auth-card > p,
 .auth-entry-screen .splash-auth-card > label { color: #52554f; }
 .auth-entry-screen .auth-entry-links,
@@ -372,6 +374,11 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
   .auth-entry-screen__content { min-height: 460px; }
   .auth-entry-screen__content { padding-bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom))); }
+  .auth-entry-screen__content { justify-content: center; align-items: flex-end; }
+  .auth-entry-screen__content > .flex-1 { display: none; }
+  .auth-entry-actions { width: min(60%, 430px); }
+  .auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.92),rgba(249,247,242,0) 80px),linear-gradient(90deg,rgba(249,247,242,.04) 0%,rgba(249,247,242,.08) 32%,rgba(249,247,242,.97) 48%,#f9f7f2 62%); }
+  .auth-entry-actions::before { display: none; }
 }
 
 /* 정의: 로그인/인증과 분리된 3초 브랜드 스플래시다. 원본 나방 자산의 검은 바탕을
