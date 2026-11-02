@@ -303,9 +303,9 @@ function EmptyFeed({ locale, onStartUpload }) {
 function LiveReactionBalloons({ reactions }) {
   if (!reactions.length) return null;
   const replayingPairs = reactions.length > 8;
-  return <div className="live-reaction-layer" aria-live="polite" aria-label="새 평가 반응">{reactions.map((reaction, index) => {
+  return <div className="live-reaction-layer" aria-hidden="true">{reactions.map((reaction, index) => {
     const lane = index % (replayingPairs ? 2 : 8);
-    return <span key={reaction.id} className={`live-reaction live-reaction--${reaction.kind}`} style={{ '--reaction-left': `${replayingPairs ? 26 + lane * 36 : 7 + lane * 11}%`, '--reaction-bottom': `${replayingPairs ? 5 + (Math.floor(index / 2) % 4) * 9 : 4 + (lane % 4) * 10}%`, '--reaction-delay': `${reaction.animationDelayMs ?? 0}ms` }}><span>{reaction.value}</span></span>;
+    return <span key={reaction.animationId ?? reaction.id} className={`live-reaction live-reaction--${reaction.kind} ${reaction.emphasis === 'new' ? 'live-reaction--new' : 'live-reaction--seen'}`} style={{ '--reaction-left': `${replayingPairs ? 26 + lane * 36 : 7 + lane * 11}%`, '--reaction-bottom': `${replayingPairs ? 5 + (Math.floor(index / 2) % 4) * 9 : 4 + (lane % 4) * 10}%`, '--reaction-delay': `${reaction.animationDelayMs ?? 0}ms` }}><span>{reaction.value}</span></span>;
   })}</div>;
 }
 

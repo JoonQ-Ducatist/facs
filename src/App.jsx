@@ -29,7 +29,7 @@ import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
-import { applyLiveReactionToCard, getRecentPostLiveReactions, isLiveReactionWindow, subscribeToPostLiveReactions } from './services/liveReactionService.js';
+import { applyLiveReactionToCard, getRecentPostLiveReactions, selectLiveReactionReplay, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { clearSignedOutMemberCaches } from './services/browserAccountCache.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
 import { getFollowTargetKey, getMyFollowingIds, toggleMyFollow } from './services/followsApi.js';
@@ -53,7 +53,6 @@ const tabs = [
 
 const LIVE_REACTION_ANIMATION_MS = 2_450;
 const LIVE_REACTION_STAGGER_MS = 180;
-const LIVE_REACTION_PAIR_THRESHOLD = 8;
 
 function liveReactionCheckpointKey(memberId, postId) { return `facs_live_reaction_seen_v1:${memberId}:${postId}`; }
 function getLiveReactionCheckpoint(memberId, postId) {
@@ -225,9 +224,19 @@ export default function App() {
   const authTransitionConsumed = useRef(false);
   const pendingPublishedCard = useRef(null);
   const receivedLiveReactionIds = useRef(new Set());
+  const activeLiveReactionPostIds = useRef(new Set());
+  const liveReactionAnimationSequence = useRef(0);
+  const liveReactionSeenTimers = useRef(new Set());
   useEffect(() => {
     receivedLiveReactionIds.current.clear();
+    activeLiveReactionPostIds.current.clear();
+    liveReactionSeenTimers.current.forEach((timer) => window.clearTimeout(timer));
+    liveReactionSeenTimers.current.clear();
     setLiveReactions([]);
+    return () => {
+      liveReactionSeenTimers.current.forEach((timer) => window.clearTimeout(timer));
+      liveReactionSeenTimers.current.clear();
+    };
   }, [authUser?.id]);
   const displayCategories = useMemo(() => localizeCategories(categories, locale), [locale]);
   // Following changes are visual state for the current session. Reordering the
@@ -240,6 +249,11 @@ export default function App() {
   const canViewOperations = profile?.role === 'admin';
   const supabaseCardIds = useMemo(() => cards.filter(isSupabasePost).map((card) => card.id).sort(), [cards]);
   const supabaseCardIdsKey = supabaseCardIds.join('|');
+  const visibleLiveReactionPostIdsKey = useMemo(() => cards
+    .filter((card) => visibleFeedPostIds.has(card.id) && isSupabasePost(card))
+    .map((card) => card.id)
+    .sort()
+    .join('|'), [cards, visibleFeedPostIds]);
 
   const visibleCards = useMemo(() => displayCards.filter(card => isFeedPostAvailable(card) && (activeCategory === 'ALL' || card.category === activeCategory) && (feedMode !== 'waiting' || (card.visibility === 'public' && card.authorId !== authUser?.id))), [activeCategory, displayCards,feedMode,authUser?.id]);
   function selectFeedView(mode) {
@@ -650,37 +664,60 @@ export default function App() {
     return () => { active = false; };
   }, [authUser?.id, supabaseCardIdsKey]);
 
-  /** Opens real-time reactions for every signed-in member with access to a recent server post. */
+  function showLiveReaction(reaction, { animationDelayMs = 0, emphasis = 'new', deduplicateRealtime = false } = {}) {
+    if (!reaction) return;
+    if (deduplicateRealtime && receivedLiveReactionIds.current.has(reaction.id)) return;
+    receivedLiveReactionIds.current.add(reaction.id);
+    const receivedAt = Date.now();
+    const animationId = `${reaction.id}-${receivedAt}-${liveReactionAnimationSequence.current++}`;
+    setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
+    setBoostCandidateIds((ids) => {
+      if (!ids.has(reaction.postId)) return ids;
+      const next = new Set(ids);
+      next.delete(reaction.postId);
+      return next;
+    });
+    setLiveReactions((items) => [...items, { ...reaction, animationId, emphasis, receivedAt, animationDelayMs, expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS + animationDelayMs }]);
+    if (emphasis === 'new') {
+      const timer = window.setTimeout(() => {
+        liveReactionSeenTimers.current.delete(timer);
+        if (activeLiveReactionPostIds.current.has(reaction.postId)) markLiveReactionSeen(authUser?.id, reaction);
+      }, animationDelayMs);
+      liveReactionSeenTimers.current.add(timer);
+    }
+  }
+
+  /** Replays a bounded mix once whenever a server card enters the viewport. */
   useEffect(() => {
-    // Replaying while the splash or loading screen covers the feed consumes a
-    // 2.45-second balloon before anyone can see it.
-    if (!brandSplashComplete || !authReady || !feedHydrated || !authUser || activeTab !== 'feed') return undefined;
-    const eligibleCards = cards.filter((card) => visibleFeedPostIds.has(card.id) && isSupabasePost(card) && isLiveReactionWindow(card.publishedAt));
+    if (!brandSplashComplete || !authReady || !feedHydrated || !authUser || activeTab !== 'feed') {
+      activeLiveReactionPostIds.current.clear();
+      return undefined;
+    }
+    const currentPostIds = new Set(visibleLiveReactionPostIdsKey ? visibleLiveReactionPostIdsKey.split('|') : []);
+    const enteredPostIds = [...currentPostIds].filter((postId) => !activeLiveReactionPostIds.current.has(postId));
+    activeLiveReactionPostIds.current = currentPostIds;
     let active = true;
-    const showReaction = (reaction, animationDelayMs = 0) => {
-      if (!reaction || receivedLiveReactionIds.current.has(reaction.id)) return;
-      receivedLiveReactionIds.current.add(reaction.id);
-      const receivedAt = Date.now();
-      markLiveReactionSeen(authUser.id, reaction);
-      setCards((items) => items.map((item) => item.id === reaction.postId ? applyLiveReactionToCard(item, reaction) : item));
-      setBoostCandidateIds((ids) => {
-        if (!ids.has(reaction.postId)) return ids;
-        const next = new Set(ids);
-        next.delete(reaction.postId);
-        return next;
-      });
-      setLiveReactions((items) => [...items.filter((item) => item.id !== reaction.id), { ...reaction, receivedAt, animationDelayMs, expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS + animationDelayMs }]);
-    };
-    const unsubscribe = eligibleCards.map((card) => subscribeToPostLiveReactions(card.id, showReaction));
-    eligibleCards.forEach((card) => {
-      void getRecentPostLiveReactions(card.id, getLiveReactionCheckpoint(authUser.id, card.id)).then((reactions) => {
-        if (!active) return;
-        const batchSize = reactions.length > LIVE_REACTION_PAIR_THRESHOLD ? 2 : 1;
-        reactions.forEach((reaction, index) => showReaction(reaction, Math.floor(index / batchSize) * LIVE_REACTION_STAGGER_MS));
+    enteredPostIds.forEach((postId) => {
+      setLiveReactions((items) => items.filter((reaction) => reaction.postId !== postId));
+      void getRecentPostLiveReactions(postId).then((reactions) => {
+        if (!active || !activeLiveReactionPostIds.current.has(postId)) return;
+        const replay = selectLiveReactionReplay(reactions, getLiveReactionCheckpoint(authUser.id, postId));
+        replay.forEach((reaction, index) => {
+          receivedLiveReactionIds.current.add(reaction.id);
+          showLiveReaction(reaction, { animationDelayMs: index * LIVE_REACTION_STAGGER_MS, emphasis: reaction.emphasis });
+        });
       });
     });
-    return () => { active = false; unsubscribe.forEach((close) => close()); };
-  }, [brandSplashComplete, authReady, feedHydrated, authUser?.id, activeTab, cards, visibleFeedPostIds]);
+    return () => { active = false; };
+  }, [brandSplashComplete, authReady, feedHydrated, authUser?.id, activeTab, visibleLiveReactionPostIdsKey]);
+
+  /** New ratings on a visible card bypass the replay sample and use emphasis. */
+  useEffect(() => {
+    if (!brandSplashComplete || !authReady || !feedHydrated || !authUser || activeTab !== 'feed') return undefined;
+    const postIds = visibleLiveReactionPostIdsKey ? visibleLiveReactionPostIdsKey.split('|') : [];
+    const unsubscribe = postIds.map((postId) => subscribeToPostLiveReactions(postId, (reaction) => showLiveReaction(reaction, { emphasis: 'new', deduplicateRealtime: true })));
+    return () => { unsubscribe.forEach((close) => close()); };
+  }, [brandSplashComplete, authReady, feedHydrated, authUser?.id, activeTab, visibleLiveReactionPostIdsKey]);
 
   useEffect(() => {
     if (!liveReactions.length) return undefined;
@@ -785,10 +822,12 @@ export default function App() {
       const receivedAt = Date.now();
       setLiveReactions((items) => [...items, {
         id: `local-${targetCard.id}-${Date.now()}`,
+        animationId: `local-${targetCard.id}-${Date.now()}`,
         postId: targetCard.id,
         kind,
         value: kind === 'age' ? Number(value) : kind === 'yes' ? 'Y' : 'N',
         aggregate: result.data.aggregate,
+        emphasis: 'new',
         receivedAt,
         animationDelayMs: 0,
         expiresAt: receivedAt + LIVE_REACTION_ANIMATION_MS,

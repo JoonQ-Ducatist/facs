@@ -1,12 +1,8 @@
 import { supabase } from './supabaseClient.js';
 
-export const LIVE_REACTION_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/** Uses the publish timestamp as a client-side guard; the database is final authority. */
-export function isLiveReactionWindow(publishedAt, now = Date.now()) {
-  const timestamp = Date.parse(publishedAt ?? '');
-  return Number.isFinite(timestamp) && timestamp <= now && now - timestamp < LIVE_REACTION_WINDOW_MS;
-}
+export const LIVE_REACTION_RETAINED_PER_POST = 12;
+export const LIVE_REACTION_REPLAY_LIMIT = 6;
+export const LIVE_REACTION_UNSEEN_LIMIT = 3;
 
 /** Maps the anonymous database event to the small visual reaction contract. */
 export function toLiveReaction(payload) {
@@ -28,17 +24,38 @@ export function toLiveReaction(payload) {
   };
 }
 
-/** Reads every anonymous reaction missed since an eligible viewer last saw this post. */
-export async function getRecentPostLiveReactions(postId, since = null, client = supabase) {
+/** Reads the bounded anonymous presentation history for one accessible post. */
+export async function getRecentPostLiveReactions(postId, client = supabase) {
   if (!client || !postId) return [];
-  let query = client
+  const query = client
     .from('post_live_reaction_events')
     .select('id, post_id, reaction, perceived_age, yes_count, no_count, average_age, total_votes, created_at')
-    .eq('post_id', postId);
-  if (since) query = query.gt('created_at', since);
-  const { data, error } = await query.order('created_at', { ascending: true });
+    .eq('post_id', postId)
+    .order('created_at', { ascending: false })
+    .limit(LIVE_REACTION_RETAINED_PER_POST);
+  const { data, error } = await query;
   if (error) return [];
-  return (data ?? []).map(toLiveReaction).filter(Boolean);
+  return (data ?? []).map(toLiveReaction).filter(Boolean).reverse();
+}
+
+/**
+ * Replays at most six real reactions. Unseen reactions are intentionally
+ * limited to three so balloons remain a social cue rather than a result leak.
+ */
+export function selectLiveReactionReplay(reactions, checkpoint = null) {
+  const checkpointTime = Date.parse(checkpoint ?? '');
+  const valid = (Array.isArray(reactions) ? reactions : [])
+    .filter((reaction) => reaction?.id && reaction?.postId && Number.isFinite(Date.parse(reaction.createdAt ?? '')))
+    .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt));
+  const unseen = valid.filter((reaction) => !Number.isFinite(checkpointTime) || Date.parse(reaction.createdAt) > checkpointTime);
+  const selectedUnseen = unseen.slice(0, LIVE_REACTION_UNSEEN_LIMIT);
+  const unseenIds = new Set(selectedUnseen.map((reaction) => reaction.id));
+  const seenSlots = LIVE_REACTION_REPLAY_LIMIT - selectedUnseen.length;
+  const seen = valid
+    .filter((reaction) => !unseenIds.has(reaction.id) && Number.isFinite(checkpointTime) && Date.parse(reaction.createdAt) <= checkpointTime)
+    .slice(-seenSlots);
+  return [...seen.map((reaction) => ({ ...reaction, emphasis: 'seen' })), ...selectedUnseen.map((reaction) => ({ ...reaction, emphasis: 'new' }))]
+    .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt));
 }
 
 /** Applies only aggregate fields; the browser never receives a voter identity. */
@@ -52,7 +69,7 @@ export function applyLiveReactionToCard(card, reaction) {
   return { ...card, yesVotes: reaction.aggregate.yesCount, noVotes: reaction.aggregate.noCount };
 }
 
-/** Subscribes only after the caller has selected an accessible recent server post. */
+/** Subscribes only after the caller has selected an accessible visible server post. */
 export function subscribeToPostLiveReactions(postId, onReaction) {
   if (!supabase || !postId || typeof onReaction !== 'function') return () => {};
   const channel = supabase
