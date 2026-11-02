@@ -46,7 +46,9 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .splash-auth-card { transition: transform .2s cubic-bezier(.2,.7,.2,1); }
 /* Authentication shares the product's ivory surface; photos remain decorative. */
-.auth-entry-photo-wash { background: rgba(249,247,242,.9); }
+.auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.12) 0%,rgba(249,247,242,.18) 40%,rgba(249,247,242,.72) 65%,rgba(249,247,242,.96) 85%,#f9f7f2 100%); }
+.auth-entry-screen .auth-entry-headline { width: fit-content; max-width: 100%; align-self: center; padding: 8px 12px; border-radius: 14px; background: rgba(249,247,242,.94); }
+.auth-entry-screen .auth-entry-brand { padding: 2px 6px; border-radius: 8px; background: rgba(249,247,242,.94); }
 .auth-entry-screen .splash-language-toggle { background: #f9f7f2; color: #735c00; border-color: #c5a059; }
 .auth-entry-screen .auth-entry-brand { color: #1b1c19; }
 .auth-entry-screen .auth-entry-brand img { filter: brightness(.25); }
