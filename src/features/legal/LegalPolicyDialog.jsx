@@ -27,6 +27,13 @@ export default function LegalPolicyDialog({ type = 'terms', locale = 'ko', onClo
         <button type="button" onClick={onClose} aria-label={type === 'about' ? (korean ? '서비스 안내 닫기' : 'Close About Us') : (korean ? '정책 화면 닫기' : 'Close policy')} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d7d1c5] text-[#575850]"><span className="material-symbols-outlined text-base" aria-hidden="true">close</span></button>
       </header>
       <div className="space-y-5 px-5 py-5">{copy.sections.map(([heading, body]) => <section key={heading}><h2 className="text-sm font-bold">{heading}</h2><p className="mt-1.5 text-sm leading-6 text-[#5f625e]">{body}</p></section>)}</div>
+      {type === 'about' && (
+        <p className="px-5 pb-5 text-sm">
+          <a href="/guides/how-to-choose-a-profile-photo" hrefLang="en" className="font-semibold text-[#735c00] underline underline-offset-2">
+            {korean ? '프로필 사진 가이드 (영문)' : 'Profile Photo Guide'}
+          </a>
+        </p>
+      )}
       <footer className="border-t border-[#e4e2dd] px-5 py-3 text-[10px] leading-relaxed text-[#7b7d78]">
         <p>{korean ? '운영 주체: Tweety and Company' : 'Operator: Tweety and Company'} · {korean ? '개인정보 보호책임자: Joon (Manager)' : 'Privacy Officer: Joon (Manager)'}</p>
         <p>{korean ? '문의: ' : 'Contact: '}<a href="mailto:teamfactsmack@gmail.com" className="underline">teamfactsmack@gmail.com</a></p>

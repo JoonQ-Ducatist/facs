@@ -33,6 +33,10 @@
   ],
   "rewrites": [
     {
+      "source": "/guides/how-to-choose-a-profile-photo",
+      "destination": "/guides/how-to-choose-a-profile-photo.html"
+    },
+    {
       "source": "/s/:postId",
       "destination": "/api/share?post=:postId"
     },
