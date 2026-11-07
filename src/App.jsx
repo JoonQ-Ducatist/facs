@@ -1018,6 +1018,15 @@ export default function App() {
     setToast(locale === 'en' ? 'We will show this post to more people. Its result will not change.' : '더 많은 사람에게 이 게시물을 보여드릴게요. 결과에는 영향을 주지 않아요.');
   }
 
+  const enterUpload = useCallback(() => {
+    if (!uploadOpenedTracked.current) {
+      uploadOpenedTracked.current = true;
+      trackEvent(ANALYTICS_EVENT.UPLOAD_OPENED, { locale });
+    }
+    setPublishedConfirmation(null);
+    setActiveTab('upload');
+  }, [locale]);
+
   const saveHandle = useCallback(async (handle) => {
     const result = await updateMyHandle(handle);
     const saved = mapHandleSaveResult(result, locale);
@@ -1031,7 +1040,7 @@ export default function App() {
     setProfileNotice('');
     if (resumeUploadAfterHandle) {
       setResumeUploadAfterHandle(false);
-      setActiveTab('upload');
+      enterUpload();
       setToast(locale === 'en' ? 'Your public ID is ready. Continue your upload.' : '공개 아이디를 저장했어요. 업로드를 계속해 주세요.');
     } else if (pendingCommentReturn.current) {
       const postId = pendingCommentReturn.current;
@@ -1042,7 +1051,7 @@ export default function App() {
       setToast(locale === 'en' ? 'Your public ID is ready.' : '공개 아이디를 설정했어요.');
     }
     return saved;
-  }, [locale, resumeUploadAfterHandle]);
+  }, [enterUpload, locale, resumeUploadAfterHandle]);
 
   const saveProfilePresentation = useCallback(async ({ bio, avatarFile }) => {
     let avatarPath = profile?.avatar_path ?? null;
@@ -1084,17 +1093,12 @@ export default function App() {
       setResumeUploadAfterHandle(true);
       setActiveTab('profile');
       setProfileNotice(locale === 'en'
-        ? 'A public ID is required before you can upload. Save one below to continue your upload.'
-        : '업로드 전에 공개 아이디가 필요해서 프로필로 이동했어요. 아래에서 아이디를 저장하면 업로드를 계속할 수 있어요.');
+        ? 'Choose a public ID first. You can select a photo after saving it.'
+        : '공개 아이디를 먼저 설정해 주세요. 저장하면 사진을 선택할 수 있어요.');
       setToast(locale === 'en' ? 'Choose your public ID before uploading a photo.' : '사진을 올리기 전에 공개 아이디를 먼저 설정해 주세요.');
       return;
     }
-    if (!uploadOpenedTracked.current) {
-      uploadOpenedTracked.current = true;
-      trackEvent(ANALYTICS_EVENT.UPLOAD_OPENED, { locale });
-    }
-    setPublishedConfirmation(null);
-    setActiveTab('upload');
+    enterUpload();
   }
 
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */
@@ -1564,7 +1568,7 @@ export default function App() {
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards.filter(card=>!card.comparisonMode)} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} resumeUploadAfterHandle={resumeUploadAfterHandle} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
         {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
         {activeTab === 'operations' && canViewOperations && <OperationsDashboard locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
       </>}

@@ -95,8 +95,13 @@ test('saving the required public ID resumes the pending Upload flow only on succ
   const source = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /const \[resumeUploadAfterHandle, setResumeUploadAfterHandle\] = useState\(false\)/);
   assert.match(source, /setResumeUploadAfterHandle\(true\);\s*setActiveTab\('profile'\)/s);
-  assert.match(source, /if \(resumeUploadAfterHandle\) \{\s*setResumeUploadAfterHandle\(false\);\s*setActiveTab\('upload'\);/s);
-  assert.match(source, /if \(!saved\.ok\) \{[\s\S]*?setToast\(saved\.message\);[\s\S]*?return saved;/);
+  const enterUpload = source.slice(source.indexOf('const enterUpload'), source.indexOf('const saveHandle'));
+  const saveHandle = source.slice(source.indexOf('const saveHandle'), source.indexOf('const saveProfilePresentation'));
+  const openUpload = source.slice(source.indexOf('function openUpload'), source.indexOf('async function signOut'));
+  assert.match(enterUpload, /if \(!uploadOpenedTracked\.current\) \{\s*uploadOpenedTracked\.current = true;\s*trackEvent\(ANALYTICS_EVENT\.UPLOAD_OPENED, \{ locale \}\);\s*\}[\s\S]*?setActiveTab\('upload'\);/);
+  assert.match(saveHandle, /if \(!saved\.ok\) \{[^}]*return saved;\s*\}[\s\S]*?if \(resumeUploadAfterHandle\) \{\s*setResumeUploadAfterHandle\(false\);\s*enterUpload\(\);/);
+  assert.match(openUpload, /setResumeUploadAfterHandle\(true\);[\s\S]*?return;\s*\}\s*enterUpload\(\);/);
+  assert.equal(source.match(/trackEvent\(ANALYTICS_EVENT\.UPLOAD_OPENED/g)?.length, 1);
 });
 
 test('profile orders own posts and exposes a keyboard-safe scrap open callback', async () => {
