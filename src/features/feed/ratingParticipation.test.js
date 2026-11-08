@@ -43,5 +43,5 @@ test('pre-vote counts include binary and age totals without opening results or i
  assert.match(html,/5 people have rated this/);
  assert.match(html,/No right answer/);
  assert.doesNotMatch(html,/Average perceived age|APPROVAL|AI Demo|AI 데모/);
- assert.match(html,/Not sure · Next photo/);
+ assert.match(html,/Skip photo/);
 });
