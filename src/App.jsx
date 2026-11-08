@@ -27,7 +27,7 @@ import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
 import { initializeGa4 } from './services/ga4.js';
 import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
-import { buildShareUrl } from './services/share.js';
+import { buildShareUrl, normalizeSharedPostId, rememberSharedPostForAuth } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
 import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, selectLiveReactionReplay, subscribeToPostLiveReactions } from './services/liveReactionService.js';
@@ -142,6 +142,9 @@ export default function App() {
   const [brandSplashComplete, setBrandSplashComplete] = useState(false);
   const authConfig = useMemo(() => getPublicAuthConfig(import.meta.env ?? {}), []);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
+  const sharedPostTarget = normalizeSharedPostId(sharedPostId);
+  const sharedEntryHandled = useRef(null);
+  const [sharedPostUnavailable, setSharedPostUnavailable] = useState(false);
   const authPreview = new URLSearchParams(window.location.search).get('authPreview') === '1';
   const splashPreview = new URLSearchParams(window.location.search).get('splashPreview') === '1';
   const localQaEnabled = isLocalQaAccountMode();
@@ -349,6 +352,7 @@ export default function App() {
       const isAuthCallback = Boolean(returnUrl) || hash.has('access_token') || new URLSearchParams(window.location.search).has('code');
       if (isAuthCallback && !authCallbackHandled.current) {
         authCallbackHandled.current = true;
+        rememberSharedPostForAuth(null);
         setIsSharedGuest(false);
         setActiveTab('feed');
         const query = new URLSearchParams(window.location.search);
@@ -494,6 +498,8 @@ export default function App() {
     setScrapCards(null);
     pendingPublishedCard.current = null;
     setFeaturedPostId(null);
+    sharedEntryHandled.current = null;
+    setSharedPostUnavailable(false);
   }, [authUser?.id]);
 
   /** Hydrates complete private profile libraries independently of the Feed page limit. */
@@ -558,11 +564,15 @@ export default function App() {
     feedPage.current = pageState;
     setHasMoreFeed(false);
     if (!authUser) { setFeedHydrated(true); return undefined; }
+    const useSharedEntry = Boolean(sharedPostId && sharedEntryHandled.current !== sharedPostId && !requestedCategory && feedMode === 'all');
     setFeedHydrated(false);
     setFeedLoadError(false);
     async function hydrateFeed() {
       try {
-        const result = await listSupabasePublishedFeedCards({ category: requestedCategory, limit: 10, cursor: null, mode: feedMode });
+        const result = await listSupabasePublishedFeedCards({
+          category: requestedCategory, limit: 10, cursor: null, mode: feedMode,
+          sharedPostId: useSharedEntry ? sharedPostTarget : null,
+        });
         if (!active) return;
         if (result.error) {
           setFeedLoadError(true);
@@ -572,6 +582,11 @@ export default function App() {
         pageState.hasMore = Boolean(result.meta.hasMore);
         setHasMoreFeed(pageState.hasMore);
         const serverCards = result.data ?? [];
+        if (useSharedEntry) {
+          sharedEntryHandled.current = sharedPostId;
+          setIsSharedGuest(false);
+          setSharedPostUnavailable(!serverCards.some(card => card.id === sharedPostTarget && isFeedPostAvailable(card)));
+        }
         const hydratedServerCards = serverCards.map((card) => ({ ...card, isMyUpload: card.authorId === authUser.id }));
         setCards((existing) => {
           const justPublished = pendingPublishedCard.current
@@ -594,7 +609,7 @@ export default function App() {
     }
     void hydrateFeed();
     return () => { active = false; };
-  }, [authUser?.id, feedRefreshKey, activeCategory, featuredPostId,feedMode]);
+  }, [authUser?.id, feedRefreshKey, activeCategory, featuredPostId, feedMode, sharedPostId, sharedPostTarget]);
 
   async function loadMoreFeed() {
     const pageState = feedPage.current;
@@ -1169,6 +1184,7 @@ export default function App() {
     const isAuthCallback = Boolean(callbackReturnUrl) || callbackHash.has('access_token') || callbackQuery.has('code');
     if (isAuthCallback && !authCallbackHandled.current) {
       authCallbackHandled.current = true;
+      rememberSharedPostForAuth(null);
       callbackQuery.delete('code');
       callbackQuery.delete('facs_remember');
       if (!callbackReturnUrl || window.opener) {
@@ -1217,6 +1233,7 @@ export default function App() {
   async function requestEmailAuth(email, remember) {
     rememberAuthLocale(locale);
     const result = await requestEmailMagicLink(email, authConfig, remember);
+    if (result.ok) rememberSharedPostForAuth(sharedPostTarget, locale);
     const message = result.ok
       ? (locale === 'en' ? 'Enter the verification code from your email here.' : '이메일로 받은 인증 코드를 이 화면에 입력해 주세요.')
       : result.code === AUTH_ACTION_ERROR.EMAIL_RATE_LIMITED
@@ -1290,6 +1307,7 @@ export default function App() {
           : 'Google 로그인은 스테이징 인증 제공자 설정 후 사용할 수 있습니다.',
       };
     }
+    rememberSharedPostForAuth(sharedPostTarget, locale);
     window.location.assign(result.url);
     return result;
   }
@@ -1548,7 +1566,7 @@ export default function App() {
   if (!brandSplashComplete) return <CanvasStage screenKey="splash"><BrandSplashView locale={locale} staticPreview={splashPreview} onComplete={() => setBrandSplashComplete(true)} /></CanvasStage>;
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} errorCode={termsGate.error?.code ?? termsGate.httpStatus} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
-  const mustEnterAuth = isGuest || (!authUser && !sharedPostId);
+  const mustEnterAuth = isGuest || (!authUser && (!sharedPostId || Boolean(supabase)));
   if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
@@ -1585,6 +1603,10 @@ export default function App() {
     </header>
 
     <main ref={mainRef} data-app-scroll-root id="main-content" tabIndex="-1" onScroll={handleMainScroll} onPointerDownCapture={startTabGesture} onPointerUp={finishTabGesture} onPointerCancel={cancelTabGesture} onPointerLeave={cancelTabGesture} onLostPointerCapture={cancelTabGesture} className={`editorial-main mx-auto flex h-full w-full max-w-none flex-col px-4 pb-11 pt-[52px] sm:px-5 ${activeTab === 'feed' ? 'editorial-main--feed' : 'editorial-main--scroll'}`}>
+      {activeTab === 'feed' && sharedPostUnavailable && <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-[#e4e2dd] bg-[#fbf9f4] px-3 py-2 text-xs text-[#1b1c19]">
+        <p role="status">{locale === 'en' ? 'This shared photo is unavailable.' : '공유된 사진을 볼 수 없어요.'}</p>
+        <button type="button" className="min-h-8 font-semibold underline" onClick={() => setSharedPostUnavailable(false)}>{locale === 'en' ? 'Continue to feed' : '피드 계속 보기'}</button>
+      </div>}
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
         {activeTab === 'feed' && <FeedView onThankComment={thankComment} commentState={commentState} onCommentStateChange={setCommentState} feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>

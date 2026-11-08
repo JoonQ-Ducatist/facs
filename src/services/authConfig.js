@@ -1,3 +1,5 @@
+import { normalizeSharedPostId, readSharedPostForAuth } from './share.js';
+
 /** Public-only authentication settings. Never place OAuth secrets or service-role keys here. */
 // Apple sign-in is intentionally deferred until the Apple Developer enrollment is active.
 export const AUTH_PROVIDER = Object.freeze(['google', 'kakao']);
@@ -69,10 +71,20 @@ export function getAuthCallbackCode(search = '') {
 }
 
 /** A verified OAuth callback must not remain the browser's next reload URL. */
-export function getCompletedAuthReturnUrl(location) {
+export function getCompletedAuthReturnUrl(location, storage) {
   if (!location || !/^\/auth\/callback\/?$/.test(location.pathname)) return null;
   const query = new URLSearchParams(location.search);
   if (query.has('error') || query.has('error_code')) return null;
   ['code', 'facs_remember', 'access_token', 'refresh_token', 'token_type', 'expires_in', 'expires_at'].forEach((key) => query.delete(key));
+  const pendingPost = readSharedPostForAuth(storage);
+  const postId = normalizeSharedPostId(query.get('post')) ?? pendingPost?.id;
+  if (postId) {
+    query.set('post', postId);
+    query.set('shared', '1');
+    if (!query.has('locale') && pendingPost?.id === postId && pendingPost.locale === 'ko') query.set('locale', 'ko');
+  } else {
+    query.delete('post');
+    query.delete('shared');
+  }
   return `/${query.size ? `?${query}` : ''}`;
 }

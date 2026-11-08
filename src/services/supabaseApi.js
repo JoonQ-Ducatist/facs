@@ -2,6 +2,7 @@ import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
 import { growthRequest } from './growthApi.js';
+import { normalizeSharedPostId } from './share.js';
 
 // In-memory only, scoped to the exact unchanged selection, account and client.
 // Keep a completed upload's receipt when publication/URL responses fail so Retry cannot create a second public post.
@@ -447,11 +448,16 @@ export function fromDatabaseCategory(category) {
  * visible. Signed URLs stay short-lived and are recreated whenever the feed
  * is refreshed.
  */
-export async function listSupabasePublishedFeedCards({ category = null, limit = 10, cursor = null, mode = 'all', client = supabase } = {}) {
+export async function listSupabasePublishedFeedCards({ category = null, limit = 10, cursor = null, mode = 'all', sharedPostId = null, client = supabase } = {}) {
   if (!client) return apiSuccess([], { source: 'unavailable' });
   if (typeof client.rpc !== 'function') return apiSuccess([], { source: 'degraded' });
   const pageSize = Math.min(Math.max(limit, 1), 20);
   const categoryFilter = category ? toDatabaseCategory(category) : null;
+  const preferredId = !cursor && !categoryFilter && mode === 'all' ? normalizeSharedPostId(sharedPostId) : null;
+  // Keep the regular feed cursor independent of this extra RLS-checked ID.
+  const includeSharedPost = (rows = []) => preferredId
+    ? [{ post_id: preferredId, source: rows.find(row => row.post_id === preferredId)?.source }, ...rows.filter(row => row.post_id !== preferredId)]
+    : rows;
   const { data: orderedPosts, error: orderError } = await client.rpc(mode === 'waiting' ? 'get_waiting_feed_post_page' : 'get_personalized_feed_post_page', {
     page_size: pageSize + 1,
     category_filter: categoryFilter,
@@ -460,13 +466,13 @@ export async function listSupabasePublishedFeedCards({ category = null, limit = 
   if (mode !== 'waiting' && (orderError?.code === 'PGRST202' || orderError?.code === '42883')) {
     const legacyPage = await client.rpc('get_personalized_feed_post_ids', { page_size: 20, category_filter: categoryFilter });
     if (legacyPage.error) return feedReadFailure('feed-order');
-    const result = await listSupabaseCardsInServerOrder(legacyPage.data, { client, source: 'supabase-legacy-feed' });
+    const result = await listSupabaseCardsInServerOrder(includeSharedPost(legacyPage.data ?? []), { client, source: 'supabase-legacy-feed' });
     return { ...result, meta: { ...result.meta, hasMore: false, nextCursor: null } };
   }
   if (orderError) return feedReadFailure('feed-order');
   const page = orderedPosts ?? [];
   const hasMore = page.length > pageSize;
-  const result = await listSupabaseCardsInServerOrder(page.slice(0, pageSize), { client, source: 'supabase' });
+  const result = await listSupabaseCardsInServerOrder(includeSharedPost(page.slice(0, pageSize)), { client, source: 'supabase' });
   return { ...result, meta: { ...result.meta, hasMore, nextCursor: hasMore ? page.at(pageSize - 1)?.post_id ?? null : null } };
 }
 

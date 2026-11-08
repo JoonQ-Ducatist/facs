@@ -27,7 +27,7 @@ test('brand splash always precedes the resolved authentication or Feed destinati
   assert.match(source, /const \[brandSplashComplete, setBrandSplashComplete\] = useState\(false\)/);
   assert.match(source, /if \(!brandSplashComplete\) return <CanvasStage screenKey="splash"><BrandSplashView/);
   assert.match(source, /if \(!authReady\) return <CanvasStage screenKey="auth-loading"><StatePanel/);
-  assert.match(source, /const mustEnterAuth = isGuest \|\| \(!authUser && !sharedPostId\);/);
+  assert.match(source, /const mustEnterAuth = isGuest \|\| \(!authUser && \(!sharedPostId \|\| Boolean\(supabase\)\)\);/);
   assert.match(source, /if \(mustEnterAuth\) return <CanvasStage screenKey="auth-entry"><AuthEntryView/);
   assert.match(source, /if \(!session\) \{[\s\S]*?setAuthUser\(null\);[\s\S]*?if \(!sharedPostId\) setIsGuest\(true\);/);
   assert.match(source, /localQaEnabled=\{localQaEnabled\}[\s\S]*?allowPreviewBypass=\{false\}/);
