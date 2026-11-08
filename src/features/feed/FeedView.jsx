@@ -18,7 +18,7 @@ import { DEMO_POST_IDS, participationCount } from './ratingParticipation.js';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ commentState, onCommentStateChange, locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ commentState, onCommentStateChange, locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onThankComment, onEditComment, onDeleteComment, onLoadComments }) {
   const participation = useRatingParticipation({ cards, votedIds, userId: currentUserId, eligible: ratingEligible, onVote, hasMore });
   const [localCommentState, setLocalCommentState] = useState(null);
   const context = commentState === undefined ? localCommentState : commentState;
@@ -121,7 +121,7 @@ export default function FeedView({ commentState, onCommentStateChange, locale = 
       {hasMore && <div ref={pageSentinelRef} className="feed-page-sentinel" aria-live="polite">
         {!cards.length || loadMoreError || !('IntersectionObserver' in window) ? <button type="button" disabled={loadingMore} onClick={() => void requestNextPage()}>{loadingMore ? (locale === 'en' ? 'Loading…' : '불러오는 중…') : (locale === 'en' ? 'Load more' : '더 불러오기')}</button> : null}
       </div>}
-      {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
+      {expandedPost && expandedCard && <CommentPanel locale={locale} card={expandedCard} timestamp={expandedPost.timestamp} media={expandedPost.media} comments={expandedCard.comments ?? []} currentUserId={currentUserId} draft={draft} onDraftChange={setDraft} onClose={() => setExpandedPost(null)} onSubmit={async () => { if (await onAddComment(expandedCard.id, draft)) setDraft(''); }} onThank={(commentId, thanked) => onThankComment?.(expandedCard.id, commentId, thanked)} onEdit={(commentId, body) => onEditComment?.(expandedCard.id, commentId, body)} onDelete={(commentId) => onDeleteComment?.(expandedCard.id, commentId)} />}
     </section> : feedMode==='waiting' ? <section className="feed-empty"><h1>{locale==='en'?'No photos waiting here right now.':'지금은 평가를 기다리는 사진이 없어요.'}</h1><button type="button" className="feed-empty__action" onClick={()=>onFeedModeChange?.('all')}>{locale==='en'?'See all photos':'전체 피드 보기'}</button></section>: <EmptyFeed locale={locale} onStartUpload={onStartUpload} />}
   </>;
 
@@ -470,7 +470,7 @@ function CommentPreview({ locale, comments, saved, color, notice, onToggleSave, 
 }
 
 /** 정의: PC에서는 사진과 댓글을 나란히 보여 주는 게시물 상세 모달, 모바일에서는 확장 댓글 영역을 제공한다. */
-function CommentPanel({ locale = 'en', card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onEdit, onDelete }) {
+function CommentPanel({ locale = 'en', card, timestamp, media, comments, currentUserId, draft, onDraftChange, onClose, onSubmit, onThank, onEdit, onDelete }) {
   const panelRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -489,12 +489,36 @@ function CommentPanel({ locale = 'en', card, timestamp, media, comments, current
       <div className="comment-panel__media"><CardMedia locale={locale} card={card} media={mediaItems[mediaIndex]} className="h-full w-full object-contain" muted />{mediaItems.length > 1 && <>{mediaIndex > 0 && <button type="button" onClick={() => setMediaIndex((index) => index - 1)} aria-label="이전 사진" className="comment-panel__media-nav comment-panel__media-nav--left"><span className="material-symbols-outlined">chevron_left</span></button>}{mediaIndex < mediaItems.length - 1 && <button type="button" onClick={() => setMediaIndex((index) => index + 1)} aria-label="다음 사진" className="comment-panel__media-nav comment-panel__media-nav--right"><span className="material-symbols-outlined">chevron_right</span></button>}<span className="comment-panel__media-count">{mediaIndex + 1} / {mediaItems.length}</span></>}</div>
       <div className="comment-panel__content">
         <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
-        <div className="comment-panel__comments">{visibleComments.length ? visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><div className="min-w-0 flex-1">{editingCommentId === comment.id ? <form className="flex items-center gap-1" onSubmit={async (event) => { event.preventDefault(); if (await onEdit?.(comment.id, editingBody)) setEditingCommentId(null); }}><input aria-label="댓글 수정" value={editingBody} onChange={(event) => setEditingBody(event.target.value)} maxLength="500" className="min-w-0 flex-1 border-b border-[#735c00] bg-transparent py-0.5 text-xs text-[#1b1c19] focus:outline-none" autoFocus /><button type="submit" disabled={!editingBody.trim()} className="text-[11px] font-bold text-[#735c00] disabled:opacity-40">저장</button><button type="button" onClick={() => setEditingCommentId(null)} className="text-[11px] text-[#74777d]">취소</button></form> : <div className="flex items-start gap-1"><p className="comment-panel__comment-text min-w-0 flex-1 text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p>{comment.authorId === currentUserId && <span className="flex shrink-0 items-center gap-0.5"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }} aria-label="댓글 수정" title="댓글 수정" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#735c00]"><Pencil size={13} /></button><button type="button" onClick={() => onDelete?.(comment.id)} aria-label="댓글 삭제" title="댓글 삭제" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#cb2b58]"><Trash2 size={13} /></button></span>}</div>}</div></div>{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>) : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
+        <div className="comment-panel__comments">{visibleComments.length ? visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><div className="min-w-0 flex-1">{editingCommentId === comment.id ? <form className="flex items-center gap-1" onSubmit={async (event) => { event.preventDefault(); if (await onEdit?.(comment.id, editingBody)) setEditingCommentId(null); }}><input aria-label="댓글 수정" value={editingBody} onChange={(event) => setEditingBody(event.target.value)} maxLength="500" className="min-w-0 flex-1 border-b border-[#735c00] bg-transparent py-0.5 text-xs text-[#1b1c19] focus:outline-none" autoFocus /><button type="submit" disabled={!editingBody.trim()} className="text-[11px] font-bold text-[#735c00] disabled:opacity-40">저장</button><button type="button" onClick={() => setEditingCommentId(null)} className="text-[11px] text-[#74777d]">취소</button></form> : <div className="flex items-start gap-1"><p className="comment-panel__comment-text min-w-0 flex-1 text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p>{comment.authorId === currentUserId && <span className="flex shrink-0 items-center gap-0.5"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }} aria-label="댓글 수정" title="댓글 수정" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#735c00]"><Pencil size={13} /></button><button type="button" onClick={() => onDelete?.(comment.id)} aria-label="댓글 삭제" title="댓글 삭제" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#cb2b58]"><Trash2 size={13} /></button></span>}</div>}</div></div><CommentThanks locale={locale} comment={comment} canThank={Boolean(currentUserId && card.authorId === currentUserId && comment.authorId && comment.authorId !== currentUserId)} onThank={onThank} />{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>) : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
         {hasMore && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mx-4 flex w-[calc(100%-2rem)] items-center justify-center gap-1 border-t border-[#e4e2dd] py-3 text-xs font-bold text-[#735c00]"><span className="material-symbols-outlined text-base">expand_more</span>댓글 10개 더 보기</button>}
         <form className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><label className="sr-only" htmlFor="comment-draft">댓글 작성</label><span className="material-symbols-outlined text-[23px] text-[#44474c]">sentiment_satisfied</span><input id="comment-draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} maxLength="500" placeholder="댓글 달기..." className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" /><button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">게시</button></form>
       </div>
     </div>
   </section>, document.body);
+}
+
+function CommentThanks({ locale, comment, canThank, onThank }) {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const en = locale === 'en';
+  if (typeof comment.thanked !== 'boolean') return null;
+  if (!canThank) return comment.thanked
+    ? <span data-no-translate className="ml-7 text-[11px] text-[#735c00]">{en ? 'Thanked by the author' : '작성자가 고마워했어요'}</span>
+    : null;
+
+  async function toggleThanks() {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try { await onThank(comment.id, !comment.thanked); }
+    finally { pending.current = false; setBusy(false); }
+  }
+
+  return <button data-no-translate type="button" aria-pressed={comment.thanked}
+    disabled={busy} onClick={toggleThanks}
+    className="ml-7 min-h-8 text-[11px] font-semibold text-[#735c00] underline disabled:opacity-50">
+    {en ? 'Say thanks' : '고마워요'}
+  </button>;
 }
 
 /** 정의: 작성자 핸들의 첫 글자로 만드는 개인정보 비노출형 아바타다. */
