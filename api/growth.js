@@ -9,7 +9,11 @@ export async function GET(request){
   if(action==='survey')return json({ok:true,data:await surveyOverview(ctx.service)});
   if(action==='youtube')return json({ok:true,data:await youtubeOverview(ctx.service)});
   if(action==='youtube-comments')return json({ok:true,data:await youtubeComments()});
-  if(action==='members'){const r=await ctx.member.rpc('get_growth_member_metrics',{window_hours:720});if(r.error)throw Error('UNAVAILABLE');return json({ok:true,data:r.data});}
+  if(action==='members'||action==='members-week'){
+   const {data,error}=await ctx.member.rpc('get_growth_member_metrics',{window_hours:action==='members-week'?168:720});
+   if(error)throw Error('UNAVAILABLE');
+   return json({ok:true,data});
+  }
   if(action==='ga4')return json({ok:true,data:await gaOverview(ctx.service)});
   return json({ok:false,code:'INPUT'},400);
  }catch(error){return failure(error);}
