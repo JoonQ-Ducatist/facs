@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
-import { DEMO_POST_IDS, demoStarter, nextUnrated, participationCount, confirmedRating, retainedDays, weekParticipation, isRatingMember } from './ratingParticipation.js';
+import { DEMO_POST_IDS, STARTER_DEMO_POST_IDS, demoStarter, nextUnrated, participationCount, confirmedRating, retainedDays, weekParticipation, isRatingMember } from './ratingParticipation.js';
 import { trackGa4Event } from '../../services/ga4.js';
 const repo=new URL('../../../',import.meta.url).pathname;
 const ids=[...DEMO_POST_IDS];
@@ -15,6 +15,23 @@ test('starter uses exact recorded binary demos and skips never count as votes',(
  assert.deepEqual([...voted],[ids[1]]);
  assert.equal(isRatingMember({id:'id',handle:'mia_demo1',role:'member'}),false);
  assert.equal(isRatingMember({id:'id',handle:'real_member',role:'member'}),true);
+});
+
+test('optional first-rating path visits three different existing demo topics before regular feed',()=>{
+ const [coffee,profile,work]=STARTER_DEMO_POST_IDS;
+ const cards=[{id:'regular',authorId:'other',evaluationType:'BINARY'},
+  {id:work,authorId:'demo-work',evaluationType:'BINARY'},
+  {id:profile,authorId:'demo-profile',evaluationType:'BINARY'},
+  {id:coffee,authorId:'demo-coffee',evaluationType:'BINARY'},
+  {id:'following',authorId:'other',evaluationType:'BINARY'}];
+ assert.ok(STARTER_DEMO_POST_IDS.every(id=>DEMO_POST_IDS.has(id)));
+ assert.equal(demoStarter(cards,new Set(),'member').id,coffee);
+ assert.equal(nextUnrated(cards,coffee,new Set(),[],'member',true).id,profile);
+ assert.equal(nextUnrated(cards,profile,new Set(),[],'member',true).id,work);
+ assert.equal(nextUnrated(cards,profile,new Set([coffee]),[],'member',true).id,work);
+ assert.equal(nextUnrated(cards,coffee,new Set(),[profile],'member',true).id,work);
+ assert.equal(nextUnrated(cards,work,new Set([coffee,profile]),[],'member',true).id,'following');
+ assert.equal(nextUnrated(cards,coffee,new Set(),[],'member').id,'following');
 });
 
 test('confirmed participation is deduplicated and days survive a missed day within bounded local history',()=>{
