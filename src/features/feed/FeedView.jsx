@@ -204,7 +204,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
   const theme = categories[card.category];
   const media = card.media?.length ? card.media : [{ id: `${card.id}-main`, type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition }];
   const activeMedia = media[mediaIndex];
-  const isVideo = activeMedia?.type === 'video' || String(activeMedia?.type ?? '').startsWith('video/');
+  const isVideo = isVideoMedia(activeMedia);
   const comparison=isComparison(card);
   const [positiveLabel,negativeLabel]=binaryLabels(card);
   const isAge = card.evaluationType === 'NUMERIC_AGE';
@@ -282,7 +282,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
   return <article ref={articleRef} data-post-id={card.id} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
-    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia locale={locale} card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(slide.type === 'video' || String(slide.type ?? '').startsWith('video/') ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
+    {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia locale={locale} card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(isVideoMedia(slide) ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
     {!comparison && media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}
     <div className="scan-line absolute left-0 top-0 z-20 h-px w-full" style={{ backgroundColor: theme.color, boxShadow: `0 0 13px 2px ${theme.color}` }} />
@@ -375,34 +375,62 @@ function ReportDialog({ locale, author, onClose, onSubmit }) {
 /** 정의: LIVE·작성자 배지와 같은 상단 오버레이 행 중앙에 다중 사진 진행 표시기를 둔다. */
 function MediaProgress({ locale, media, mediaIndex, color, onSelect }) { return <div className="media-progress absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1" aria-label={locale === 'en' ? `${media.length} uploaded photos` : `등록된 사진 ${media.length}장`}>{media.map((item, index) => <button key={item.id} type="button" aria-label={locale === 'en' ? `View photo ${index + 1}` : `${index + 1}번째 사진 보기`} aria-current={mediaIndex === index ? 'true' : undefined} onClick={() => onSelect(index)} className="rounded-full p-0"><span className="block rounded-full transition-colors" style={{ backgroundColor: mediaIndex === index ? color : 'rgba(255,255,255,.52)' }} /></button>)}</div>; }
 /** 정의: 사진 또는 동영상 카드 자산을 동일한 피드 미디어 규칙으로 렌더링한다. */
+function isVideoMedia(media) {
+  const type = media?.originalType ?? media?.type;
+  return type === 'video' || String(type ?? '').startsWith('video/');
+}
+
 function CardMedia({ locale = 'en', card, media, className, muted = false, showFullscreen = false, videoControlRef, onPlaybackChange, interactive = true, loaded = interactive }) {
   const source = media ?? { type: card.mediaType ?? 'image', url: card.imageUrl, objectPosition: card.objectPosition };
-  const isVideo = source.type === 'video' || String(source.type ?? '').startsWith('video/');
+  const isVideo = isVideoMedia(source);
+  const mediaKey = source.storagePath ?? source.url;
   const [recovered, setRecovered] = useState(null);
-  const [imageError, setImageError] = useState(null);
+  const [failedUrl, setFailedUrl] = useState(null);
+  const [readyUrl, setReadyUrl] = useState(null);
   const [renewing, setRenewing] = useState(false);
-  const attemptedImage = useRef(null);
-  const currentImage = useRef(source.url);
-  currentImage.current = source.url;
-  const effectiveUrl = recovered?.original === source.url ? recovered.url : source.url;
+  const pending = useRef(null);
+  const attemptedUrl = useRef(null);
+  const currentSource = useRef(source);
+  currentSource.current = source;
+  const effectiveUrl = recovered?.key === mediaKey && recovered.source === source.url ? recovered.url : source.unavailable ? undefined : source.url;
   const requestedImage = useRef(null);
   const imageSrc = retainedImageSource(requestedImage.current, effectiveUrl, loaded);
-  useEffect(() => { if (!isVideo && imageSrc) requestedImage.current = imageSrc; }, [isVideo, imageSrc]);
-  useEffect(() => { setRecovered(null); setImageError(null); setRenewing(false); attemptedImage.current = null; }, [source.url]);
-  async function recoverImage(manual = false) {
-    const original = source.url;
-    setImageError(original);
-    if (renewing || (!manual && attemptedImage.current === original)) return;
-    attemptedImage.current = original;
-    setRenewing(true);
-    const url = await renewMediaUrl(source.storagePath);
-    if (currentImage.current !== original) return;
-    setRenewing(false);
-    if (url && url !== imageSrc) { setRecovered({ original, url }); setImageError(null); }
-  }
-  const { poster: videoPoster, capturePoster } = useVideoPoster(isVideo && interactive ? source.url : '');
+  const mediaSrc = isVideo ? (interactive ? effectiveUrl : undefined) : imageSrc;
+  const hasFailed = failedUrl === mediaSrc && Boolean(mediaSrc) || !effectiveUrl;
+  const { poster: videoPoster, capturePoster } = useVideoPoster(isVideo ? mediaKey : '');
   const localVideoRef = useRef(null);
   const videoRef = videoControlRef ?? localVideoRef;
+
+  useEffect(() => { if (!isVideo && imageSrc) requestedImage.current = imageSrc; }, [isVideo, imageSrc]);
+  useEffect(() => { setRenewing(false); }, [mediaKey, source.url]);
+
+  async function retryMedia(manual = false) {
+    if (pending.current?.key === mediaKey && pending.current?.source === source.url) return;
+    if (!manual && attemptedUrl.current === source.url) return;
+    attemptedUrl.current = source.url;
+    const request = { key: mediaKey, source: source.url };
+    pending.current = request;
+    setRenewing(true);
+    const renewedUrl = await renewMediaUrl(source.storagePath);
+    if (pending.current !== request) return;
+    pending.current = null;
+    const latest = currentSource.current;
+    if ((latest.storagePath ?? latest.url) !== mediaKey || latest.url !== source.url) return;
+    setRenewing(false);
+    if (renewedUrl && renewedUrl !== effectiveUrl) {
+      setRecovered({ key: mediaKey, source: source.url, url: renewedUrl });
+      setFailedUrl(null);
+    } else if (manual && isVideo && mediaSrc) {
+      setFailedUrl(null);
+      videoRef.current?.load();
+    }
+  }
+
+  function mediaFailed() {
+    setFailedUrl(mediaSrc);
+    void retryMedia();
+  }
+
   const protectMedia = (event) => event.preventDefault();
   const isolateVideoTouch = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -421,15 +449,33 @@ function CardMedia({ locale = 'en', card, media, className, muted = false, showF
       source: String(video.currentSrc || source.url || '').split('?')[0],
     });
   };
-  if (!isVideo) return <><img className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={imageSrc} loading={imageSrc ? 'eager' : 'lazy'} decoding="async" alt={`${card.author}의 ${card.category} 사진`} draggable="false" onError={() => { if (imageSrc) void recoverImage(); }} onLoad={() => setImageError(null)} onContextMenu={protectMedia} onDragStart={protectMedia} />{imageError === source.url && <button type="button" disabled={renewing} onClick={() => void recoverImage(true)} className="absolute left-1/2 top-1/3 z-30 -translate-x-1/2 rounded-full border border-white/60 bg-black/75 px-4 py-2 text-xs font-semibold text-white" aria-label={locale === 'ko' ? '사진 다시 불러오기' : 'Retry photo'}>{renewing ? (locale === 'ko' ? '불러오는 중…' : 'Loading…') : (locale === 'ko' ? '사진 다시 불러오기' : 'Retry photo')}</button>}</>;
-  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={interactive ? source.url : undefined} crossOrigin="anonymous" poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedData={capturePoster} onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={reportVideoEvent} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
-  return video;
+  const retryLabel = isVideo
+    ? (locale === 'ko' ? '동영상 다시 불러오기' : 'Retry video')
+    : (locale === 'ko' ? '사진 다시 불러오기' : 'Retry photo');
+  const loadingLabel = locale === 'ko' ? '불러오는 중…' : 'Loading…';
+  const video = <video ref={videoRef} className={className} style={{ objectPosition: source.objectPosition ?? card.objectPosition }} src={mediaSrc} crossOrigin="anonymous" poster={videoPoster || undefined} autoPlay={Boolean(muted)} loop={Boolean(muted)} muted={muted || undefined} playsInline preload={interactive ? (showFullscreen && !muted ? 'auto' : 'metadata') : 'none'} controls={interactive && !muted && !showFullscreen} draggable="false" onLoadedData={(event) => { setFailedUrl(null); capturePoster(event); }} onLoadedMetadata={reportVideoEvent} onCanPlay={reportVideoEvent} onPlay={reportVideoEvent} onPause={reportVideoEvent} onEnded={reportVideoEvent} onWaiting={reportVideoEvent} onStalled={reportVideoEvent} onError={(event) => { reportVideoEvent(event); if (mediaSrc) mediaFailed(); }} onPointerDown={isolateVideoTouch} onPointerMove={isolateVideoTouch} onPointerUp={isolateVideoTouch} onPointerCancel={isolateVideoTouch} onContextMenu={protectMedia} onDragStart={protectMedia} aria-label={`${card.author}의 ${card.category} 동영상`} />;
+  return <>
+    {isVideo ? video : imageSrc && <img className={className}
+      style={{ objectPosition: source.objectPosition ?? card.objectPosition, opacity: readyUrl === imageSrc && !hasFailed ? 1 : 0 }}
+      src={imageSrc} loading="eager" decoding="async" alt={locale === 'ko' ? `${card.author}의 사진` : `Photo by ${card.author}`}
+      draggable="false" onError={mediaFailed} onLoad={() => { setReadyUrl(imageSrc); setFailedUrl(null); }}
+      onContextMenu={protectMedia} onDragStart={protectMedia} />}
+    {(interactive || (!isVideo && loaded)) && (hasFailed || renewing) && <button type="button" disabled={renewing}
+      onClick={() => void retryMedia(true)} className="absolute left-1/2 top-1/3 z-30 -translate-x-1/2 rounded-full border border-white/60 bg-black/75 px-4 py-2 text-xs font-semibold text-white">
+      {renewing ? loadingLabel : retryLabel}
+    </button>}
+    {interactive && !isVideo && !hasFailed && !renewing && readyUrl !== imageSrc && <span role="status"
+      className="pointer-events-none absolute left-1/2 top-1/3 z-20 -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-xs text-white">
+      {loadingLabel}
+    </span>}
+  </>;
 }
 function useVideoPoster(url) {
   const [snapshot, setSnapshot] = useState(null);
   const capturePoster = (event) => {
     if (!url || snapshot?.url === url) return;
-    setSnapshot({ url, poster: captureVideoPoster(event.currentTarget) });
+    const poster = captureVideoPoster(event.currentTarget);
+    if (poster) setSnapshot({ url, poster });
   };
   return { poster: snapshot?.url === url ? snapshot.poster : '', capturePoster };
 }
@@ -491,7 +537,20 @@ function CommentPanel({ locale = 'en', card, timestamp, media, comments, current
         <header className="flex shrink-0 items-center gap-2 border-b border-[#e4e2dd] px-4 py-3"><Avatar author={card.author} /><div className="min-w-0 flex-1"><strong className="block truncate text-[13px] text-[#1b1c19]">@{card.author}</strong><span className="block truncate text-[10px] text-[#74777d]">{timestamp}</span></div><span className="material-symbols-outlined text-[19px] text-[#44474c]">more_horiz</span></header>
         <div className="comment-panel__comments">{visibleComments.length ? visibleComments.map((comment) => <div key={comment.id} className="mb-4"><div className="flex gap-2"><Avatar author={comment.author} /><div className="min-w-0 flex-1">{editingCommentId === comment.id ? <form className="flex items-center gap-1" onSubmit={async (event) => { event.preventDefault(); if (await onEdit?.(comment.id, editingBody)) setEditingCommentId(null); }}><input aria-label="댓글 수정" value={editingBody} onChange={(event) => setEditingBody(event.target.value)} maxLength="500" className="min-w-0 flex-1 border-b border-[#735c00] bg-transparent py-0.5 text-xs text-[#1b1c19] focus:outline-none" autoFocus /><button type="submit" disabled={!editingBody.trim()} className="text-[11px] font-bold text-[#735c00] disabled:opacity-40">저장</button><button type="button" onClick={() => setEditingCommentId(null)} className="text-[11px] text-[#74777d]">취소</button></form> : <div className="flex items-start gap-1"><p className="comment-panel__comment-text min-w-0 flex-1 text-[#44474c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{comment.author}</strong>{comment.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{comment.createdAt}</span></p>{comment.authorId === currentUserId && <span className="flex shrink-0 items-center gap-0.5"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }} aria-label="댓글 수정" title="댓글 수정" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#735c00]"><Pencil size={13} /></button><button type="button" onClick={() => onDelete?.(comment.id)} aria-label="댓글 삭제" title="댓글 삭제" className="flex h-6 w-6 items-center justify-center text-[#74777d] hover:text-[#cb2b58]"><Trash2 size={13} /></button></span>}</div>}</div></div><CommentThanks locale={locale} comment={comment} canThank={Boolean(currentUserId && card.authorId === currentUserId && comment.authorId && comment.authorId !== currentUserId)} onThank={onThank} />{comment.replies.map((reply) => <div key={reply.id} className="ml-7 mt-2 flex gap-2 border-l border-[#e4e2dd] pl-2"><Avatar author={reply.author} small /><p className="comment-panel__comment-text text-[#55575c]"><strong className="comment-panel__author mr-1 text-[#1b1c19]">@{reply.author}</strong>{reply.body}<span className="ml-1.5 font-mono text-[10px] text-[#8d8d87]">{reply.createdAt}</span></p></div>)}</div>) : <p className="py-2 text-xs text-[#74777d]">첫 번째 의견을 남겨 보세요.</p>}</div>
         {hasMore && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mx-4 flex w-[calc(100%-2rem)] items-center justify-center gap-1 border-t border-[#e4e2dd] py-3 text-xs font-bold text-[#735c00]"><span className="material-symbols-outlined text-base">expand_more</span>댓글 10개 더 보기</button>}
-        <form className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><label className="sr-only" htmlFor="comment-draft">댓글 작성</label><span className="material-symbols-outlined text-[23px] text-[#44474c]">sentiment_satisfied</span><input id="comment-draft" value={draft} onChange={(event) => onDraftChange(event.target.value)} maxLength="500" placeholder="댓글 달기..." className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" /><button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">게시</button></form>
+        <p id="comment-visibility-note" data-no-translate className="shrink-0 px-4 py-2 text-[11px] text-[#66686d]">
+          {locale === 'en' ? 'Your public ID is shown when you post a comment.' : '댓글을 게시하면 공개 아이디가 표시돼요.'}
+        </p>
+        <form data-no-translate className="comment-panel__form" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+          <label className="sr-only" htmlFor="comment-draft">{locale === 'en' ? 'Write a comment' : '댓글 작성'}</label>
+          <span className="material-symbols-outlined text-[23px] text-[#44474c]" aria-hidden="true">sentiment_satisfied</span>
+          <input id="comment-draft" aria-describedby="comment-visibility-note" value={draft}
+            onChange={(event) => onDraftChange(event.target.value)} maxLength="500"
+            placeholder={locale === 'en' ? 'Write a comment…' : '댓글 달기...'}
+            className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-xs text-[#1b1c19] placeholder:text-[#8d8d87] focus:outline-none" />
+          <button type="submit" disabled={!draft.trim()} className="text-xs font-bold text-[#5865F2] disabled:cursor-not-allowed disabled:opacity-40">
+            {locale === 'en' ? 'Post' : '게시'}
+          </button>
+        </form>
       </div>
     </div>
   </section>, document.body);

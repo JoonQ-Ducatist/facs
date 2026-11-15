@@ -552,7 +552,7 @@ async function listSupabaseCardsInServerOrder(orderedPosts, { client, source = '
       return signedError || !signed?.signedUrl
         // Keep the post (including its owner's Delete action) readable even if
         // an earlier partial deletion or a Storage outage removed its media.
-        ? { id: asset.id, type: 'image', url: unavailableMediaUrl, storagePath: asset.storage_path, unavailable: true, objectPosition: 'center' }
+        ? { id: asset.id, type: 'image', originalType: asset.media_type, url: unavailableMediaUrl, storagePath: asset.storage_path, unavailable: true, objectPosition: 'center' }
         : { id: asset.id, type: asset.media_type, url: signed.signedUrl, storagePath: asset.storage_path, objectPosition: 'center 20%' };
     }));
     const media = signedMedia;

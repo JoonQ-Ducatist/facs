@@ -12,49 +12,54 @@ import { prepareImageForUpload } from './imagePreparation.js';
 const MAX_IMAGES = 5;
 const MAX_VIDEOS = 1;
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
-/** 정의: 카테고리별로 항상 네 개를 제공하는 평가 질문 추천 사전이다. */
 const questionSuggestions = {
-  Outfit: ['오늘 이 스타일, 괜찮아 보여요?', '새로 산 이 옷, 저와 잘 어울리나요?', '이 룩에서 제 분위기가 잘 느껴지나요?', '오늘의 Look Book, 가장 매력적인 포인트는 무엇인가요?'],
-  PerceivedAge: ['사람들이 보는 저는 몇 살쯤일까요?', '이 사진의 저는 실제보다 어려 보이나요?', '헤어와 메이크업을 보고 예상 나이가 궁금해요.', '이 사진을 보면 사람들은 제 나이를 어떻게 추측할까요?'],
+  Outfit: ['오늘 이 스타일, 괜찮아 보여요?', '새로 산 이 옷, 저와 잘 어울리나요?', '이 룩에서 제 분위기가 잘 느껴지나요?', '오늘의 룩이 전체적으로 잘 어울리나요?'],
+  PerceivedAge: ['사람들이 보는 저는 몇 살쯤일까요?', '이 사진에서 저는 몇 살쯤으로 보이나요?', '이 헤어스타일을 보면 제 나이를 몇 살로 예상하나요?', '이 사진을 보면 사람들은 제 나이를 어떻게 추측할까요?'],
   Date: ['첫 만남이라면 호감이 가나요?', '데이트에서 편안하고 매력적인 인상이 들까요?', '이 스타일이 저와 잘 어울려 보이나요?', '상대가 기억할 만한 분위기로 보이나요?'],
   Fitness: ['건강하고 매력적인 인상을 주나요?', '운동하기에 편안하면서도 스타일 있어 보이나요?', '오늘의 운동 스타일, 자신감 있어 보이나요?', '활기찬 에너지가 사진에서 느껴지나요?'],
   Work: ['직장에서 좋은 평가를 받을 것 같나요?', '오늘의 출근 룩, 깔끔하고 센스 있어 보이나요?', '이 룩에서 신뢰감이 느껴지나요?', '전문적이면서도 친근한 인상인가요?'],
   SocialProfile: ['이 사진, SNS 프로필로 매력적으로 보이나요?', '이 사진에서 제 분위기가 잘 드러나나요?', '처음 보는 사람에게 좋은 인상을 줄 것 같나요?', '프로필 첫 화면에서 시선이 머무를 사진인가요?'],
 };
 const englishQuestionSuggestions = {
-  Outfit: ['Does this look work for today?', 'Does this new outfit suit me?', 'Does this look express my vibe?', 'What is the most appealing part of today’s look?'],
-  PerceivedAge: ['How old do I look to people?', 'Do I look younger than my age here?', 'What age impression do my hair and makeup create?', 'What age would people guess from this photo?'],
+  Outfit: ['Does this look work for today?', 'Does this new outfit suit me?', 'Does this look express my vibe?', 'Does this look feel put together?'],
+  PerceivedAge: ['How old do I look to people?', 'How old would you guess I am here?', 'How old do I look with this hairstyle?', 'What age would people guess from this photo?'],
   Date: ['Would this make a lovely first-date look?', 'Do I look comfortable and appealing for a date?', 'Does this style suit me?', 'Would this be a memorable look?'],
   Fitness: ['Does this look feel healthy and confident?', 'Does this workout look feel comfortable and stylish?', 'Does today’s workout look feel confident?', 'Can you feel the active energy in this photo?'],
   Work: ['Would this make a strong work look?', 'Does today’s work look feel polished?', 'Does this look feel trustworthy?', 'Does it feel professional and approachable?'],
   SocialProfile: ['Does this work as an appealing profile photo?', 'Does this photo express my vibe?', 'Would this make a good profile impression?', 'Would this photo stand out on a profile?'],
 };
 
-/** Keeps Upload controls out of the root tab-swipe gesture on touch devices. */
-function isolateTouch(event) {
-  if (event.pointerType === 'touch') event.stopPropagation();
-}
-
 /** 정의: 카테고리와 선택한 미디어 유형·수에 따라 첫 추천 질문을 조정한다. @param {string} category 카테고리 ID @param {Array<object>} media 선택 미디어 */
 function getQuestionSuggestions(category, media, locale) {
   const source = locale === 'en' ? englishQuestionSuggestions : questionSuggestions;
   const base = source[category] ?? source.Outfit;
   if (!media.length) return base;
+  if (category === 'PerceivedAge') {
+    const context = media.some((item) => item.type === 'video') ? 2 : Number(media.length > 1);
+    const ageQuestions = locale === 'en'
+      ? ['How old do I look in this photo?', 'How old do I look across these photos?', 'How old do I look in this short video?']
+      : ['이 사진에서 저는 몇 살쯤으로 보이나요?', '이 사진들을 보면 저는 몇 살쯤으로 보이나요?', '이 짧은 영상에서 저는 몇 살쯤으로 보이나요?'];
+    return [ageQuestions[context], ...base.slice(1)];
+  }
   if (locale === 'en') {
     const mediaHint = media.some((item) => item.type === 'video') ? 'Does my vibe in this short video' : media.length > 1 ? 'Does my vibe across these photos' : 'Does my vibe in this photo';
-    const endings = { Outfit: 'feel fresh and well styled?', PerceivedAge: 'suggest a younger age?', Date: 'feel right for a date?', Fitness: 'feel healthy and confident?', Work: 'feel professional and trustworthy?', SocialProfile: 'work for a profile?' };
+    const endings = { Outfit: 'feel fresh and well styled?', Date: 'feel right for a date?', Fitness: 'feel healthy and confident?', Work: 'feel professional and trustworthy?', SocialProfile: 'work for a profile?' };
     return [`${mediaHint} ${endings[category] ?? endings.Outfit}`, ...base.slice(1)];
   }
   const mediaHint = media.some((item) => item.type === 'video') ? '짧은 영상에서 보이는 제 분위기는' : media.length > 1 ? '여러 장의 사진에서 보이는 제 분위기는' : '이 사진에서 보이는 제 분위기는';
   const visualLead = {
     Outfit: `${mediaHint} 산뜻하고 잘 어울려 보이나요?`,
-    PerceivedAge: `${mediaHint} 사람들은 저를 몇 살쯤으로 느낄까요?`,
     Date: `${mediaHint} 첫 만남에 호감을 줄 것 같나요?`,
     Fitness: `${mediaHint} 건강하고 자신감 있어 보이나요?`,
     Work: `${mediaHint} 신뢰감 있는 모습으로 보이나요?`,
     SocialProfile: `${mediaHint} 프로필 첫 화면에 어울리나요?`,
   };
   return [visualLead[category] ?? visualLead.Outfit, ...base.slice(1)];
+}
+
+/** Keeps Upload controls out of the root tab-swipe gesture on touch devices. */
+function isolateTouch(event) {
+  if (event.pointerType === 'touch') event.stopPropagation();
 }
 
 /** 정의: 복수 미디어 선택·정렬·질문 입력·사전 검증을 제공하는 개발용 업로드 화면이다. 실제 저장·검토는 백엔드 단계에서 처리한다. */

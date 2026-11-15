@@ -26,5 +26,5 @@ test('updated component parses and videos retain the near-viewport activation ga
  const require=createRequire(import.meta.url);
  await require('esbuild').transform(source,{loader:'jsx',jsx:'automatic'});
  assert.ok(source.includes('interactive={nearViewport && index === mediaIndex}'));
- assert.ok(source.includes("src={interactive ? source.url : undefined}"));
+ assert.ok(source.includes("isVideo ? (interactive ? effectiveUrl : undefined) : imageSrc"));
 });
