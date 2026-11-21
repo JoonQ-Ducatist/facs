@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import{createVoteRequest,ratingCountPrompt}from'./voteRequest.js';
+test('vote requests are single flight until server save resolves',async()=>{const gate=createVoteRequest();let release,calls=0;const first=gate.run(()=>{calls++;return new Promise(r=>{release=r;});});assert.equal(gate.pending,true);assert.deepEqual(await gate.run(async()=>{calls++;}),{ok:false,busy:true});assert.equal(calls,1);release({ok:true});assert.deepEqual(await first,{ok:true});assert.equal(gate.pending,false);});
+test('failed vote requests release the lock and allow a genuine retry',async()=>{const gate=createVoteRequest();await assert.rejects(gate.run(async()=>{throw Error('network');}));assert.equal(gate.pending,false);assert.deepEqual(await gate.run(async()=>({ok:true,server:true})),{ok:true,server:true});});
+test('unknown rating count is never presented as zero or a first opinion opportunity',()=>{assert.equal(ratingCountPrompt(null,'en'),'Rating count unavailable');assert.match(ratingCountPrompt(0,'en'),/first one/);assert.equal(ratingCountPrompt(2,'ko'),'저장된 평가 2건');});
