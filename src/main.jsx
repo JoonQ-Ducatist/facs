@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
+import GuestFeedback from './features/feedback/GuestFeedback.jsx';
 import './styles/global.css';
 import { initializePwa } from './services/pwaInstall.js';
 
@@ -11,7 +12,7 @@ initializePwa();
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      {window.location.pathname === '/feedback' ? <GuestFeedback /> : <App />}
     </BrowserRouter>
   </React.StrictMode>,
 );
