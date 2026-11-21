@@ -31,6 +31,7 @@ export async function POST(request){
    if(saved.error)return new Response(JSON.stringify({ok:false,code:saved.error.code==='23505'?'ALREADY_VOTED':'UNAVAILABLE'}),{status:409,headers:{...headers,'Content-Type':'application/json'}});
    return new Response(JSON.stringify({ok:true}),{headers:{...headers,'Content-Type':'application/json'}});
   }
-  return new Response(JSON.stringify({ok:true,question:photo.question,category:photo.category}),{headers:{...headers,'Content-Type':'application/json'}});
+  const previous=await service.from('feedback_external_votes').select('id').eq('invite_id',photo.id).eq('visitor_hash',visitor).maybeSingle();if(previous.error)throw Error('UNAVAILABLE');
+  return new Response(JSON.stringify({ok:true,question:photo.question,category:photo.category,alreadySubmitted:Boolean(previous.data)}),{headers:{...headers,'Content-Type':'application/json'}});
  }catch(error){return failure(error);}
 }

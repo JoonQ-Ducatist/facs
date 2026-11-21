@@ -1146,7 +1146,7 @@ export default function App() {
     if(!entryIntent||!authUser||!profile||profileLoading||termsGate||isGuest||!feedHydrated)return;
     clearEntryIntent(entryStorage());setEntryIntent(null);
     const url=new URL(window.location.href);url.searchParams.delete('intent');window.history.replaceState(null,'',url);
-    if(entryIntent==='upload')openUpload();else{setTestsAutoOpen(true);setActiveTab('profile');}
+    if(entryIntent==='upload')openUpload();else if(entryIntent==='rate'){setFeedMode('waiting');setActiveCategory('ALL');setFeaturedPostId(null);setFeedRefreshKey(v=>v+1);setActiveTab('feed');}else{setTestsAutoOpen(true);setActiveTab('profile');}
   },[entryIntent,authUser?.id,profile?.id,profileLoading,termsGate,isGuest,feedHydrated]);
 
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */

@@ -46,3 +46,7 @@ export function confirmedRating(state,postId,date=new Date()) {
   if(state.completed.includes(postId)) return state;
   return {...state,completed:[...state.completed,postId].slice(-100),days:retainedDays([...state.days,dayKey(date)],date)};
 }
+
+/** A voluntary browser-session goal changes guidance only, never vote counts or rewards. */
+export function ratingGoal(value){return [1,3,5].includes(value)?value:3;}
+export function ratingGoalProgress(completed,goal){const target=ratingGoal(goal);const saved=Array.isArray(completed)?new Set(completed).size:0;return{saved,target,reached:saved>=target};}

@@ -1,10 +1,10 @@
 export function entryStorage(){try{return window.sessionStorage;}catch{return null;}}
 const KEY='facs_feedback_entry_v1';
-export function entryUrl(intent,locale='en'){return `${locale==='ko'?'/ko/':'/'}?intent=${intent==='tests'?'tests':'upload'}`;}
+export function entryUrl(intent,locale='en'){return `${locale==='ko'?'/ko/':'/'}?intent=${['tests','rate'].includes(intent)?intent:'upload'}`;}
 export function rememberEntryIntent(search,storage,now=Date.now()){
  const intent=new URLSearchParams(search).get('intent');
- if(['upload','tests'].includes(intent)){try{storage?.setItem(KEY,JSON.stringify({intent,expiresAt:now+30*60*1000}));}catch{}return intent;}
- try{const value=JSON.parse(storage?.getItem(KEY)||'null');if(['upload','tests'].includes(value?.intent)&&value.expiresAt>now)return value.intent;storage?.removeItem(KEY);}catch{}return null;
+ if(['upload','tests','rate'].includes(intent)){try{storage?.setItem(KEY,JSON.stringify({intent,expiresAt:now+30*60*1000}));}catch{}return intent;}
+ try{const value=JSON.parse(storage?.getItem(KEY)||'null');if(['upload','tests','rate'].includes(value?.intent)&&value.expiresAt>now)return value.intent;storage?.removeItem(KEY);}catch{}return null;
 }
 export function clearEntryIntent(storage){try{storage?.removeItem(KEY);}catch{}}
 export function invitationUrl(origin,token,locale='en'){return `${origin}/feedback${locale==='ko'?'?locale=ko':''}#${token}`;}
