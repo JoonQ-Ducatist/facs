@@ -1676,6 +1676,7 @@ function localizeCard(card, locale) {
 }
 
 const EN_COPY = {
+  '이 사진에서 제 분위기가 잘 드러나나요?': 'Does this photo show my personality well?',
   '오늘 이 스타일,\n괜찮아 보여요?': 'Does this look\nwork for today?',
   '오늘의 스타일을 평가해 주세요.': 'Rate today’s look.',
   '사람들은 저를\n몇 살로 볼까요?': 'How old do I look\nto people?',
