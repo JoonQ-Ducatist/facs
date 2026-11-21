@@ -10,7 +10,7 @@ export async function createInvite(postId){
  return `${location.origin}/feedback#${token}`;
 }
 export async function externalRequest(token,action,extra={}){
- const {data}=await supabase?.auth.getSession()||{data:{}};
- const r=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json',...(data.session?.access_token?{Authorization:'Bearer '+data.session.access_token}:{})},body:JSON.stringify({token,action,...extra}),credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
+ const {data:sessionData}=await supabase?.auth.getSession()||{data:{}};
+ const r=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json',...(sessionData.session?.access_token?{Authorization:'Bearer '+sessionData.session.access_token}:{})},body:JSON.stringify({token,action,...extra}),credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
  if(action==='image'){if(!r.ok)throw Error('UNAVAILABLE');return r.blob();}const data=await r.json();if(!r.ok||!data.ok)throw Error(data.code||'UNAVAILABLE');return data;
 }
