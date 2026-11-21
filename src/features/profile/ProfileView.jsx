@@ -6,9 +6,10 @@ import { canSubmitHandle, getProfileAvatarUrl, getPublicHandle, normalizeHandle,
 import { sortPostsNewestFirst } from './profileOrdering.js';
 
 /** 정의: 개인 업로드 요약, 투표 지표, 내 게시물 관리 행동을 제공하는 프로필 화면이다. */
-export default function ProfileView({ locale = 'ko', cards, profileCards, scrapCards, categories, savedPostIds, profile, profileLoading, profileNotice, resumeUploadAfterHandle, isAuthenticated, canModerate = false, canViewOperations = false, blockedMembers = [], onCheckHandle, onLoadHandleSuggestions, onSaveHandle, onSavePresentation, onDelete, onRemoveScrap, onOpenScrap, onUpload, onOpenModeration, onOpenOperations, onOpenPolicy, onUnblock, onSignOut }) {
+export default function ProfileView({ initialTestsOpen=false,onTestsOpened,locale = 'ko', cards, profileCards, scrapCards, categories, savedPostIds, profile, profileLoading, profileNotice, resumeUploadAfterHandle, isAuthenticated, canModerate = false, canViewOperations = false, blockedMembers = [], onCheckHandle, onLoadHandleSuggestions, onSaveHandle, onSavePresentation, onDelete, onRemoveScrap, onOpenScrap, onUpload, onOpenModeration, onOpenOperations, onOpenPolicy, onUnblock, onSignOut }) {
   const [editingHandle, setEditingHandle] = useState(false);
-  const [testsOpen,setTestsOpen]=useState(false);
+  const [testsOpen,setTestsOpen]=useState(initialTestsOpen);
+  useEffect(()=>{if(initialTestsOpen){setTestsOpen(true);onTestsOpened?.();}},[initialTestsOpen,onTestsOpened]);
   // An authenticated profile must never fall back to feed fixtures. The private
   // server library is the only authority for what its owner may manage here.
   const profileLibrary = profileCards ?? (isAuthenticated ? [] : cards);

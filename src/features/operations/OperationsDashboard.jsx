@@ -1,36 +1,22 @@
 import IntegrationMetrics from '../growth/IntegrationMetrics.jsx';
-import { useEffect, useState } from 'react';
+import {useEffect,useRef,useState} from 'react';
 import SurfaceCard from '../../components/ui/SurfaceCard.jsx';
-import { getOperationalMetrics } from '../../services/operationsMetricsApi.js';
+import {getOperationalMetrics,getOperationalWindow} from '../../services/operationsMetricsApi.js';
 
-/** Admin-only aggregate dashboard. It intentionally does not expose person-level behavior. */
-export default function OperationsDashboard({ locale = 'ko', sessionKey = '', onBack }) {
-  const korean = locale !== 'en';
-  const [daily, setDaily] = useState(null);
-  const [monthly, setMonthly] = useState(null);
-  const [notice, setNotice] = useState('');
-  useEffect(() => {
-    let active = true;
-    Promise.all([getOperationalMetrics(24), getOperationalMetrics(720)]).then(([day, month]) => {
-      if (!active) return;
-      if (day.error || month.error) setNotice(korean ? '운영 지표를 불러오지 못했어요.' : 'Could not load operations metrics.');
-      else { setDaily(day.data); setMonthly(month.data); }
-    });
-    return () => { active = false; };
-  }, [korean, sessionKey]);
-  const m = monthly ?? {};
-  const d = daily ?? {};
-  const funnel = [
-    [korean ? '방문' : 'Visits', m.unique_visitors],
-    [korean ? '인증 진입 (기존 집계)' : 'Authenticated entries (legacy)' , m.signups_completed],
-    [korean ? '첫 평가' : 'First votes', m.first_votes],
-    [korean ? '업로드 화면 열기' : 'Upload opened', m.upload_opens],
-    [korean ? '사진·영상 선택' : 'Media selected', m.media_selections],
-    [korean ? '게시 시도' : 'Publish attempted', m.publish_attempts],
-    [korean ? '업로드 완료' : 'Uploads', m.uploads_completed],
-    [korean ? '결과 확인' : 'Results viewed', m.results_viewed],
-  ];
-  return <section className="w-full pb-3 pt-1" aria-labelledby="operations-title"><div className="mb-3 flex items-center justify-between"><div><p className="font-mono text-[10px] font-bold tracking-wider text-cyan-glow">ADMIN ONLY</p><h1 id="operations-title" className="font-headline text-lg font-bold text-white">{korean ? '사용자 동선 분석' : 'User journey analytics'}</h1></div><button type="button" onClick={onBack} className="rounded-md border border-surface-container-high px-2.5 py-1.5 text-xs font-bold text-slate-400">{korean ? '프로필로' : 'Profile'}</button></div>{notice ? <SurfaceCard className="p-4 text-xs text-[#f487a3]">{notice}</SurfaceCard> : !daily || !monthly ? <SurfaceCard className="p-5 text-center text-xs text-slate-400">{korean ? '운영 지표를 불러오는 중이에요.' : 'Loading operations metrics.'}</SurfaceCard> : <div className="space-y-3"><IntegrationMetrics locale={locale} /><p className="text-[10px] leading-relaxed text-slate-400">{korean ? 'GA4 연결 전에도 익명 세션 기준의 서비스 집계로 핵심 동선을 확인합니다. 개인별 행동·이메일·콘텐츠는 표시하지 않습니다.' : 'Core journeys use anonymous product aggregates before GA4 is connected. No person-level behavior, email, or content is shown.'}</p><div className="grid grid-cols-2 gap-2"><Metric label={korean ? '익명 세션 (24시간)' : 'Anonymous sessions (24h)'} value={d.unique_visitors} /><Metric label={korean ? '익명 세션 (30일)' : 'Anonymous sessions (30d)'} value={m.unique_visitors} /><Metric label={korean ? '전체 신규 계정 (30일·데모 포함)' : 'All new accounts (30d, incl. demo)'} value={m.new_members} /><Metric label={korean ? '탈퇴자' : 'Account closures'} value={korean ? '미제공' : 'Not available'} /></div><SurfaceCard className="p-3"><h2 className="text-xs font-bold text-white">{korean ? '30일 이벤트별 집계' : '30-day event totals'}</h2><p className="mt-1 text-[10px] leading-relaxed text-slate-400">{korean ? '서로 다른 이벤트 집계이므로 단계 사이의 차이가 실제 이탈 인원은 아닙니다. 평가 화면 도달·저장·다른 날 참여는 GA4의 rating 이벤트에서 확인합니다.' : 'These independent event totals are not a sequential drop-off funnel. GA4 rating events track feed views, saved opinions, and participation on a later day.'}</p><div className="mt-3 space-y-2">{funnel.map(([label, value], index) => <div key={label}><div className="flex justify-between text-[10px]"><span className="text-slate-300">{label}</span><strong className="text-white">{Number(value ?? 0).toLocaleString()}</strong></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container-high"><span className="block h-full bg-cyan-glow" style={{ width: `${Math.min(100, Math.round((Number(value ?? 0) / Math.max(Number(funnel[0][1] ?? 0), 1)) * 100))}%` }} /></div></div>)}</div></SurfaceCard></div>}</section>;
+/** Admin-only aggregate dashboard; each period has its own data and query window. */
+export default function OperationsDashboard({locale='ko',sessionKey='',onBack}){
+ const korean=locale!=='en';const [days,setDays]=useState(30),[daily,setDaily]=useState(null),[selected,setSelected]=useState(null),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
+ const cache=useRef(new Map());
+ useEffect(()=>{let active=true;getOperationalMetrics(24).then(r=>{if(active)setDaily({session:sessionKey,result:r});});return()=>{active=false;};},[sessionKey]);
+ useEffect(()=>{let active=true;const key=`${sessionKey}:${days}`;setFailed(false);const saved=cache.current.get(key);if(saved){setSelected({key,data:saved});return;}
+  getOperationalWindow(days).then(r=>{if(!active)return;if(r.error){setFailed(true);return;}cache.current.set(key,r.data);setSelected({key,data:r.data});});return()=>{active=false;};
+ },[sessionKey,days,retry]);
+ const m=selected?.key===`${sessionKey}:${days}`?selected.data:null;const d=daily?.session===sessionKey&&!daily.result.error?daily.result.data:null;
+ const period=korean?`최근 ${days}일`:`Last ${days} days`;
+ const funnel=m?[[korean?'방문':'Visits',m.unique_visitors],[korean?'인증 진입 (기존 집계)':'Authenticated entries (legacy)',m.signups_completed],[korean?'첫 평가':'First votes',m.first_votes],[korean?'업로드 화면 열기':'Upload opened',m.upload_opens],[korean?'사진·영상 선택':'Media selected',m.media_selections],[korean?'게시 시도':'Publish attempted',m.publish_attempts],[korean?'업로드 완료':'Uploads',m.uploads_completed],[korean?'결과 확인':'Results viewed',m.results_viewed]]:[];
+ return <section className="w-full pb-3 pt-1" aria-labelledby="operations-title"><div className="mb-3 flex items-center justify-between"><div><p className="font-mono text-[10px] font-bold tracking-wider text-cyan-glow">ADMIN ONLY</p><h1 id="operations-title" className="font-headline text-lg font-bold text-white">{korean?'사용자 동선 분석':'User journey analytics'}</h1></div><button type="button" onClick={onBack} className="rounded-md border border-surface-container-high px-2.5 py-1.5 text-xs font-bold text-slate-400">{korean?'프로필로':'Profile'}</button></div>
+ <div data-no-translate role="tablist" aria-label={korean?'동선 분석 기간':'Journey analysis period'} className="mb-3 flex gap-2">{[7,30].map(n=><button type="button" role="tab" id={`journey-tab-${n}`} key={n} aria-selected={days===n} aria-controls="journey-period-panel" onClick={()=>setDays(n)} className={`min-h-10 rounded-lg border px-4 py-2 text-sm font-bold ${days===n?'border-[#c52a52] bg-[#c52a52]/10 text-[#a22d50]':'border-[#d7d1c5] bg-white text-[#735c00]'}`}>{korean?`최근 ${n}일`:`Last ${n} days`}</button>)}</div>
+ <div className="space-y-3"><IntegrationMetrics locale={locale}/><p className="text-[10px] leading-relaxed text-slate-400">{korean?'익명 세션 기준의 서비스 집계입니다. 개인별 행동·이메일·콘텐츠는 표시하지 않습니다. 아래 기간 선택은 서비스 동선 집계에 적용되며, 연결 채널의 별도 조회 기간은 각 영역에 표시됩니다.':'These are anonymous product aggregates, without person-level behavior, email or content. The period tabs apply to the product journey below; connected channels keep their separately labelled windows.'}</p>
+ <div data-no-translate id="journey-period-panel" role="tabpanel" aria-labelledby={`journey-tab-${days}`} aria-busy={!m&&!failed}>{failed?<SurfaceCard className="p-4 text-xs"><p role="alert">{korean?'선택한 기간의 지표를 불러오지 못했어요.':'Could not load this period.'}</p><button type="button" onClick={()=>setRetry(v=>v+1)} className="min-h-10 underline">{korean?'다시 조회':'Retry'}</button></SurfaceCard>:!m?<SurfaceCard className="p-5 text-center text-xs"><p role="status">{korean?`${period} 지표를 불러오는 중이에요.`:`Loading ${period.toLowerCase()}…`}</p></SurfaceCard>:<div className="space-y-3"><div className="grid grid-cols-2 gap-2"><Metric label={korean?'익명 세션 (24시간)':'Anonymous sessions (24h)'} value={d?.unique_visitors}/><Metric label={korean?`익명 세션 (${days}일)`:`Anonymous sessions (${days}d)`} value={m.unique_visitors}/><Metric label={korean?`전체 신규 계정 (${days}일·데모 포함)`:`All new accounts (${days}d, incl. demo)`} value={m.new_members}/><Metric label={korean?'탈퇴자':'Account closures'} value={korean?'미제공':'Not available'}/></div><SurfaceCard className="p-3"><h2 className="text-xs font-bold text-white">{korean?`${days}일 이벤트별 집계`:`${days}-day event totals`}</h2><p className="mt-1 text-[10px] leading-relaxed text-slate-400">{korean?'서로 다른 이벤트 집계이므로 단계 사이의 차이가 실제 이탈 인원은 아닙니다.':'These independent event totals are not a sequential drop-off funnel.'}</p><p className="mt-1 text-[10px] text-slate-400">{m.window_started_at} → {m.generated_at}</p><div className="mt-3 space-y-2">{funnel.map(([label,value])=><div key={label} className="flex justify-between gap-2 text-[10px]"><span className="text-slate-300">{label}</span><strong className="text-white">{Number(value??0).toLocaleString()}</strong></div>)}</div></SurfaceCard></div>}</div></div></section>;
 }
-
-function Metric({ label, value }) { return <SurfaceCard className="p-3"><p className="text-[9px] text-slate-400">{label}</p><strong className="mt-1 block font-headline text-lg text-white">{typeof value === 'number' ? value.toLocaleString() : value}</strong></SurfaceCard>; }
+function Metric({label,value}){return <SurfaceCard className="p-3"><p className="text-[9px] text-slate-400">{label}</p><strong className="mt-1 block font-headline text-lg text-white">{typeof value==='number'?value.toLocaleString():value??'—'}</strong></SurfaceCard>;}

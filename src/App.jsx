@@ -1,3 +1,4 @@
+import {rememberEntryIntent,clearEntryIntent,entryStorage} from './features/feedback/entryIntent.js';
 import FeedViewMenu from './features/feed/FeedViewMenu.jsx';
 import { isFeedPostAvailable } from './features/growth/availability.js';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -164,6 +165,8 @@ export default function App() {
   const [commentState, setCommentState] = useState(null);
   useEffect(() => { setCommentState(null); pendingCommentReturn.current = null; setResumeUploadAfterHandle(false); setUploadStarter(null); }, [authUser?.id]);
   const [activeTab, setActiveTab] = useState('feed');
+  const [entryIntent,setEntryIntent]=useState(()=>rememberEntryIntent(window.location.search,entryStorage()));
+  const [testsAutoOpen,setTestsAutoOpen]=useState(false);
   const [categoryRailVisible, setCategoryRailVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
   const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
@@ -1139,6 +1142,13 @@ export default function App() {
     enterUpload();
   }
 
+  useEffect(()=>{
+    if(!entryIntent||!authUser||!profile||profileLoading||termsGate||isGuest||!feedHydrated)return;
+    clearEntryIntent(entryStorage());setEntryIntent(null);
+    const url=new URL(window.location.href);url.searchParams.delete('intent');window.history.replaceState(null,'',url);
+    if(entryIntent==='upload')openUpload();else{setTestsAutoOpen(true);setActiveTab('profile');}
+  },[entryIntent,authUser?.id,profile?.id,profileLoading,termsGate,isGuest,feedHydrated]);
+
   /** Ends the actual Supabase browser session and returns to the safe guest entry. */
   async function signOut() {
     if (!authUser && !termsGate?.user) {
@@ -1613,7 +1623,7 @@ export default function App() {
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>
         {activeTab === 'ranking' && <RankingView locale={locale} cards={displayCards.filter(card=>!card.comparisonMode)} categories={displayCategories} onOpen={openRankingCard} />}
-        {activeTab === 'profile' && <ProfileView locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} resumeUploadAfterHandle={resumeUploadAfterHandle} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
+        {activeTab === 'profile' && <ProfileView initialTestsOpen={testsAutoOpen} onTestsOpened={()=>setTestsAutoOpen(false)} locale={locale} cards={displayCards} profileCards={displayProfileCards} scrapCards={displayScrapCards} categories={displayCategories} savedPostIds={savedPostIds} profile={profile} profileLoading={profileLoading} profileNotice={profileNotice} resumeUploadAfterHandle={resumeUploadAfterHandle} isAuthenticated={Boolean(authUser)} canModerate={canModerate} canViewOperations={canViewOperations} blockedMembers={blockedMembers} onCheckHandle={checkHandle} onLoadHandleSuggestions={loadHandleSuggestions} onSaveHandle={saveHandle} onSavePresentation={saveProfilePresentation} onDelete={deleteCard} onRemoveScrap={toggleSavedPost} onOpenScrap={openScrapCard} onUpload={openUpload} onOpenModeration={() => setActiveTab('moderation')} onOpenOperations={() => setActiveTab('operations')} onOpenPolicy={setPolicyOpen} onUnblock={unblockAuthor} onSignOut={signOut} />}
         {activeTab === 'moderation' && canModerate && <ModerationView locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
         {activeTab === 'operations' && canViewOperations && <OperationsDashboard locale={locale} sessionKey={authUser?.id ?? ''} onBack={() => setActiveTab('profile')} />}
       </>}
