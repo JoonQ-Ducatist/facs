@@ -1,3 +1,4 @@
+import {runInNewContext} from 'node:vm';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -42,7 +43,7 @@ test('empty categories keep the category rail and the last card clears mobile na
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.doesNotMatch(source, /if \(!cards\.length\) return <EmptyFeed/);
-  assert.match(source, /<div ref=\{categoryRailRef\}[\s\S]*?\{cards\.length \? <section ref=\{feedRef\}[\s\S]*?: <EmptyFeed/);
+  assert.match(source, /<div ref=\{categoryRailRef\}[\s\S]*?\{\(cards\.length \|\| hasMore\) \? <section ref=\{feedRef\}[\s\S]*?: <EmptyFeed/);
   assert.match(styles, /@media \(max-width: 1023px\) and \(orientation: portrait\) \{\s*\.editorial-main--feed \.media-carousel--scroll \{ padding-bottom: calc\(96px \+ env\(safe-area-inset-bottom\)\); \}/);
 });
 
@@ -67,8 +68,8 @@ test('feed media responds to horizontal touch swipes while preserving vertical s
   assert.match(source, /media-primary__track[\s\S]*?media\.map\(\(slide, index\)/);
   assert.match(styles, /\.media-primary__track\.media-track--dragging \{ transition: none; \}/);
   assert.match(source, /controls=\{interactive && !muted && !showFullscreen\}/);
-  assert.match(source, /loading=\{loaded \? 'eager' : 'lazy'\}/);
-  assert.match(source, /src=\{interactive \? source\.url : undefined\}/);
+  assert.match(source, /loading="eager" decoding="async"/);
+  assert.match(source, /const mediaSrc = isVideo \? \(interactive \? effectiveUrl : undefined\) : imageSrc/);
   assert.match(source, /preload=\{interactive \? \(showFullscreen && !muted \? 'auto' : 'metadata'\) : 'none'\}/);
   assert.match(source, /videoRef\.current\?\.pause\(\)/);
   assert.match(styles, /\.media-carousel--scroll > \.feed-post-card \{[^}]*touch-action: pan-y/);
@@ -129,9 +130,9 @@ test('portrait single-post cards fit below fixed navigation with native scrollin
 test('feed pages content and activates media only near the scroll viewport', async () => {
   const source = await readFile(resolve(featureRoot, 'FeedView.jsx'), 'utf8');
   const app = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
-  assert.match(app, /listSupabasePublishedFeedCards\(\{ category: requestedCategory, limit: 10, cursor: null \}\)/);
-  assert.match(app, /listSupabasePublishedFeedCards\(\{ category: pageState\.category, limit: 10, cursor: pageState\.cursor \}\)/);
-  assert.match(app, /\[authUser\?\.id, feedRefreshKey, activeCategory, featuredPostId\]/);
+  assert.match(app, /listSupabasePublishedFeedCards\(\{\s*category: requestedCategory, limit: 10, cursor: null, mode: feedMode,\s*sharedPostId: useSharedEntry \? sharedPostTarget : null,\s*\}\)/);
+  assert.match(app, /listSupabasePublishedFeedCards\(\{ category: pageState\.category, limit: 10, cursor: pageState\.cursor, mode:pageState\.mode \}\)/);
+  assert.match(app, /\[authUser\?\.id, feedRefreshKey, activeCategory, featuredPostId, feedMode, sharedPostId, sharedPostTarget\]/);
   assert.match(source, /rootMargin: '480px 0px'/);
   assert.match(source, /interactive=\{nearViewport && index === mediaIndex\}/);
   assert.ok(source.includes('imagePrepared) && Math.abs(index - mediaIndex) <= 1'));
@@ -223,12 +224,16 @@ test('feed video owns fullscreen gestures in unstarted, playing and replay state
   assert.match(source, /onLoadedMetadata=\{reportVideoEvent\}/);
   assert.match(source, /function useVideoPoster\(url\)/);
   assert.doesNotMatch(source, /createRemoteVideoPoster|document\.createElement\('video'\)/);
-  assert.match(source, /onLoadedData=\{capturePoster\}/);
+  assert.match(source, /onLoadedData=\{\(event\) => \{ setFailedUrl\(null\); capturePoster\(event\); \}\}/);
   assert.match(source, /captureVideoPoster\(event\.currentTarget\)/);
   assert.match(source, /crossOrigin="anonymous"/);
   assert.match(source, /poster: snapshot\?\.url === url \? snapshot\.poster : ''/);
   assert.match(source, /poster=\{videoPoster \|\| undefined\}/);
-  assert.match(source, /source\.type === 'video' \|\| String\(source\.type \?\? ''\)\.startsWith\('video\/'\)/);
+  const videoType = source.slice(source.indexOf('function isVideoMedia(media)'),source.indexOf('function CardMedia('));
+  const classify=runInNewContext(videoType+';isVideoMedia');
+  for(const media of [{type:'video'},{type:'video/mp4'},{type:'image',originalType:'video/mp4'}])assert.equal(classify(media),true);
+  for(const media of [{type:'image/png'},{}])assert.equal(classify(media),false);
+  assert.match(source,/const isVideo = isVideoMedia\(source\)/);
 });
 
 test('multi-photo media keeps a full-width track and follows horizontal dragging', async () => {

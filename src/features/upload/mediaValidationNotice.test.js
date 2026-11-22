@@ -16,5 +16,5 @@ test('rejected media gets a persistent alert within the media chooser', async ()
 test('a valid later selection clears the media chooser alert', async () => {
   const source = await readFile(resolve(root, 'UploadView.jsx'), 'utf8');
   assert.match(source, /setMediaAlert\(nextMessage\);/);
-  assert.match(source, /if \(accepted\.length\) setMedia\(\(items\) => \[\.\.\.items, \.\.\.accepted\]\);/);
+  assert.match(source, /if \(accepted\.length\) \{\s*setMedia\(\(items\) => \[\.\.\.items, \.\.\.accepted\]\);/);
 });

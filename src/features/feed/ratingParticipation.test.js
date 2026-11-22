@@ -57,7 +57,7 @@ test('pre-vote counts include binary and age totals without opening results or i
  assert.equal(participationCount({evaluationType:'BINARY',yesVotes:0,noVotes:0,participationCount:0}),0);
  await build({stdin:{contents:`import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';import FeedView from './src/features/feed/FeedView.jsx';module.exports=renderToStaticMarkup(<FeedView locale="en" categories={{Outfit:{label:'Outfit',color:'#735c00',icon:'checkroom'}}} cards={[{id:'${ids[0]}',author:'mia_demo1',authorId:'demo-owner',category:'Outfit',evaluationType:'BINARY',question:'Does this outfit work?',imageUrl:'data:image/png;base64,',yesVotes:2,noVotes:3,comments:[],commentsAllowed:false}]} activeCategory="ALL" votedIds={new Set()} currentUserId="real" onVote={()=>{}} />);`,resolveDir:repo,loader:'jsx'},loader:{'.png':'dataurl','.svg':'dataurl'},define:{'import.meta.env':'{}'},bundle:true,platform:'node',format:'cjs',jsx:'automatic',outfile:'/private/tmp/facs-rating-render.cjs',logLevel:'silent'});
  const html=createRequire(import.meta.url)('/private/tmp/facs-rating-render.cjs');
- assert.match(html,/5 people have rated this/);
+ assert.match(html,/5 ratings saved/);
  assert.match(html,/No right answer/);
  assert.doesNotMatch(html,/Average perceived age|APPROVAL|AI Demo|AI 데모/);
  assert.match(html,/Skip photo/);

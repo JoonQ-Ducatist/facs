@@ -59,7 +59,7 @@ test('every browser lifecycle state retains one fixed app shell and resets only 
   assert.match(app, /const onVisibilityChange = \(\) => \{\s*if \(document\.visibilityState === 'visible'\) syncViewport\(\);\s*\}/);
   assert.match(app, /resetScreenOrigin\(\);\s*syncViewport\(\);/);
   assert.match(app, /<CanvasStage screenKey="auth-entry">/);
-  assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}`\}>/);
+  assert.match(app, /<CanvasStage screenKey=\{`app:\$\{activeTab\}:\$\{activeCategory\}:\$\{feedMode\}`\}>/);
 });
 
 test('keyboard dismissal restores document scroll even while the input remains focused', async () => {

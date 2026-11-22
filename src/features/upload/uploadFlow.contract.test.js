@@ -73,7 +73,7 @@ test('Upload controls isolate touch events from the root swipe gesture', async (
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
   assert.match(source, /function isolateTouch\(event\)/);
   assert.match(source, /<form className="flex flex-col gap-3\.5" onSubmit=\{submit\} onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\}/);
-  assert.match(source, /onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\} onClick=\{\(\) => setCategory\(id\)\}/);
+  assert.match(source, /onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\} onPointerCancel=\{isolateTouch\} onClick=\{\(\) => \{setCategory\(id\);if\(item\.evaluationType==='NUMERIC_AGE'\)setComparisonMode\(null\);\}\}/);
   assert.match(source, /role="radio" aria-checked=\{selected\} onPointerDown=\{isolateTouch\} onPointerUp=\{isolateTouch\}/);
   assert.match(styles, /\.editorial-upload form,[\s\S]*?\.editorial-upload select,/);
   assert.match(styles, /\.editorial-profile input \{ touch-action: manipulation; \}/);
@@ -142,7 +142,7 @@ test('media limits keep accepted files and show a localized warning tooltip', as
   assert.match(source, /You can select up to \$\{MAX_IMAGES\} photos\./);
   assert.match(source, /사진은 최대 \$\{MAX_IMAGES\}개까지만 선택할 수 있어요\./);
   assert.match(source, /locale === 'en' \? `You can select up to \$\{MAX_VIDEOS\} video\.`/);
-  assert.match(source, /if \(accepted\.length\) setMedia/);
+  assert.match(source, /if \(accepted\.length\) \{\s*setMedia/);
   assert.match(source, /setError\(nextMessage\)/);
   assert.match(source, /key=\{limitNotice\.id\} role="alert" aria-live="assertive" className="upload-limit-tooltip"/);
   assert.match(styles, /\.upload-limit-tooltip \{[\s\S]*?position: fixed;[\s\S]*?background: rgba\(52,31,5,\.94\)/);
