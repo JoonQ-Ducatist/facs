@@ -1,3 +1,4 @@
+import {canOfferInstall} from './services/installEligibility.js';
 import {rememberEntryIntent,clearEntryIntent,entryStorage} from './features/feedback/entryIntent.js';
 import FeedViewMenu from './features/feed/FeedViewMenu.jsx';
 import { isFeedPostAvailable } from './features/growth/availability.js';
@@ -156,6 +157,7 @@ export default function App() {
   const [isGuest, setIsGuest] = useState(() => forceAuthPreview || previewMode || !sharedPostId);
   const [authReady, setAuthReady] = useState(() => !supabase);
   const [authUser, setAuthUser] = useState(null);
+  const voteOwnerRef=useRef(null);voteOwnerRef.current=authUser?.id;
   const [termsGate, setTermsGate] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -819,7 +821,9 @@ export default function App() {
     const payload = targetCard.evaluationType === 'NUMERIC_AGE' ? { type: 'age', value } : value ? 'yes' : 'no';
     // 정의: 지원 기기에서 YES는 잔잔한 단일 진동, NO는 분명한 이중 진동을 제공하며 비지원 브라우저는 조용히 통과한다.
     if (targetCard.evaluationType !== 'NUMERIC_AGE' && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(value ? 12 : [24, 34, 42]);
+    const voteOwner=authUser?.id;
     const result = await submitCardVote(targetCard, payload, votedIds);
+    if(voteOwnerRef.current!==voteOwner)return;
     if (result.error) {
       // A previously completed evaluation can surface only when two tabs vote
       // at the same time or an older page has not hydrated yet. Move straight
@@ -839,8 +843,9 @@ export default function App() {
       return;
     }
     setCards((items) => items.map((card) => card.id === targetCard.id ? result.data.post : card));
-    const kind = targetCard.evaluationType === 'NUMERIC_AGE' ? 'age' : value ? 'yes' : 'no';
-    if (result.data.aggregate) {
+    const confirmedValue=result.data.vote?.value ?? (targetCard.evaluationType === 'NUMERIC_AGE' ? value : value ? 'yes' : 'no');
+    const kind = targetCard.evaluationType === 'NUMERIC_AGE' ? 'age' : confirmedValue;
+    if (result.data.aggregate && !result.data.recovered) {
       const receivedAt = Date.now();
       setLiveReactions((items) => [...items, {
         id: `local-${targetCard.id}-${Date.now()}`,
@@ -860,14 +865,16 @@ export default function App() {
       if (authUser?.id) window.localStorage.setItem(`facs_voted_posts_${authUser.id}`, JSON.stringify([...next]));
       return next;
     });
-    trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { postId: targetCard.id, category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
+    if(!result.data.recovered)trackEvent(votedIds.size === 0 ? ANALYTICS_EVENT.FIRST_VOTE : ANALYTICS_EVENT.VOTE_COMPLETED, { postId: targetCard.id, category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
     trackEvent(ANALYTICS_EVENT.RESULT_VIEWED, { postId: targetCard.id, category: targetCard.category, evaluationType: targetCard.evaluationType, locale });
     if (result.data.aggregatePending) {
       const aggregate = await getSupabaseAggregate(targetCard.id);
+      if(voteOwnerRef.current!==voteOwner)return;
       if (aggregate.data) setCards((items) => items.map((card) => card.id === targetCard.id ? applyAggregateToCard(card, aggregate.data) : card));
       setToast(locale === 'en' ? 'Your evaluation was saved. Results are refreshing.' : '평가를 저장했어요. 결과를 새로 불러오는 중이에요.');
-      return { ok: true, server: isSupabasePost(targetCard) };
+      return { ok: true, server: isSupabasePost(targetCard) && !result.data.recovered };
     }
+    if(result.data.recovered){setToast(locale==='en'?'Your previously saved evaluation is reflected in this result.':'이미 저장된 평가를 확인했어요. 현재 결과에 반영되어 있습니다.');return {ok:true,server:false};}
     setToast(locale === 'en'
       ? (targetCard.evaluationType === 'NUMERIC_AGE' ? `You chose age ${value}.` : value ? 'Your YES vote was recorded.' : 'Your NO vote was recorded.')
       : (targetCard.evaluationType === 'NUMERIC_AGE' ? `${value}세로 평가를 남겼습니다.` : value ? 'YES 의견을 남겼습니다.' : 'NO 의견을 남겼습니다.'));
@@ -1583,7 +1590,7 @@ export default function App() {
 
   return <CanvasStage screenKey={`app:${activeTab}:${activeCategory}:${feedMode}`}><div className={`editorial-app h-full bg-background text-on-background font-body${categoryRailVisible ? '' : ' editorial-app--categories-hidden'}`}>
     <SkipLink />
-    <PwaInstallSheet locale={locale} enabled={!policyOpen && ['feed', 'ranking', 'profile'].includes(activeTab) && previewState === 'ready'} />
+    <PwaInstallSheet locale={locale} enabled={canOfferInstall({tab:activeTab,authenticated:Boolean(authUser),voteCount:votedIds.size,policyOpen,ready:previewState==='ready'})} />
     <header className="fixed top-0 z-50 w-full border-b border-[#e4e2dd] bg-[#fbf9f4]/95 backdrop-blur-xl">
       <div className="app-header__inner mx-auto flex h-[44px] max-w-none items-center justify-between gap-2 px-4">
         <button type="button" onClick={() => setActiveTab('feed')} className="app-header__brand flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left" aria-label="FACt.Smack 피드로 이동">
@@ -1618,7 +1625,7 @@ export default function App() {
         <button type="button" className="min-h-8 font-semibold underline" onClick={() => setSharedPostUnavailable(false)}>{locale === 'en' ? 'Continue to feed' : '피드 계속 보기'}</button>
       </div>}
       {previewState !== 'ready' ? <StatePanel state={previewState} pageName={tabs.find(([id]) => id === activeTab)?.[2]?.[locale] ?? 'FACt.Smack'} onAction={() => { if (previewState === 'permission') setIsGuest(true); else if (previewState === 'review') setActiveTab('profile'); setPreviewState('ready'); }} /> : <>
-        {activeTab === 'feed' && <FeedView onThankComment={thankComment} commentState={commentState} onCommentStateChange={setCommentState} feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
+        {activeTab === 'feed' && <FeedView onThankComment={thankComment} commentState={commentState} onCommentStateChange={setCommentState} feedMode={feedMode} onFeedModeChange={(mode) => {setFeedMode(mode);setFeaturedPostId(null);setCurrentIndex(0);}} onVisiblePostIdsChange={setVisibleFeedPostIds} locale={locale} categories={displayCategories} cards={visibleCards} activeCategory={activeCategory} featuredPostId={featuredPostId} hasMore={hasMoreFeed} onLoadMore={loadMoreFeed} votedIds={votedIds} boostCandidateIds={boostCandidateIds} boostedPostIds={boostedPostIds} liveReactions={liveReactions} savedPostIds={savedPostIds} followingIds={followingIds} currentUserId={authUser?.id} positionReady={feedHydrated} ratingEligible={Boolean(authUser && feedHydrated && isRatingMember(profile))} showParticipationPrompt={Array.isArray(displayProfileCards) && displayProfileCards.length === 0 && !hasUploadDraft && !publishedConfirmation} draftReminder={hasUploadDraft} publishedConfirmation={publishedConfirmation} onDismissPublishedConfirmation={() => setPublishedConfirmation(null)} onOpenInvitations={() => {setTestsAutoOpen(true);setActiveTab('profile');}} onCategoryChange={changeCategory} onShuffle={shuffle} onVote={vote} onShare={shareCard} onToggleSave={toggleSavedPost} onToggleFollow={toggleFollowing} onBlockAuthor={blockAuthor} onReportPost={reportPost} onBoost={requestBoostForCurrentCard} onStartUpload={openUpload} onAddComment={addComment} onEditComment={editComment} onDeleteComment={deleteComment} onLoadComments={loadComments} />}
         <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
           <UploadView isActive={activeTab === 'upload'} categories={displayCategories} locale={locale} publicHandle={profile?.handle ?? ''} isFirstUpload={Array.isArray(displayProfileCards) && displayProfileCards.length === 0} starter={uploadStarter} onDraftStateChange={setHasUploadDraft} onSubmit={addCard} onMessage={setToast} onOpenProfile={() => setActiveTab('profile')} />
         </div>

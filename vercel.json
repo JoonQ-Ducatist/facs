@@ -46,9 +46,30 @@
           "value": "no-store"
         }
       ]
+    },
+    {
+      "source": "/feedback.html",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/feedback",
+      "destination": "/feedback.html"
+    },
     {
       "source": "/guides/how-to-choose-a-profile-photo",
       "destination": "/guides/how-to-choose-a-profile-photo.html"

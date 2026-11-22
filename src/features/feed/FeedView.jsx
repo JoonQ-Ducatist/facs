@@ -1,3 +1,4 @@
+import {feedPositionScope,readFeedPosition,saveFeedPosition,clearFeedPosition,feedSessionStorage} from './feedPosition.js';
 import {createVoteRequest,ratingCountPrompt} from './voteRequest.js';
 import QuickNote from '../feedback/QuickNote.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -20,7 +21,7 @@ import { DEMO_POST_IDS, participationCount } from './ratingParticipation.js';
 import ShareResultCard from './ShareResultCard.jsx';
 
 /** 정의: 카드 전환 제스처가 아닌, 사용자의 스크롤 거리를 그대로 반영하는 연속 피드다. */
-export default function FeedView({ commentState, onCommentStateChange, locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onThankComment, onEditComment, onDeleteComment, onLoadComments }) {
+export default function FeedView({ commentState, onCommentStateChange, locale = 'ko', feedMode = 'all', onFeedModeChange, categories, cards, activeCategory, featuredPostId = null, hasMore = false, onLoadMore, onVisiblePostIdsChange, votedIds, boostCandidateIds, boostedPostIds, liveReactions = [], savedPostIds, followingIds, currentUserId, positionReady = false, ratingEligible = false, showParticipationPrompt = false, draftReminder = false, publishedConfirmation = null, onDismissPublishedConfirmation, onOpenInvitations, onCategoryChange, onShuffle, onVote, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onAddComment, onThankComment, onEditComment, onDeleteComment, onLoadComments }) {
   const participation = useRatingParticipation({ cards, votedIds, userId: currentUserId, eligible: ratingEligible, onVote, hasMore });
   const [localCommentState, setLocalCommentState] = useState(null);
   const context = commentState === undefined ? localCommentState : commentState;
@@ -42,6 +43,39 @@ export default function FeedView({ commentState, onCommentStateChange, locale = 
   const firstCardId = cards[0]?.id ?? null;
   const cardIdsKey = cards.map((card) => card.id).join('|');
   loadMoreRef.current = onLoadMore;
+  const positionScope=feedPositionScope(currentUserId,activeCategory,feedMode,featuredPostId);
+  const [restoredPosition,setRestoredPosition]=useState(null);
+  const latestCards=useRef(cards);latestCards.current=cards;
+  useLayoutEffect(()=>{
+    if(!positionReady)return;
+    const storage=feedSessionStorage(),feed=feedRef.current;
+    if(!positionScope){clearFeedPosition(storage);setRestoredPosition(null);return;}
+    if(!feed)return;
+    const saved=readFeedPosition(storage,positionScope,latestCards.current.map(c=>c.id));
+    setRestoredPosition(saved);
+    const root=/^(auto|scroll)$/.test(getComputedStyle(feed).overflowY)?feed:feed.closest('.editorial-main--feed');
+    if(!root)return;
+    let restoring=true;
+    const frame=requestAnimationFrame(()=>{
+      const article=[...feed.querySelectorAll('article[data-post-id]')].find(el=>el.dataset.postId===saved?.postId);
+      if(article)root.scrollTop+=article.getBoundingClientRect().top-root.getBoundingClientRect().top+saved.offset;
+      restoring=false;
+    });
+    const capture=()=>{
+      if(restoring)return;
+      const bounds=root.getBoundingClientRect();
+      const article=[...feed.querySelectorAll('article[data-post-id]')].find(el=>{const r=el.getBoundingClientRect();return r.bottom>bounds.top+1&&r.top<bounds.bottom;});
+      if(article)saveFeedPosition(storage,positionScope,{postId:article.dataset.postId,offset:bounds.top-article.getBoundingClientRect().top,mediaIndex:Number(article.dataset.mediaIndex)||0});
+    };
+    let scrollFrame=null;
+    const onScroll=()=>{if(scrollFrame===null)scrollFrame=requestAnimationFrame(()=>{scrollFrame=null;capture();});};
+    root.addEventListener('scroll',onScroll,{passive:true});
+    const onHidden=()=>{if(document.visibilityState==='hidden')capture();};
+    window.addEventListener('pagehide',capture);document.addEventListener('visibilitychange',onHidden);
+    return()=>{capture();cancelAnimationFrame(frame);if(scrollFrame!==null)cancelAnimationFrame(scrollFrame);root.removeEventListener('scroll',onScroll);window.removeEventListener('pagehide',capture);document.removeEventListener('visibilitychange',onHidden);};
+  },[positionScope,positionReady]);
+  useLayoutEffect(()=>{if(!positionReady||!positionScope)return;const saved=readFeedPosition(feedSessionStorage(),positionScope,cards.map(c=>c.id));if(!saved)setRestoredPosition(null);},[cardIdsKey,positionReady,positionScope]);
+
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
@@ -114,12 +148,12 @@ export default function FeedView({ commentState, onCommentStateChange, locale = 
     </div>
     {feedMode==='waiting'&&<aside data-no-translate className="mx-4 mb-1.5 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[11px] text-[#1b1c19]">{locale==='en'?'Photos with fewer ratings, which you have not rated yet. Choose one, or skip any photo. You do not need to upload your own.':'평가가 적고 내가 아직 평가하지 않은 사진입니다. 한 장을 골라보세요. 언제든 건너뛸 수 있고, 내 사진을 올릴 필요는 없어요.'}</aside>}
     {ratingEligible && <RatingParticipation locale={locale} participation={participation} />}
-    {publishedConfirmation ? <FeedUploadNudge locale={locale} kind="published" onAction={onDismissPublishedConfirmation} onShare={publishedConfirmation.card?.visibility === 'public' ? () => onShare?.(publishedConfirmation.card) : undefined} /> : draftReminder ? <FeedUploadNudge locale={locale} kind="draft" onAction={onStartUpload} /> : showParticipationPrompt ? <FeedUploadNudge locale={locale} kind="prompt" onAction={onStartUpload} /> : null}
+    {publishedConfirmation ? <FeedUploadNudge locale={locale} kind="published" onAction={onDismissPublishedConfirmation} onShare={publishedConfirmation.card?.visibility === 'public' ? onOpenInvitations : undefined} /> : draftReminder ? <FeedUploadNudge locale={locale} kind="draft" onAction={onStartUpload} /> : showParticipationPrompt ? <FeedUploadNudge locale={locale} kind="prompt" onAction={onStartUpload} /> : null}
 
     {ratingEligible && <div className="mx-4 mb-1.5 shrink-0 text-right"><ParticipationFeedback locale={locale} className="min-h-8 text-[10px] text-[#66686d] underline underline-offset-2" /></div>}
     {(cards.length || hasMore) ? <section ref={feedRef} className="editorial-feed editorial-feed--scroll relative flex w-full min-h-0 flex-col items-center">
       <div className="media-carousel media-carousel--scroll relative w-full">
-        {cards.map((item) => <FeedPost key={item.id} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={boostedPostIds?.has(item.id) || item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={participation.vote} onNext={(card, skip) => participation.next(card, skip)} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { updateContext(previous => ({ post, postId: post.card.id, body: previous?.postId === post.card.id ? previous.body : '' })); void onLoadComments?.(post.card.id); }} />)}
+        {cards.map((item) => <FeedPost key={item.id} initialMediaIndex={restoredPosition?.postId===item.id?restoredPosition.mediaIndex:0} card={item} locale={locale} categories={categories} clockNow={clockNow} hasVoted={votedIds?.has(item.id)} isOwnPost={Boolean(item.authorId === currentUserId || (item.isMyUpload && !item.authorId))} boostEligible={boostCandidateIds?.has(item.id)} boostRequested={boostedPostIds?.has(item.id) || item.boostStatus === 'active'} liveReactions={liveReactions.filter((reaction) => reaction.postId === item.id)} saved={savedPostIds?.has(item.id)} following={followingIds?.has(item.authorId ?? `sample:${String(item.author).trim().toLowerCase()}`)} currentUserId={currentUserId} onVote={participation.vote} onNext={(card, skip) => participation.next(card, skip)} onShare={onShare} onToggleSave={onToggleSave} onToggleFollow={onToggleFollow} onBlockAuthor={onBlockAuthor} onReportPost={onReportPost} onBoost={onBoost} onStartUpload={onStartUpload} onOpenComments={(post) => { updateContext(previous => ({ post, postId: post.card.id, body: previous?.postId === post.card.id ? previous.body : '' })); void onLoadComments?.(post.card.id); }} />)}
       </div>
       {hasMore && <div ref={pageSentinelRef} className="feed-page-sentinel" aria-live="polite">
         {!cards.length || loadMoreError || !('IntersectionObserver' in window) ? <button type="button" disabled={loadingMore} onClick={() => void requestNextPage()}>{loadingMore ? (locale === 'en' ? 'Loading…' : '불러오는 중…') : (locale === 'en' ? 'Load more' : '더 불러오기')}</button> : null}
@@ -162,10 +196,10 @@ function FeedUploadNudge({ locale, kind, onAction, onShare }) {
       ? { icon: 'edit_note', title: korean ? '작성 중인 게시물이 있어요' : 'You have an unfinished post', body: korean ? '선택한 사진과 작성 내용은 이번 방문 동안 그대로 유지돼요.' : 'Your selected media and details stay here for this visit.', action: korean ? '계속 작성' : 'Continue' }
       : { icon: 'add_a_photo', title: korean ? '오늘의 한 장' : 'One photo for today', body: korean ? prompt.ko : prompt.en, action: korean ? '평가받기' : 'Get feedback' };
   const action = kind === 'prompt' ? () => onAction?.({ category: prompt.category, question: korean ? prompt.ko : prompt.en }) : onAction;
-  return <aside className="mx-4 mb-1.5 flex shrink-0 items-center gap-2 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[#1b1c19] shadow-sm" aria-label={content.title}><span className="material-symbols-outlined text-[19px] text-[#d94c70]" aria-hidden="true">{content.icon}</span><div className="min-w-0 flex-1"><strong className="block text-[11px]">{content.title}</strong><p className="truncate text-[10px] text-[#66686d]">{content.body}</p></div><div data-no-translate className="flex shrink-0 flex-col items-end gap-1">{onShare && <button type="button" onClick={onShare} className="min-h-8 rounded-full border border-[#735c00]/50 px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{korean ? '친구에게 의견 요청' : 'Ask friends for feedback'}</button>}<button type="button" onClick={action} className="min-h-8 shrink-0 rounded-full border border-[#d94c70]/60 px-2.5 py-1 text-[10px] font-bold text-[#a22d50]">{content.action}</button></div></aside>;
+  return <aside className="mx-4 mb-1.5 flex shrink-0 items-center gap-2 rounded-lg border border-[#d9d4c9] bg-[#fbf9f4] px-3 py-2 text-[#1b1c19] shadow-sm" aria-label={content.title}><span className="material-symbols-outlined text-[19px] text-[#d94c70]" aria-hidden="true">{content.icon}</span><div className="min-w-0 flex-1"><strong className="block text-[11px]">{content.title}</strong><p className="truncate text-[10px] text-[#66686d]">{content.body}</p></div><div data-no-translate className="flex shrink-0 flex-col items-end gap-1">{onShare && <button type="button" onClick={onShare} className="min-h-8 rounded-full border border-[#735c00]/50 px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{korean ? '가입 없는 초대 설정' : 'Set up guest invitation'}</button>}<button type="button" onClick={action} className="min-h-8 shrink-0 rounded-full border border-[#d94c70]/60 px-2.5 py-1 text-[10px] font-bold text-[#a22d50]">{content.action}</button></div></aside>;
 }
 
-function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onNext, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
+function FeedPost({ initialMediaIndex=0, card, locale, categories, clockNow, hasVoted, isOwnPost, boostEligible, boostRequested, liveReactions, saved, following, currentUserId, onVote, onNext, onShare, onToggleSave, onToggleFollow, onBlockAuthor, onReportPost, onBoost, onStartUpload, onOpenComments }) {
   const [mediaIndex, setMediaIndex] = useState(0);
   const [nearViewport, setNearViewport] = useState(false);
   const [imagePrepared, setImagePrepared] = useState(false);
@@ -180,7 +214,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
   const articleRef = useRef(null);
   const mediaTrackRef = useRef(null);
   const mediaSwipeStart = useRef(null);
-  useEffect(() => { setMediaIndex(0); setIsVideoPlaying(false); setSaveNotice(''); }, [card.id]);
+  useEffect(() => { setMediaIndex(Math.min(initialMediaIndex,Math.max(0,(card.media?.length||1)-1))); setIsVideoPlaying(false); setSaveNotice(''); }, [card.id,initialMediaIndex]);
   useEffect(() => {
     setImagePrepared(false);
     if (!articleRef.current) return undefined;
@@ -287,7 +321,7 @@ function FeedPost({ card, locale, categories, clockNow, hasVoted, isOwnPost, boo
     event.stopPropagation();
     if (videoRef.current) enterNativeVideoFullscreen(videoRef.current);
   };
-  return <article ref={articleRef} data-post-id={card.id} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
+  return <article ref={articleRef} data-post-id={card.id} data-media-index={mediaIndex} onTouchStart={startMediaSwipe} onTouchMove={moveMediaSwipe} onTouchEnd={finishMediaSwipe} onTouchCancel={() => { mediaSwipeStart.current = null; mediaTrackRef.current?.classList.remove('media-track--dragging'); mediaTrackRef.current?.style.removeProperty('--media-drag-offset'); }} className="media-card feed-post-card relative z-10 w-full overflow-hidden rounded-xl border border-surface-container-high/60 bg-[#fbfaf7] shadow-2xl">
     {comparison ? <ComparisonMedia media={media} className="comparison-media--feed absolute inset-0" /> : <div className="media-primary absolute overflow-hidden"><div ref={mediaTrackRef} className="media-primary__track" style={{ transform: `translate3d(calc(${-mediaIndex * 100}% + var(--media-drag-offset, 0px)), 0, 0)` }}>{media.map((slide, index) => <div key={slide.id ?? `${card.id}-media-${index}`} className="media-primary__slide"><CardMedia locale={locale} card={card} media={slide} className="h-full w-full object-cover object-center brightness-[1.02] contrast-[1.03]" showFullscreen={nearViewport && index === mediaIndex} videoControlRef={index === mediaIndex ? videoRef : undefined} onPlaybackChange={index === mediaIndex ? setIsVideoPlaying : undefined} loaded={(isVideoMedia(slide) ? nearViewport : imagePrepared) && Math.abs(index - mediaIndex) <= 1} interactive={nearViewport && index === mediaIndex} /></div>)}</div></div>}
     {!isVideo && <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(1,8,17,.62)_0%,rgba(1,8,17,.05)_32%,rgba(1,8,17,.12)_52%,rgba(1,8,17,.88)_100%)]" />}
     {!comparison && media.length > 1 && <div className="media-card-photo-nav" aria-label="사진 탐색"><button type="button" onClick={() => selectMedia(mediaIndex - 1)} aria-label="이전 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--left ${mediaIndex === 0 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_left</span></button><button type="button" onClick={() => selectMedia(mediaIndex + 1)} aria-label="다음 사진" className={`media-card-photo-nav__button media-card-photo-nav__button--right ${mediaIndex === media.length - 1 ? 'invisible' : ''}`}><span className="material-symbols-outlined">chevron_right</span></button></div>}

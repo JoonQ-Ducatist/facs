@@ -1,3 +1,4 @@
+import {recoverSavedVote} from './voteRecovery.js';
 import { API_ERROR, apiFailure, apiSuccess } from './mockApi.js';
 import { formatRelativePublishedTime } from './relativeTime.js';
 import { supabase } from './supabaseClient.js';
@@ -292,19 +293,23 @@ export async function submitSupabaseVote({ postId, evaluationType, value, client
   const isAge = evaluationType === 'NUMERIC_AGE';
   if (isAge && (!Number.isInteger(value) || value < 18 || value > 99)) return apiFailure(API_ERROR.VALIDATION_FAILED, '예상 나이를 확인해 주세요.', { value: 'invalid_age_vote' });
   if (!isAge && value !== 'yes' && value !== 'no') return apiFailure(API_ERROR.VALIDATION_FAILED, 'YES 또는 NO를 선택해 주세요.', { value: 'invalid_vote' });
-  const { error } = await client.from('votes').insert({
-    post_id: postId,
-    voter_id: identity.user.id,
-    choice: isAge ? null : value,
-    perceived_age: isAge ? value : null,
-  });
-  if (error) return normalizeSupabaseError(error, '의견을 저장하지 못했어요.');
-  if(client===supabase)void growthRequest('notify-first-rating',{postId});
+  let error;
+  try { ({error}=await client.from('votes').insert({
+    post_id: postId, voter_id: identity.user.id,
+    choice: isAge ? null : value, perceived_age: isAge ? value : null,
+  })); } catch { error={message:'network unavailable'}; }
+  let savedValue=value, recovered=false;
+  if(error){
+    const receipt=await recoverSavedVote(client,postId,identity.user.id,error);
+    if(receipt===null)return normalizeSupabaseError(error,'의견을 저장하지 못했어요.');
+    savedValue=receipt;recovered=true;
+  }
+  if(client===supabase&&!recovered)void growthRequest('notify-first-rating',{postId});
   const aggregate = await getSupabaseAggregate(postId, client);
   // The immutable vote is already stored at this point. A temporary aggregate
   // read failure must not make the UI offer a duplicate submission.
-  if (aggregate.error) return apiSuccess({ vote: { postId, value }, aggregate: null, aggregatePending: true });
-  return apiSuccess({ vote: { postId, value }, aggregate: aggregate.data, aggregatePending: false });
+  if (aggregate.error) return apiSuccess({ vote: { postId, value: savedValue }, recovered, aggregate: null, aggregatePending: true });
+  return apiSuccess({ vote: { postId, value: savedValue }, recovered, aggregate: aggregate.data, aggregatePending: false });
 }
 
 /** Creates a draft post. Publishing, review, and storage attachment remain separate server steps. */
