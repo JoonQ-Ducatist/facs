@@ -601,7 +601,7 @@ export default function App() {
           const localOnly = existing.filter((card) => !isSupabasePost(card) && card.id !== justPublished?.id);
           const serverPublished = hydratedServerCards.find((card) => card.id === justPublished?.id);
           const featured = belongsInPage
-            ? { ...justPublished, ...(serverPublished ?? {}), category: justPublished.category, isMyUpload: true }
+            ? { ...justPublished, ...(serverPublished ?? {}), category: justPublished.category, isMyUpload: justPublished.authorId === authUser.id }
             : null;
           const remainingServerCards = featured
             ? hydratedServerCards.filter((card) => card.id !== justPublished.id)
@@ -1375,8 +1375,12 @@ export default function App() {
 
   /** 정의: 랭킹에서 선택한 카드의 피드 위치로 이동한다. @param {{ id: string }} target 대상 카드 */
   function openRankingCard(target) {
+    const card=cards.find(item=>item.id===target?.id);
+    if(!card||!isFeedPostAvailable(card))return;
+    setFeedMode('all');
     setActiveCategory('ALL');
-    setCurrentIndex(Math.max(cards.findIndex((item) => item.id === target.id), 0));
+    setFeaturedPostId(card.id);
+    setCurrentIndex(0);
     setActiveTab('feed');
   }
 
