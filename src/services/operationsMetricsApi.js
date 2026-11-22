@@ -11,8 +11,8 @@ export async function getOperationalMetrics(windowHours, client = supabase) {
   return metrics ? apiSuccess(metrics) : apiFailure(API_ERROR.NOT_FOUND, '운영 지표가 아직 준비되지 않았어요.');
 }
 
-/** Only the two supported UI periods can select an operational query window. */
+/** Only the supported UI periods can select an operational query window. */
 export function getOperationalWindow(days,client=supabase){
-  if(days!==7&&days!==30)return Promise.resolve(apiFailure(API_ERROR.VALIDATION_FAILED,'조회 기간을 확인해 주세요.'));
+  if(days!==1&&days!==7&&days!==30)return Promise.resolve(apiFailure(API_ERROR.VALIDATION_FAILED,'조회 기간을 확인해 주세요.'));
   return getOperationalMetrics(days*24,client);
 }
