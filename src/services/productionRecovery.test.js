@@ -46,5 +46,5 @@ test('production recovery removes only post-linked analytics on deletion without
 
 test('public branding policy links open existing policies without changing their approved content', async () => {
   const app = await readFile(new URL('../App.jsx', import.meta.url), 'utf8');
-  assert.match(app, /const \[policyOpen, setPolicyOpen\] = useState\(\(\) => \{\s*const policy = new URLSearchParams\(window.location.search\).get\('policy'\);\s*return \['privacy', 'terms', 'safety'\].includes\(policy\) \? policy : null;/);
+  assert.match(app, /const \[policyOpen, setPolicyOpen\] = useState\(\(\) => \{\s*const policy = new URLSearchParams\(window.location.search\).get\('policy'\);\s*return \['privacy', 'terms', 'safety', 'about'\].includes\(policy\) \? policy : null;/);
 });

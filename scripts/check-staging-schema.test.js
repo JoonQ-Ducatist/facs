@@ -1,3 +1,7 @@
+import {mkdtemp,writeFile,mkdir,symlink,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { REQUIRED_MIGRATION_CONTRACTS, REQUIRED_RPC_NAMES, auditMigrationContracts, auditOpenApi, probeRpcAvailability, runGuard } from './check-staging-schema.mjs';
@@ -30,8 +34,11 @@ test('RPC probe distinguishes an unavailable function from an auth rejection', a
 });
 
 test('staging guard audits the repository without mutating the database', async () => {
-  const result = await runGuard({ fetcher: async () => ({ status: 403, json: async () => ({ code: '42501' }) }) });
+  const root=await mkdtemp(join(tmpdir(),'facs-schema-fixture-'));
+  try{await writeFile(join(root,'.env'),'VITE_SUPABASE_URL=https://production-fixture.supabase.co\n');await writeFile(join(root,'.env.local'),'VITE_SUPABASE_URL=https://staging-fixture.supabase.co\nVITE_SUPABASE_PUBLISHABLE_KEY=fixture-only-never-sent\n');await mkdir(join(root,'supabase'));await symlink(fileURLToPath(new URL('../supabase/migrations',import.meta.url)),join(root,'supabase/migrations'));
+  const result = await runGuard({ root, fetcher: async () => ({ status: 403, json: async () => ({ code: '42501' }) }) });
   assert.equal(result.ok, true);
   assert.deepEqual(result.migrationIssues, []);
   assert.deepEqual(result.missingRpc, []);
+  }finally{await rm(root,{recursive:true,force:true});}
 });

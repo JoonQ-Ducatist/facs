@@ -43,7 +43,7 @@ test('auth callback restores the locale selected before leaving for authenticati
 test('Vercel keeps the SPA fallback and does not force geo redirects', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
   assert.deepEqual(config.redirects ?? [], []);
-  assert.deepEqual(config.rewrites, [{ source: '/(.*)', destination: '/index.html' }]);
+  assert.deepEqual(config.rewrites, [{source:'/feedback',destination:'/feedback.html'},{source:'/guides/how-to-choose-a-profile-photo',destination:'/guides/how-to-choose-a-profile-photo.html'},{source:'/s/:postId',destination:'/api/share?post=:postId'},{source:'/((?!api/).*)',destination:'/index.html'}]);
 });
 
 test('language switching uses clean locale paths and preserves unrelated state', () => {
