@@ -201,7 +201,7 @@ export default function App() {
   const [uploadStarter, setUploadStarter] = useState(null);
   const [publishedConfirmation, setPublishedConfirmation] = useState(null);
 
-  useEffect(() => { const ready=authReady&&(!authUser||(!profileLoading&&profile?.id===authUser.id));setAnalyticsAudience({ready,profile});if(ready)initializeGa4(); }, [authReady,authUser?.id,profileLoading,profile?.id,profile?.role,profile?.handle]);
+  useEffect(() => { const ready=authReady&&(!authUser||(!profileLoading&&profile?.id===authUser.id));setAnalyticsAudience({ready,profile});initializeGa4(); }, [authReady,authUser?.id,profileLoading,profile?.id,profile?.role,profile?.handle]);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);

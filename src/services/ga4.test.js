@@ -45,3 +45,5 @@ test('GA4 preserves safe external referral origins and failures never escape to 
   windowRef.gtag = () => { throw new Error('event blocked'); };
   assert.equal(trackGa4Event('upload_completed', { environment, windowRef }), false);
 });
+
+test('internal QA disables an already-loaded Google tag without sending further events',()=>{const environment={VITE_GA_MEASUREMENT_ID:'G-TEST123'};const calls=[];const documentRef={head:{append(){throw Error('must not load');}},querySelector:()=>({})};const windowRef={document:documentRef,location:{origin:'https://www.factsmack.com'},__facsAnalyticsBlocked:true,gtag:(...args)=>calls.push(args)};assert.equal(trackGa4Event('first_vote',{environment,windowRef}),false);assert.equal(windowRef['ga-disable-G-TEST123'],true);assert.equal(calls.length,0);windowRef.__facsAnalyticsBlocked=false;assert.equal(trackGa4Event('result_viewed',{environment,windowRef}),true);assert.equal(windowRef['ga-disable-G-TEST123'],false);});
