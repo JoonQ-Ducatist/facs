@@ -12,8 +12,8 @@ function context(extra={}) {
  for(const key of ['UploadStarter','IsSharedGuest','IsGuest','Toast','ResumeUploadAfterHandle','ActiveTab','ProfileNotice','PublishedConfirmation','Profile','FeedMode','ActiveCategory','FeaturedPostId','CurrentIndex']) c['set'+key]=v=>{values[key]=v;};
  return vm.createContext(c);
 }
-function open(c){return vm.runInContext(app.slice(app.indexOf('  function openUpload('),app.indexOf('  /** Ends the actual Supabase')),c);}
-function saver(c){const start=app.indexOf('async (handle) => {',app.indexOf('const saveHandle ='));const end=app.indexOf('}, [locale, resumeUploadAfterHandle]);',start);return vm.runInContext('('+app.slice(start,end+1)+')',c);}
+function open(c){return vm.runInContext(app.slice(app.indexOf('  function openUpload('),app.indexOf('\n  useEffect(()=>{',app.indexOf('  function openUpload('))),c);}
+function saver(c){const start=app.indexOf('async (handle) => {',app.indexOf('const saveHandle ='));const end=app.indexOf('}, [enterUpload, locale, resumeUploadAfterHandle]);',start);return vm.runInContext('('+app.slice(start,end+1)+')',c);}
 test('missing public ID preserves starter before routing to profile',()=>{const c=context();open(c);vm.runInContext("openUpload({category:'WORK',question:'My question',id:'s'})",c);assert.equal(c.values.UploadStarter.question,'My question');assert.equal(c.values.ActiveTab,'profile');assert.equal(c.values.ResumeUploadAfterHandle,true);});
 test('existing upload draft is not overwritten',()=>{const c=context({hasUploadDraft:true});open(c);vm.runInContext("openUpload({category:'WORK',question:'new'})",c);assert.equal(c.values.UploadStarter,undefined);});
 test('saved ID returns to the comment post without posting automatically',async()=>{const c=context({pendingCommentReturn:{current:'post-1'},updateMyHandle:async()=>({}),mapHandleSaveResult:()=>({ok:true,data:{handle:'new'}})});await saver(c)('new');assert.equal(c.values.ActiveTab,'feed');assert.equal(c.values.FeaturedPostId,'post-1');assert.equal(c.pendingCommentReturn.current,null);});

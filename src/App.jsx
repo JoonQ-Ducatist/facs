@@ -26,6 +26,7 @@ import PwaInstallSheet from './features/pwa/PwaInstallSheet.jsx';
 import { applyAggregateToCard, isSupabasePost, submitCardVote } from './services/voteService.js';
 import { readCommentAppreciation, setCommentAppreciation } from './services/commentAppreciation.js';
 import { ANALYTICS_EVENT, trackEvent } from './services/analytics.js';
+import { setAnalyticsAudience } from './services/analyticsAudience.js';
 import { initializeGa4 } from './services/ga4.js';
 import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.js';
 import { applySeoMetadata } from './services/seo.js';
@@ -200,7 +201,7 @@ export default function App() {
   const [uploadStarter, setUploadStarter] = useState(null);
   const [publishedConfirmation, setPublishedConfirmation] = useState(null);
 
-  useEffect(() => { initializeGa4(); }, []);
+  useEffect(() => { const ready=authReady&&(!authUser||(!profileLoading&&profile?.id===authUser.id));setAnalyticsAudience({ready,profile});if(ready)initializeGa4(); }, [authReady,authUser?.id,profileLoading,profile?.id,profile?.role,profile?.handle]);
   const [previewState, setPreviewState] = useState(() => new URLSearchParams(window.location.search).get('state') ?? 'ready');
   const tabGestureStart = useRef(null);
   const mainRef = useRef(null);

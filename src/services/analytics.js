@@ -1,3 +1,4 @@
+import { isAnalyticsQaSession } from './analyticsAudience.js';
 import { supabase } from './supabaseClient.js';
 import { trackGa4Event } from './ga4.js';
 import { isLocalQaAccountMode } from './localQaAccounts.js';
@@ -60,10 +61,11 @@ export function getAnalyticsSessionId(storage = globalThis.sessionStorage) {
 /** Sends no client timestamp or free-form properties; PostgreSQL supplies the canonical time. */
 export async function recordAnalyticsEvent(name, { postId = null, client = supabase, sessionId = getAnalyticsSessionId() } = {}) {
   if (!SERVER_EVENT_NAMES.has(name) || !isUuid(sessionId) || (postId !== null && !isUuid(postId)) || !client?.rpc) return false;
-  const { error } = await client.rpc('record_analytics_event', {
+  const { error } = await client.rpc('record_classified_analytics_event', {
     input_event_name: name,
     input_session_id: sessionId,
     input_post_id: postId,
+    input_is_qa: isAnalyticsQaSession(),
   });
   return !error;
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { runInNewContext, createContext, runInContext } from 'node:vm';
 import { createInstallController, installPlatform, localDay, setPwaLocale } from './pwaInstall.js';
 
 function fakeBrowser(storage = new Map()) {
@@ -100,10 +100,13 @@ test('PWA keeps localized stable identity and serves fresh navigation without ca
   let handler;
   let offline = false;
   const requests = [];
-  runInNewContext(await read('../../public/sw.js'), {
-    self: { location: { origin: 'https://www.factsmack.com' }, addEventListener: (_, value) => { handler = value; } }, URL, Response,
+  const worker = createContext({
+    self: { location: { origin: 'https://www.factsmack.com' }, addEventListener: (type, value) => { if(type==='fetch')handler = value; } }, URL, Response,
     fetch: async (request) => { requests.push(request); if (offline) throw new Error('offline'); return new Response('fresh navigation'); },
   });
+  const pushScript = await read('../../public/push-message.js');
+  worker.importScripts = (path) => { assert.equal(path, '/push-message.js'); runInContext(pushScript, worker); };
+  runInContext(await read('../../public/sw.js'), worker);
   for (const request of [
     { method: 'POST', mode: 'navigate', url: 'https://www.factsmack.com/' },
     { method: 'GET', mode: 'cors', url: 'https://www.factsmack.com/api/profile' },

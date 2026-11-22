@@ -28,6 +28,7 @@ function measurementId(environment = import.meta.env ?? {}) {
 
 /** Loads privacy-reduced GA4 and never supplies email, handles, media URLs, or member IDs. */
 export function initializeGa4({ environment = import.meta.env ?? {}, documentRef = globalThis.document, windowRef = globalThis.window } = {}) {
+  if (windowRef?.__facsAnalyticsBlocked) return false;
   const id = measurementId(environment);
   const origin = productionOrigin(windowRef);
   if (!id || !documentRef?.head || !origin) return false;

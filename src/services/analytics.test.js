@@ -13,8 +13,8 @@ test('server analytics sends only the allowed event, anonymous session, and opti
     client: { rpc: async (name, args) => { calls.push({ name, args }); return { error: null }; } },
   });
   assert.equal(recorded, true);
-  assert.deepEqual(calls, [{ name: 'record_analytics_event', args: {
-    input_event_name: 'first_vote', input_session_id: sessionId, input_post_id: postId,
+  assert.deepEqual(calls, [{ name: 'record_classified_analytics_event', args: {
+    input_event_name: 'first_vote', input_session_id: sessionId, input_post_id: postId, input_is_qa: false,
   } }]);
 });
 
