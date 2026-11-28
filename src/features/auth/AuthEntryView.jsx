@@ -7,7 +7,7 @@ import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailO
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
 import { clearPendingEmailAuth, readPendingEmailAuth, savePendingEmailAuth } from './pendingEmailAuth.js';
 
-export default function AuthEntryView({ locale = 'ko', onLocaleChange, onPreview, onRatingIntent, onInvitationIntent, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
+export default function AuthEntryView({ locale = 'ko', entryIntent, onLocaleChange, onPreview, onRatingIntent, onInvitationIntent, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const [pendingEmailAuth] = useState(readPendingEmailAuth);
   const [emailOpen, setEmailOpen] = useState(Boolean(pendingEmailAuth));
   const [email, setEmail] = useState(pendingEmailAuth?.email ?? '');
@@ -104,12 +104,20 @@ export default function AuthEntryView({ locale = 'ko', onLocaleChange, onPreview
         <div className="auth-entry-actions">
         <RatingDemoCard locale={locale} onContinueRating={onRatingIntent} />
         <section id="auth-sign-in" className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
+          <h2 id="auth-sign-in-heading" tabIndex={-1} className="mb-2 text-center text-base font-bold text-[#1b1c19]">
+            {entryIntent === 'tests'
+              ? (locale === 'en' ? 'Sign in to create an invitation link' : '로그인하고 초대 링크 만들기')
+              : (locale === 'en' ? 'Sign in to FACt.Smack' : 'FACt.Smack에 로그인')}
+          </h2>
+          {entryIntent === 'tests' && <p role="status" className="mb-3 rounded-lg bg-[#f0eee9] px-3 py-2 text-center text-xs leading-relaxed">
+            {locale === 'en' ? 'After sign-in, we’ll open your invitation links. Friends can leave feedback without an account.' : '로그인하면 초대 링크 화면이 바로 열려요. 친구는 가입 없이 의견을 남길 수 있어요.'}
+          </p>}
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Sign in to rate a look. Share a photo when you’re ready.' : '로그인하고 먼저 평가해 보세요. 내 사진은 원할 때 올리면 돼요.'}
           </p>
-          <button data-no-translate type="button" onClick={onInvitationIntent} className="mb-2 min-h-11 w-full px-1 text-center text-xs font-semibold text-[#735c00] underline underline-offset-2">
+          {entryIntent !== 'tests' && <button data-no-translate type="button" onClick={onInvitationIntent} className="mb-2 min-h-11 w-full px-1 text-center text-xs font-semibold text-[#735c00] underline underline-offset-2">
             {locale === 'en' ? 'Sign in to create a link friends can rate without an account' : '친구가 가입 없이 평가할 수 있는 링크 만들기'}
-          </button>
+          </button>}
           <label className="mb-3 flex cursor-pointer items-start gap-2 text-left text-[10px] leading-relaxed text-white/75">
             <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-px h-3.5 w-3.5 shrink-0 accent-[#c52a52]" />
             <span>{locale === 'en' ? 'I confirm that I am 14 years of age or older.' : '만 14세 이상임을 확인합니다.'}</span>

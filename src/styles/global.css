@@ -72,10 +72,11 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
   outline: 2px solid #0e1c2d;
   outline-offset: 2px;
 }
+.rating-demo__intro { background: #fff0f4; color: #781b39; }
+.rating-demo[data-mode="age"] .rating-demo__intro { background: #e8f6f1; color: #155b58; }
 .rating-demo__continue { background: #a91e49; }
 .rating-demo[data-mode="age"] .rating-demo__continue { background: #155b58; }
 .rating-demo__photo { aspect-ratio: 3 / 4; background: #eae8e3; }
-.rating-demo[data-mode="age"] .rating-demo__photo { aspect-ratio: 4 / 3; }
 .rating-demo__photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .rating-demo .age-vote-panel { background: #0e1c2d; }
 .rating-demo .age-vote-slider {
@@ -419,7 +420,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   /* Keep the photo and rating controls together on short landscape screens. */
   .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
   .rating-demo { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
-  .rating-demo__photo, .rating-demo[data-mode="age"] .rating-demo__photo { aspect-ratio: auto; min-height: 180px; }
+  .rating-demo__photo { aspect-ratio: auto; min-height: 180px; }
   .rating-demo__photo img { position: absolute; inset: 0; }
 }
 

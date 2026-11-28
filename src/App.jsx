@@ -1576,9 +1576,9 @@ export default function App() {
   const mustEnterAuth = isGuest || (!authUser && (!sharedPostId || Boolean(supabase)));
   function focusAuthFor(intent) {
     setEntryIntent(rememberEntryIntent(`?intent=${intent}`, entryStorage()));
-    document.getElementById('auth-sign-in')?.querySelector('input[type="checkbox"]')?.focus();
+    window.requestAnimationFrame(() => document.getElementById('auth-sign-in-heading')?.focus());
   }
-  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView locale={locale} onLocaleChange={switchLocale} onRatingIntent={() => focusAuthFor('rate')} onInvitationIntent={() => focusAuthFor('tests')} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
+  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView locale={locale} entryIntent={entryIntent} onLocaleChange={switchLocale} onRatingIntent={() => focusAuthFor('rate')} onInvitationIntent={() => focusAuthFor('tests')} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 

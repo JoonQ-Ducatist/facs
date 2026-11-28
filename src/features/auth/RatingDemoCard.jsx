@@ -39,14 +39,17 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
       </div>
       <div data-mode={mode} className="rating-demo overflow-hidden rounded-2xl border border-[#d9d4c9] bg-[#fbfaf6] text-[#1b1c19] shadow-sm">
         <div className="rating-demo__photo relative">
-          <img src={isAge ? agePhoto : outfitPhoto} width={isAge ? 640 : 600} height={isAge ? 480 : 800} alt={isAge
+          <img src={isAge ? agePhoto : outfitPhoto} width="600" height="800" alt={isAge
             ? (en ? 'AI portrait of an adult in a dark suit' : '검은 정장을 입은 가상 성인 사진')
             : (en ? 'Light blazer and dark wide-leg trousers' : '밝은 재킷과 검은 와이드 팬츠를 입은 출근 코디')} />
           <p className="absolute bottom-2 left-2 rounded-full bg-[#f9f7f2] px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{en ? 'AI example' : 'AI 예시'}</p>
         </div>
         <div className="rating-demo__prompt p-3.5">
           <h1 id="rating-demo-question" className="font-headline text-xl font-extrabold leading-tight">{question}</h1>
-          <p className="mt-1.5 text-xs leading-relaxed text-[#525650]">{en ? 'There’s no right answer. Try it without signing in.' : '정답은 없어요. 로그인 없이 골라 보세요.'}</p>
+          <p className="rating-demo__intro mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2.5 py-2 text-xs font-semibold leading-snug">
+            <strong>{en ? 'No sign-in needed' : '로그인 없이 체험'}</strong>
+            <span>{en ? 'Go with your first impression.' : '정답은 없어요. 첫인상대로 골라 보세요.'}</span>
+          </p>
           {answer === null ? (isAge ? (
             <div className="mt-3"><AgeVotePanel locale={locale} card={ageExample} color="#8be2d0" onVote={setAnswer} showQuestion={false} /></div>
           ) : (
