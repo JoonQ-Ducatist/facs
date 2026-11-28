@@ -38,25 +38,22 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .scan-line { animation: scan 3s ease-in-out infinite; }
 @keyframes scan { 0%, 100% { transform: translateY(0); opacity: .1; } 50% { transform: translateY(560px); opacity: .6; } }
-.splash-media { animation: splash-media 3.6s ease-in-out both; }
-@keyframes splash-media { 0% { opacity: 0; transform: translateX(24%) scale(1.06); } 16% { opacity: 1; transform: translateX(0) scale(1); } 80% { opacity: 1; transform: translateX(0) scale(1); } 100% { opacity: 0; transform: translateX(-16%) scale(1.03); } }
 .splash-language-toggle { position: absolute; top: calc(1rem + env(safe-area-inset-top)); right: calc(1rem + env(safe-area-inset-right)); z-index: 2; min-width: 2.4rem; height: 1.8rem; padding: 0 .48rem; border: 1px solid rgba(236,216,168,.72); border-radius: .45rem; background: rgba(5,20,36,.42); color: #f7e7bd; font-family: Inter, 'Pretendard Variable', sans-serif; font-size: .65rem; font-weight: 750; line-height: 1; letter-spacing: .01em; backdrop-filter: blur(8px); }
 .auth-entry-brand { position: absolute; top: calc(1rem + env(safe-area-inset-top)); left: calc(1rem + env(safe-area-inset-left)); z-index: 2; height: 1.8rem; }
-.auth-entry-screen > .relative { padding-top: calc(2.5rem + env(safe-area-inset-top)); }
 .splash-language-toggle:hover { background: rgba(255,255,255,.14); }
 .splash-auth-card { transition: transform .2s cubic-bezier(.2,.7,.2,1); }
-/* Authentication shares the product's ivory surface; photos remain decorative. */
-.auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.92) 0%,rgba(249,247,242,.08) 17%,rgba(249,247,242,.04) 100%); }
-.auth-entry-actions { position: relative; isolation: isolate; width: 100%; flex: 0 0 auto; }
-.auth-entry-actions::before { content: ''; position: absolute; z-index: -1; inset: -120px -20px -24px; pointer-events: none; background: linear-gradient(180deg,rgba(249,247,242,0) 0px,rgba(249,247,242,.95) 100px,#f9f7f2 180px); }
-.auth-entry-screen .auth-entry-headline { width: 100%; max-width: 100%; padding: 0; border-radius: 0; background: transparent; }
+/* The example photo belongs to the rating card. The login and footer share one opaque surface. */
+.auth-entry-actions { width: 100%; flex: 0 0 auto; }
+.rating-demo__mode { min-height: 44px; border: 1px solid #d9d4c9; border-radius: .75rem; padding: 0 .5rem; font-size: .8125rem; font-weight: 700; color: #52554f; }
+.rating-demo__mode[aria-pressed="true"] { border-color: #735c00; background: #ede8db; color: #735c00; }
+.rating-demo__photo { height: clamp(150px, 30svh, 224px); background: linear-gradient(160deg,#eeeae0,#dcded4); }
+.rating-demo__photo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
 .auth-entry-screen .auth-entry-brand { padding: 2px 6px; background: transparent; }
 .auth-entry-screen .splash-language-toggle { background: #f9f7f2; color: #735c00; border-color: #c5a059; }
 .auth-entry-screen .auth-entry-brand { color: #1b1c19; }
 .auth-entry-screen .auth-entry-brand img { filter: brightness(.25); }
 .auth-entry-screen h1 { color: #1b1c19; text-shadow: none; }
-.auth-entry-screen section.mb-4 { filter: none; }
-.auth-entry-screen section.mb-4 > p { color: #735c00; }
 .auth-entry-screen .splash-auth-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; }
 .auth-entry-screen .splash-auth-card > p,
 .auth-entry-screen .splash-auth-card > label { color: #52554f; }
@@ -71,7 +68,7 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .auth-entry-screen .splash-auth-card input::placeholder { color: #62665f; }
 .brand-wordmark__facs { color: var(--xc-brand-red); }
 .brand-ai-mark { align-items: center; justify-content: center; height: 1.15rem; min-width: 1.65rem; padding: 0 .25rem; border: 1px solid rgba(197,160,89,.7); border-radius: .2rem; color: var(--xc-accent); font-family: Inter, sans-serif; font-size: .56rem; font-weight: 800; line-height: 1; letter-spacing: .06em; }
-@media (prefers-reduced-motion: reduce) { .scan-line, .splash-media, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .scan-line, .feed-card--exit-up, .feed-card--exit-down, .feed-card--enter-up, .feed-card--enter-down, .live-reaction { animation: none; } }
 
 /* 정의: 모바일 전체 폭과 PC·태블릿 중앙 콘텐츠 컬럼을 구분하는 반응형 레이아웃 규칙이다. */
 /* The root shell stays in normal flow so iOS WebKit never has to composite the
@@ -357,31 +354,28 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
 /* Tablets share the full-width mobile canvas; only desktop content columns are constrained. */
 
 /* 정의: 데스크톱 스플래시는 모바일과 같은 집중형 캔버스를 유지해 배경 사진 확대를 막는다. */
-.app-stage:has(.auth-entry-screen), .app-stage:has(.brand-splash) { background: #051424; }
-.app-canvas:has(.auth-entry-screen), .app-canvas:has(.brand-splash) { background: #051424; }
+.app-stage:has(.auth-entry-screen), .app-canvas:has(.auth-entry-screen) { background: #f9f7f2; }
+.app-stage:has(.brand-splash), .app-canvas:has(.brand-splash) { background: #051424; }
 .auth-entry-screen, .brand-splash { width: 100%; height: 100%; min-height: 0; }
-/* Auth owns its full viewport and scrolls inside that boundary. This keeps the
-   dark entry background continuous when mobile browser chrome changes size. */
+/* Keep the ivory surface continuous through scrolling and the bottom safe area. */
 .auth-entry-screen { min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
-.auth-entry-screen__content { min-height: 100%; }
-.auth-entry-spacer { max-height: clamp(20px, 9vh, 90px); }
-.auth-entry-actions { margin-top: 1rem; }
+.auth-entry-screen__content {
+  min-height: 100%;
+  padding-top: calc(3.5rem + env(safe-area-inset-top));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+}
 @media (min-width: 1024px) and (hover: hover) {
   .auth-entry-screen, .brand-splash { width: min(430px, 100%); margin: 0 auto; box-shadow: 0 0 42px rgba(0,0,0,.3); }
 }
 
 @media (orientation: landscape) and (max-width: 1023px) {
-  /* Narrow landscape devices keep a full-width dark auth surface and
-     enough scrollable space for the sign-in controls. */
+  /* Keep the photo and rating controls together on short landscape screens. */
   .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
-  .auth-entry-screen__content { min-height: 460px; }
-  .auth-entry-screen__content { padding-bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom))); }
-  .auth-entry-screen__content { justify-content: center; align-items: flex-end; }
-  .auth-entry-screen__content > .auth-entry-spacer { display: none; }
-  .auth-entry-actions { width: min(60%, 430px); }
-  .auth-entry-screen .auth-entry-photo { width: 44%; }
-  .auth-entry-photo-wash { background: linear-gradient(180deg,rgba(249,247,242,.92),rgba(249,247,242,0) 80px),linear-gradient(90deg,rgba(249,247,242,.04) 0%,rgba(249,247,242,.08) 32%,rgba(249,247,242,.97) 48%,#f9f7f2 62%); }
-  .auth-entry-actions::before { display: none; }
+  .rating-demo { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
+  .rating-demo__photo { height: auto; min-height: 180px; }
+  .rating-demo__photo img { position: absolute; inset: 0; }
 }
 
 /* 정의: 로그인/인증과 분리된 3초 브랜드 스플래시다. 원본 나방 자산의 검은 바탕을

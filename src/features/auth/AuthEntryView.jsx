@@ -1,20 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import MothMark from '../../components/brand/MothMark.jsx';
 import RatingDemoCard from './RatingDemoCard.jsx';
 import ParticipationFeedback from '../feed/ParticipationFeedback.jsx';
 import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
 import LocalQaAccountSwitcher from '../../components/ui/LocalQaAccountSwitcher.jsx';
-import { selectAuthFeaturedPosts } from './authFeaturedPosts.js';
 import { clearPendingEmailAuth, readPendingEmailAuth, savePendingEmailAuth } from './pendingEmailAuth.js';
 
-const EMPTY_AUTH_CARDS = [];
-
-/** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 로그인/인증 화면이다. */
-export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onInvitationIntent, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
-  const sourceCards = Array.isArray(cards) ? cards : EMPTY_AUTH_CARDS;
-  const popularCards = useMemo(() => selectAuthFeaturedPosts(sourceCards), [sourceCards]);
-  const [activeIndex, setActiveIndex] = useState(0);
+export default function AuthEntryView({ locale = 'ko', onLocaleChange, onPreview, onRatingIntent, onInvitationIntent, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const [pendingEmailAuth] = useState(readPendingEmailAuth);
   const [emailOpen, setEmailOpen] = useState(Boolean(pendingEmailAuth));
   const [email, setEmail] = useState(pendingEmailAuth?.email ?? '');
@@ -93,24 +86,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
     setEmailNotice(result?.message ?? (locale === 'en' ? 'That code is not valid. Request a new one.' : '인증 코드가 맞지 않아요. 새 코드를 요청해 주세요.'));
   }
 
-  useEffect(() => {
-    if (popularCards.length < 2) return undefined;
-    const timer = window.setInterval(() => setActiveIndex((index) => (index + 1) % popularCards.length), 3600);
-    return () => window.clearInterval(timer);
-  }, [popularCards.length]);
-
-  useEffect(() => setActiveIndex(0), [popularCards]);
-
-  const activeCard = popularCards[activeIndex] ?? sourceCards[0] ?? null;
-
   return (
     <main data-app-scroll-root className="auth-entry-screen relative mx-auto max-w-none bg-[#f9f7f2] text-[#1b1c19] shadow-2xl">
-      <div className="absolute inset-0" aria-hidden="true">
-        {activeCard && <img key={activeCard.id} className={`auth-entry-photo ${popularCards.length > 1 ? 'splash-media ' : ''}h-full w-full object-cover`} style={{ objectPosition: activeCard.objectPosition }} src={activeCard.imageUrl} alt="" />}
-        <div className="auth-entry-photo-wash absolute inset-0" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(197,160,89,0.08),transparent_30%)]" />
-      </div>
-
       <div className="auth-entry-screen__content relative z-10 flex min-h-full flex-col px-5 pb-6 pt-10">
         <LocalQaAccountSwitcher enabled={localQaEnabled} placement="splash" onSelect={onQaAccountSelect} />
         <button type="button" className="splash-language-toggle" onClick={() => onLocaleChange(locale === 'ko' ? 'en' : 'ko')} aria-label={locale === 'ko' ? '영어로 보기' : 'View in Korean'} title={locale === 'ko' ? 'English' : '한국어'}>{locale === 'ko' ? 'EN' : '한국어'}</button>
@@ -124,15 +101,8 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           </div>}
         </header>
 
-        <div className="auth-entry-spacer flex-1" />
-
         <div className="auth-entry-actions">
-        <section className="auth-entry-headline mb-4 text-center">
-          <p className="font-mono text-[10px] font-bold tracking-[0.2em] text-[#ecd8a8]">YOUR LOOK, MORE VIEWS</p>
-          <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? 'Ready to be seen differently?' : '오늘의 나를, 다른 시선으로 만나보세요.'}</h1>
-        </section>
-
-        <RatingDemoCard locale={locale} />
+        <RatingDemoCard locale={locale} onContinueRating={onRatingIntent} />
         <section id="auth-sign-in" className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Sign in to rate a look. Share a photo when you’re ready.' : '로그인하고 먼저 평가해 보세요. 내 사진은 원할 때 올리면 돼요.'}

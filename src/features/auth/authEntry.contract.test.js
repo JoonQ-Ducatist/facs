@@ -57,19 +57,18 @@ test('brand entry never performs synchronous pixel conversion before its timed t
   assert.match(markSource, /src=\{mothLogoUrl\}/);
 });
 
-test('authentication loads real public posts before sign-in and keeps its own viewport scroll region', async () => {
+test('authentication keeps the photo inside the interactive demo and an opaque safe-area footer', async () => {
   const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   const authSource = await readFile(resolve(featureRoot, 'AuthEntryView.jsx'), 'utf8');
+  const demoSource = await readFile(resolve(featureRoot, 'RatingDemoCard.jsx'), 'utf8');
   const styles = await readFile(resolve(featureRoot, '../../styles/global.css'), 'utf8');
-  assert.match(appSource, /if \(!authReady \|\| authUser\)[\s\S]*listSupabaseAuthFeaturedPhotos\(\{ limit: 5, candidatePoolSize: 20 \}\)/);
-  assert.match(appSource, /<AuthEntryView cards=\{authFeaturedCards\}/);
-  assert.match(authSource, /selectAuthFeaturedPosts\(sourceCards\)/);
-  assert.match(authSource, /className="auth-entry-screen relative mx-auto max-w-none/);
-  assert.match(authSource, /const sourceCards = Array\.isArray\(cards\) \? cards : EMPTY_AUTH_CARDS;/);
-  assert.match(authSource, /popularCards\[activeIndex\] \?\? sourceCards\[0\] \?\? null/);
-  assert.match(styles, /\.auth-entry-screen \{ min-height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; \}/);
-  assert.match(styles, /\.auth-entry-screen__content \{ min-height: 460px; \}/);
-  assert.match(styles, /\.auth-entry-screen \{ width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; \}/);
+  assert.doesNotMatch(appSource, /listSupabaseAuthFeaturedPhotos/);
+  assert.match(authSource, /<RatingDemoCard[\s\S]*?id="auth-sign-in"/);
+  assert.doesNotMatch(authSource, /auth-entry-photo-wash|activeCard\.imageUrl/);
+  assert.match(demoSource, /rating-demo__photo[\s\S]*?src=\{isAge \? agePhoto : outfitPhoto\}/);
+  assert.match(styles, /\.app-canvas:has\(\.auth-entry-screen\) \{ background: #f9f7f2;/);
+  assert.match(styles, /padding-bottom: calc\(1.5rem \+ env\(safe-area-inset-bottom\)\);/);
+  assert.match(styles, /\.auth-entry-screen \{ min-height: 100%; overflow-x: hidden; overflow-y: auto;/);
 });
 
 test('public MVP authentication exposes only enabled Google and email providers', async () => {

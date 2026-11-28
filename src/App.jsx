@@ -32,7 +32,7 @@ import { localeUrl, rememberAuthLocale, resolveLocale } from './services/locale.
 import { applySeoMetadata } from './services/seo.js';
 import { buildShareUrl, normalizeSharedPostId, rememberSharedPostForAuth } from './services/share.js';
 import { supabase } from './services/supabaseClient.js';
-import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseAuthFeaturedPhotos, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
+import { createSupabasePostComment, createSupabasePublishedPost, deleteMySupabasePost, deleteSupabasePostComment, editSupabasePostComment, getSupabaseAggregate, getSupabaseMyVotedPostIds, listSupabaseBoostCandidates, listSupabaseMyActiveBoostedPostIds, listSupabaseMyPublishedProfileCards, listSupabaseMyScrapFeedCards, listSupabasePostComments, listSupabasePublishedFeedCards, requestSupabasePostBoost } from './services/supabaseApi.js';
 import { applyLiveReactionToCard, getRecentPostLiveReactions, selectLiveReactionReplay, subscribeToPostLiveReactions } from './services/liveReactionService.js';
 import { clearSignedOutMemberCaches } from './services/browserAccountCache.js';
 import { getMyScrapPostIds, toggleMyScrap } from './services/scrapsApi.js';
@@ -172,7 +172,6 @@ export default function App() {
   const [testsAutoOpen,setTestsAutoOpen]=useState(false);
   const [categoryRailVisible, setCategoryRailVisible] = useState(true);
   const [cards, setCards] = useState(initialCards);
-  const [authFeaturedCards, setAuthFeaturedCards] = useState([]);
   const [profileCards, setProfileCards] = useState(null);
   const [profileLibraryError, setProfileLibraryError] = useState(false);
   const [scrapCards, setScrapCards] = useState(null);
@@ -482,20 +481,6 @@ export default function App() {
     });
     return () => { active = false; };
   }, [authUser?.id]);
-
-  /** Loads only the global public-photo contract needed by the authentication screen. */
-  useEffect(() => {
-    let active = true;
-    if (!authReady || authUser) {
-      setAuthFeaturedCards([]);
-      return undefined;
-    }
-    listSupabaseAuthFeaturedPhotos({ limit: 5, candidatePoolSize: 20 }).then((result) => {
-      if (!active || result.error) return;
-      setAuthFeaturedCards(result.data ?? []);
-    });
-    return () => { active = false; };
-  }, [authReady, authUser?.id]);
 
   /** Clears private libraries only when the signed-in account changes. */
   useEffect(() => {
@@ -1589,7 +1574,11 @@ export default function App() {
   if (!authReady) return <CanvasStage screenKey="auth-loading"><StatePanel state="loading" pageName="FACt.Smack" /></CanvasStage>;
   if (termsGate) return <CanvasStage screenKey="terms-acceptance"><TermsAcceptanceGate locale={locale} status={termsGate.status} errorCode={termsGate.error?.code ?? termsGate.httpStatus} onAccept={acceptTermsAndContinue} onRetry={retryTermsStatus} onSignOut={signOut} onOpenPolicy={setPolicyOpen} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   const mustEnterAuth = isGuest || (!authUser && (!sharedPostId || Boolean(supabase)));
-  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView cards={authFeaturedCards} locale={locale} onLocaleChange={switchLocale} onInvitationIntent={() => { setEntryIntent(rememberEntryIntent('?intent=tests', entryStorage())); document.getElementById('auth-sign-in')?.querySelector('input[type="checkbox"]')?.focus(); }} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
+  function focusAuthFor(intent) {
+    setEntryIntent(rememberEntryIntent(`?intent=${intent}`, entryStorage()));
+    document.getElementById('auth-sign-in')?.querySelector('input[type="checkbox"]')?.focus();
+  }
+  if (mustEnterAuth) return <CanvasStage screenKey="auth-entry"><AuthEntryView locale={locale} onLocaleChange={switchLocale} onRatingIntent={() => focusAuthFor('rate')} onInvitationIntent={() => focusAuthFor('tests')} onEmailAuth={requestEmailAuth} onEmailCode={confirmEmailCode} onGoogleAuth={startGoogleAuth} onOpenPolicy={setPolicyOpen} localQaEnabled={localQaEnabled} onQaAccountSelect={switchLocalQaAccount} allowPreviewBypass={false} />{policyOpen && <LegalPolicyDialog type={policyOpen} locale={locale} onClose={() => setPolicyOpen(null)} />}</CanvasStage>;
   if (!feedHydrated) return <CanvasStage screenKey="feed-loading"><StatePanel state="loading" pageName={locale === 'en' ? 'Loading your feed' : '피드를 불러오는 중'} /></CanvasStage>;
   if (feedLoadError) return <CanvasStage screenKey="feed-error"><StatePanel state="error" pageName={locale === 'en' ? 'Your feed' : '피드'} onAction={() => setFeedRefreshKey((value) => value + 1)} /></CanvasStage>;
 
