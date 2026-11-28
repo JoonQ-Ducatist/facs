@@ -7,4 +7,13 @@ test('invitation canonical is token-free and crawler restrictions remain',()=>{c
 test('built app entry survives static metadata generation and route has matching protection',async()=>{
  const built=source.replace('<script type="module" src="/src/main.jsx"></script>','<script type="module" src="/assets/main-test.js"></script>');const out=feedbackSeoHtml(built);for(const script of built.match(/<script[^>]*src=[^>]*>/g)||[])assert.ok(out.includes(script));const config=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));assert.deepEqual(config.rewrites[0],{source:'/feedback',destination:'/feedback.html'});assert.ok(config.headers.find(h=>h.source==='/feedback').headers.some(h=>h.value==='noindex, nofollow'));assert.ok(config.headers.find(h=>h.source==='/feedback.html').headers.some(h=>h.value==='noindex, nofollow'));
 });
-test('guest primary actions precede optional notes while keeping age and failure gates',async()=>{const s=await readFile(new URL('../src/features/feedback/GuestFeedback.jsx',import.meta.url),'utf8');assert.ok(s.indexOf('onClick={()=>vote(v)}')<s.indexOf('<fieldset>'));assert.ok(s.indexOf('checked={age}')<s.indexOf('onClick={()=>vote(v)}'));assert.match(s,/disabled={busy\|\|!age}/);assert.match(s,/maxHeight:'min\(32dvh, 280px\)'/);assert.match(s,/setError\(e.message==='LIMIT'\?'limit':'save'\)/);});
+
+test('guest voting requires age confirmation and sends only the choice', async () => {
+  const guest = await readFile(new URL('../src/features/feedback/GuestFeedback.jsx', import.meta.url), 'utf8');
+  assert.ok(guest.indexOf('checked={age}') < guest.indexOf('onClick={() => vote(choice)}'));
+  assert.match(guest, /disabled={busy \|\| !age}/);
+  assert.match(guest, /externalRequest\(token, 'vote', { choice, ageConfirmed: age }\)/);
+  assert.doesNotMatch(guest, /<fieldset>|noteOptions|shareInvitation|entryUrl\('(?:upload|tests)'/);
+  assert.match(guest, /href={entryUrl\('rate', locale\)}/);
+  assert.match(guest, /onClick={report}/);
+});
