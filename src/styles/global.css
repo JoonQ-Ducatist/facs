@@ -44,10 +44,55 @@ button:focus-visible { outline: 2px solid #735c00; outline-offset: 3px; }
 .splash-auth-card { transition: transform .2s cubic-bezier(.2,.7,.2,1); }
 /* The example photo belongs to the rating card. The login and footer share one opaque surface. */
 .auth-entry-actions { width: 100%; flex: 0 0 auto; }
-.rating-demo__mode { min-height: 44px; border: 1px solid #d9d4c9; border-radius: .75rem; padding: 0 .5rem; font-size: .8125rem; font-weight: 700; color: #52554f; }
-.rating-demo__mode[aria-pressed="true"] { border-color: #735c00; background: #ede8db; color: #735c00; }
-.rating-demo__photo { height: clamp(150px, 30svh, 224px); background: linear-gradient(160deg,#eeeae0,#dcded4); }
-.rating-demo__photo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.rating-demo__mode, .rating-demo__choice {
+  min-height: 48px;
+  border: 1px solid var(--rating-control-accent);
+  border-radius: .75rem;
+  padding: .25rem .5rem;
+  background: var(--rating-control-tint);
+  color: var(--rating-control-accent);
+  font-size: .875rem;
+  font-weight: 750;
+}
+.rating-demo__mode[data-mode="outfit"], .rating-demo__choice[data-choice="yes"] {
+  --rating-control-accent: #a91e49;
+  --rating-control-tint: #fff0f4;
+}
+.rating-demo__mode[data-mode="age"], .rating-demo__choice[data-choice="no"] {
+  --rating-control-accent: #155b58;
+  --rating-control-tint: #e8f6f1;
+}
+.rating-demo__mode[aria-pressed="true"] {
+  background: var(--rating-control-accent);
+  color: white;
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / .2);
+}
+.rating-demo__choice:hover { background: color-mix(in srgb, var(--rating-control-tint), var(--rating-control-accent) 8%); }
+.rating-demo__mode:focus-visible, .rating-demo__choice:focus-visible, .rating-demo__continue:focus-visible {
+  outline: 2px solid #0e1c2d;
+  outline-offset: 2px;
+}
+.rating-demo__continue { background: #a91e49; }
+.rating-demo[data-mode="age"] .rating-demo__continue { background: #155b58; }
+.rating-demo__photo { aspect-ratio: 3 / 4; background: #eae8e3; }
+.rating-demo[data-mode="age"] .rating-demo__photo { aspect-ratio: 4 / 3; }
+.rating-demo__photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rating-demo .age-vote-panel { background: #0e1c2d; }
+.rating-demo .age-vote-slider {
+  appearance: none;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  touch-action: pan-y;
+  --age-track: linear-gradient(to right,#63d2bb var(--age-progress),#527b7f var(--age-progress));
+}
+.rating-demo .age-vote-slider::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: var(--age-track); }
+.rating-demo .age-vote-slider::-moz-range-track { height: 8px; border-radius: 999px; background: var(--age-track); }
+.rating-demo .age-vote-slider::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -6px; border: 2px solid #fff; background: #63d2bb; }
+.rating-demo .age-vote-slider::-moz-range-thumb { width: 16px; height: 16px; border: 2px solid #fff; background: #63d2bb; }
+.rating-demo .age-vote-slider:focus-visible { outline: 2px solid #8be2d0; outline-offset: 2px; }
+@media (forced-colors: active) { .rating-demo .age-vote-slider { appearance: auto; } }
 
 .auth-entry-screen .auth-entry-brand { padding: 2px 6px; background: transparent; }
 .auth-entry-screen .splash-language-toggle { background: #f9f7f2; color: #735c00; border-color: #c5a059; }
@@ -374,7 +419,7 @@ html, body, #root { width: 100%; height: 100%; min-height: 0; overflow: hidden; 
   /* Keep the photo and rating controls together on short landscape screens. */
   .auth-entry-screen { width: 100%; height: 100%; min-height: 100%; margin: 0; box-shadow: none; overflow-y: auto; }
   .rating-demo { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
-  .rating-demo__photo { height: auto; min-height: 180px; }
+  .rating-demo__photo, .rating-demo[data-mode="age"] .rating-demo__photo { aspect-ratio: auto; min-height: 180px; }
   .rating-demo__photo img { position: absolute; inset: 0; }
 }
 

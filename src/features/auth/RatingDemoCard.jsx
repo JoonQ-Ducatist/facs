@@ -34,12 +34,12 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
   return (
     <section data-no-translate aria-labelledby="rating-demo-question" className="mx-auto w-full max-w-[37rem]">
       <div role="group" aria-label={en ? 'Choose a practice rating' : '체험 평가 종류'} className="mb-2 grid grid-cols-2 gap-2">
-        <button type="button" aria-pressed={mode === 'outfit'} onClick={() => switchMode('outfit')} className="rating-demo__mode">{en ? 'Outfit rating' : '코디 평가'}</button>
-        <button type="button" aria-pressed={isAge} onClick={() => switchMode('age')} className="rating-demo__mode">{en ? 'Age guess' : '나이 평가'}</button>
+        <button type="button" data-mode="outfit" aria-pressed={mode === 'outfit'} onClick={() => switchMode('outfit')} className="rating-demo__mode">{en ? 'Outfit rating' : '코디 평가'}</button>
+        <button type="button" data-mode="age" aria-pressed={isAge} onClick={() => switchMode('age')} className="rating-demo__mode">{en ? 'Age guess' : '나이 평가'}</button>
       </div>
-      <div className="rating-demo overflow-hidden rounded-2xl border border-[#d9d4c9] bg-[#fbfaf6] text-[#1b1c19] shadow-sm">
+      <div data-mode={mode} className="rating-demo overflow-hidden rounded-2xl border border-[#d9d4c9] bg-[#fbfaf6] text-[#1b1c19] shadow-sm">
         <div className="rating-demo__photo relative">
-          <img src={isAge ? agePhoto : outfitPhoto} width="202" height="360" alt={isAge
+          <img src={isAge ? agePhoto : outfitPhoto} width={isAge ? 640 : 600} height={isAge ? 480 : 800} alt={isAge
             ? (en ? 'AI portrait of an adult in a dark suit' : '검은 정장을 입은 가상 성인 사진')
             : (en ? 'Light blazer and dark wide-leg trousers' : '밝은 재킷과 검은 와이드 팬츠를 입은 출근 코디')} />
           <p className="absolute bottom-2 left-2 rounded-full bg-[#f9f7f2] px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{en ? 'AI example' : 'AI 예시'}</p>
@@ -48,11 +48,11 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
           <h1 id="rating-demo-question" className="font-headline text-xl font-extrabold leading-tight">{question}</h1>
           <p className="mt-1.5 text-xs leading-relaxed text-[#525650]">{en ? 'There’s no right answer. Try it without signing in.' : '정답은 없어요. 로그인 없이 골라 보세요.'}</p>
           {answer === null ? (isAge ? (
-            <div className="mt-3"><AgeVotePanel locale={locale} card={ageExample} color="#ecd8a8" onVote={setAnswer} showQuestion={false} /></div>
+            <div className="mt-3"><AgeVotePanel locale={locale} card={ageExample} color="#8be2d0" onVote={setAnswer} showQuestion={false} /></div>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-2">
               {Object.entries(answerLabels).map(([value, label]) => (
-                <button key={value} type="button" onClick={() => setAnswer(value)} className="min-h-12 rounded-xl border border-[#a58c59] bg-[#f5f3ee] px-2 py-1 text-sm font-bold hover:bg-[#eae8e3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#735c00]">{label}</button>
+                <button key={value} type="button" data-choice={value} onClick={() => setAnswer(value)} className="rating-demo__choice">{label}</button>
               ))}
             </div>
           )) : (
@@ -61,7 +61,7 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
             </p>
           )}
           <p className="mt-2 text-xs text-[#525650]">{en ? 'Practice answers aren’t saved.' : '체험 답변은 저장되지 않아요.'}</p>
-          {hasAnswer && <button type="button" onClick={onContinueRating} className="mt-3 min-h-12 w-full rounded-xl bg-[#c52a52] px-3 py-1 text-sm font-extrabold text-white">
+          {hasAnswer && <button type="button" onClick={onContinueRating} className="rating-demo__continue mt-3 min-h-12 w-full rounded-xl px-3 py-1 text-sm font-extrabold text-white">
             {en ? 'Sign in to rate photos' : '로그인하고 피드에서 평가하기'}
           </button>}
           <button type="button" onClick={() => setAnswer(answer === null ? 'skip' : null)} className="min-h-11 px-1 text-xs font-semibold text-[#525650] underline underline-offset-2">
