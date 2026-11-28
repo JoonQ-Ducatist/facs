@@ -63,7 +63,7 @@ function isolateTouch(event) {
 }
 
 /** 정의: 복수 미디어 선택·정렬·질문 입력·사전 검증을 제공하는 개발용 업로드 화면이다. 실제 저장·검토는 백엔드 단계에서 처리한다. */
-export default function UploadView({ isActive = true, categories, locale = 'ko', publicHandle = '', isFirstUpload = false, starter = null, onDraftStateChange, onSubmit, onMessage, onOpenProfile }) {
+export default function UploadView({ isActive = true, categories, locale = 'ko', publicHandle = '', isFirstUpload = false, starter = null, onDraftStateChange, onSubmit, onMessage, onOpenProfile, onOpenInvitations }) {
   const inputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const questionRef = useRef(null);
@@ -413,6 +413,9 @@ export default function UploadView({ isActive = true, categories, locale = 'ko',
 
     {limitNotice && <div key={limitNotice.id} role="alert" aria-live="assertive" className="upload-limit-tooltip"><span className="material-symbols-outlined" aria-hidden="true">warning</span><span>{limitNoticeMessage}</span></div>}
     <PageHeading eyebrow="CREATE A LOOKBOOK" title={locale === 'en' ? 'Share a new look' : '새로운 룩 공유하기'} description={isFirstUpload ? (locale === 'en' ? 'Start with one photo. You can add more if you want.' : '사진 한 장이면 충분해요. 원하면 더 추가할 수 있어요.') : (locale === 'en' ? 'Choose up to 5 photos and one video up to 10 seconds.' : '사진 최대 5개와 10초 이하 동영상 1개를 함께 선택할 수 있습니다.')} action={<button type="button" onClick={openCamera} aria-label={locale === 'en' ? 'Take a photo' : '카메라로 촬영하기'} className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#c5a059]/50 bg-[#fbf9f4] text-cyan-glow"><span className="material-symbols-outlined text-lg">add_a_photo</span></button>} />
+    {onOpenInvitations && <button data-no-translate type="button" onClick={onOpenInvitations} className="mb-2 min-h-11 text-left text-xs font-semibold text-[#735c00] underline underline-offset-2">
+      {locale === 'en' ? 'Ask friends for feedback with an invite link · no account needed for friends' : '친구에게 초대 링크로 의견 받기 · 친구는 가입 없이 평가할 수 있어요'}
+    </button>}
     <form className="flex flex-col gap-3.5" onSubmit={submit} onPointerDown={isolateTouch} onPointerUp={isolateTouch} onPointerCancel={isolateTouch}>
       <div role={canOpenDropzone ? 'button' : undefined} tabIndex={canOpenDropzone ? 0 : undefined} onClick={() => canOpenDropzone && inputRef.current?.click()} onKeyDown={(event) => { if (canOpenDropzone && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click(); }} onDragEnter={(event) => { if (canAddMedia) { event.preventDefault(); setIsDragActive(true); } }} onDragOver={(event) => canAddMedia && event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragActive(false); }} onDrop={(event) => { event.preventDefault(); setIsDragActive(false); if (canAddMedia) addFiles(event.dataTransfer.files); }} className={`relative min-h-[190px] w-full overflow-hidden rounded-lg border border-dashed p-4 transition-colors ${isDragActive ? 'border-[#5f9f9a] bg-[#eaf5f2]' : 'border-[#c5a059]/60 bg-white'} ${canOpenDropzone ? 'cursor-pointer hover:bg-[#f5f3ee]' : 'cursor-default'}`}>
         <input id="upload-media-input" ref={inputRef} type="file" multiple accept={acceptedTypes} className="sr-only" onChange={handleFileChange} />

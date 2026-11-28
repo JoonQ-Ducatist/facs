@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import MothMark from '../../components/brand/MothMark.jsx';
+import RatingDemoCard from './RatingDemoCard.jsx';
 import ParticipationFeedback from '../feed/ParticipationFeedback.jsx';
 import googleLogoUrl from '../../assets/google-g-logo.svg';
 import { EMAIL_OTP_LENGTH, isCompleteEmailOtp, sanitizeEmailOtp } from './emailOtp.js';
@@ -10,7 +11,7 @@ import { clearPendingEmailAuth, readPendingEmailAuth, savePendingEmailAuth } fro
 const EMPTY_AUTH_CARDS = [];
 
 /** 정의: 비로그인 방문자에게 인기 콘텐츠와 인증 진입점을 보여 주는 로그인/인증 화면이다. */
-export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
+export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, onPreview, onInvitationIntent, onEmailAuth, onEmailCode, onGoogleAuth, onOpenPolicy, allowPreviewBypass = false, localQaEnabled = false, onQaAccountSelect }) {
   const sourceCards = Array.isArray(cards) ? cards : EMPTY_AUTH_CARDS;
   const popularCards = useMemo(() => selectAuthFeaturedPosts(sourceCards), [sourceCards]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -123,7 +124,7 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           </div>}
         </header>
 
-        <div className="flex-1" />
+        <div className="auth-entry-spacer flex-1" />
 
         <div className="auth-entry-actions">
         <section className="auth-entry-headline mb-4 text-center">
@@ -131,10 +132,14 @@ export default function AuthEntryView({ cards, locale = 'ko', onLocaleChange, on
           <h1 className="mt-2 font-headline text-[28px] font-extrabold leading-tight tracking-tight text-white">{locale === 'en' ? 'Ready to be seen differently?' : '오늘의 나를, 다른 시선으로 만나보세요.'}</h1>
         </section>
 
-        <section className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
+        <RatingDemoCard locale={locale} />
+        <section id="auth-sign-in" className="splash-auth-card mx-auto w-[90%] max-w-[370px] rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.08)] backdrop-blur-[1px]">
           <p className="mb-3 text-center text-[11px] leading-relaxed text-white/75">
             {locale === 'en' ? 'Sign in to rate a look. Share a photo when you’re ready.' : '로그인하고 먼저 평가해 보세요. 내 사진은 원할 때 올리면 돼요.'}
           </p>
+          <button data-no-translate type="button" onClick={onInvitationIntent} className="mb-2 min-h-11 w-full px-1 text-center text-xs font-semibold text-[#735c00] underline underline-offset-2">
+            {locale === 'en' ? 'Sign in to create a link friends can rate without an account' : '친구가 가입 없이 평가할 수 있는 링크 만들기'}
+          </button>
           <label className="mb-3 flex cursor-pointer items-start gap-2 text-left text-[10px] leading-relaxed text-white/75">
             <input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} className="mt-px h-3.5 w-3.5 shrink-0 accent-[#c52a52]" />
             <span>{locale === 'en' ? 'I confirm that I am 14 years of age or older.' : '만 14세 이상임을 확인합니다.'}</span>

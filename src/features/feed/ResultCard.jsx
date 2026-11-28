@@ -9,7 +9,7 @@ export default function ResultCard({ locale = 'ko', card, category, total = 0, c
   const boostStatusLabel = korean ? '더 많은 사람에게 보여주고 있어요' : 'Showing this to more people';
   const categoryLabel = category?.label ?? card?.category ?? (korean ? '결과' : 'Result');
   const cardLabel = korean ? `${categoryLabel} 평가 결과` : `${categoryLabel} result`;
-  const sampleCount = korean ? `(${total.toLocaleString()}명)` : `(${total.toLocaleString()} ratings)`;
+  const sampleCount = korean ? `(${total.toLocaleString()}명)` : `(${total.toLocaleString()} ${total === 1 ? 'rating' : 'ratings'})`;
   const hasMedia = Boolean(card?.media?.[0]?.url || card?.imageUrl);
 
   return <article className="feed-result mb-2.5 rounded-xl border border-white/30 bg-[#061225]/42 p-2.5 shadow-[0_8px_24px_rgba(0,0,0,.18)] backdrop-blur-[1px]" aria-label={cardLabel} data-result-card>

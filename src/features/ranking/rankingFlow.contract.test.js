@@ -19,7 +19,7 @@ test('ranking empty state switches directly between Korean and English copy', as
   const source = await readFile(resolve(featureRoot, 'RankingView.jsx'), 'utf8');
   const appSource = await readFile(resolve(featureRoot, '../../App.jsx'), 'utf8');
   assert.match(source, /function RankingView\(\{ locale = 'ko', cards, categories, onOpen \}\)/);
-  assert.match(source, /locale === 'en' \? 'No rated posts yet\.' : '아직 평가가 완료된 피드가 없어요\.'/);
-  assert.match(source, /Rankings will appear here after the first ratings arrive\./);
+  assert.match(source, /locale === 'en' \? 'No posts qualify for ranking yet\.' : '아직 랭킹에 들어갈 사진이 없어요\.'/);
+  assert.match(source, /A post appears here after \$\{MIN_RANKING_VOTES\} ratings\./);
   assert.match(appSource, /<RankingView locale=\{locale\}/);
 });
