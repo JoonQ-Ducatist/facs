@@ -2,6 +2,8 @@ import { useState } from 'react';
 import AgeVotePanel from '../feed/AgeVotePanel.jsx';
 import agePhoto from '../../assets/rating-demo-age.jpg';
 import outfitPhoto from '../../assets/rating-demo-work.jpg';
+import agePreview from '../../assets/rating-demo-age-preview.jpg?inline';
+import outfitPreview from '../../assets/rating-demo-work-preview.jpg?inline';
 
 const ageExample = { ageMin: 20, ageMax: 65 };
 
@@ -38,12 +40,15 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
         <button type="button" data-mode="age" aria-pressed={isAge} onClick={() => switchMode('age')} className="rating-demo__mode">{en ? 'Age guess' : '나이 평가'}</button>
       </div>
       <div data-mode={mode} className="rating-demo overflow-hidden rounded-2xl border border-[#d9d4c9] bg-[#fbfaf6] text-[#1b1c19] shadow-sm">
-        <div className="rating-demo__photo relative">
-          <img src={isAge ? agePhoto : outfitPhoto} width="600" height="800" alt={isAge
+        <DemoPhoto
+          key={mode}
+          photo={isAge ? agePhoto : outfitPhoto}
+          preview={isAge ? agePreview : outfitPreview}
+          en={en}
+          alt={isAge
             ? (en ? 'AI portrait of an adult in a dark suit' : '검은 정장을 입은 가상 성인 사진')
-            : (en ? 'Light blazer and dark wide-leg trousers' : '밝은 재킷과 검은 와이드 팬츠를 입은 출근 코디')} />
-          <p className="absolute bottom-2 left-2 rounded-full bg-[#f9f7f2] px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{en ? 'AI example' : 'AI 예시'}</p>
-        </div>
+            : (en ? 'Light blazer and dark wide-leg trousers' : '밝은 재킷과 검은 와이드 팬츠를 입은 출근 코디')}
+        />
         <div className="rating-demo__prompt p-3.5">
           <h1 id="rating-demo-question" className="font-headline text-xl font-extrabold leading-tight">{question}</h1>
           <p className="rating-demo__intro mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2.5 py-2 text-xs font-semibold leading-snug">
@@ -73,5 +78,41 @@ export default function RatingDemoCard({ locale, onContinueRating }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function DemoPhoto({ photo, preview, alt, en }) {
+  const [loadState, setLoadState] = useState('loading');
+  const [retry, setRetry] = useState(0);
+
+  return (
+    <div className="rating-demo__photo relative">
+      <img src={preview} width="600" height="800" alt={alt} />
+      <img
+        key={retry}
+        src={retry ? `${photo}?retry=${retry}` : photo}
+        width="600"
+        height="800"
+        alt=""
+        className="rating-demo__full"
+        data-ready={loadState === 'ready'}
+        decoding="async"
+        onLoad={() => setLoadState('ready')}
+        onError={() => setLoadState('failed')}
+      />
+      <p className="absolute bottom-2 left-2 rounded-full bg-[#f9f7f2] px-2.5 py-1 text-[10px] font-bold text-[#735c00]">{en ? 'AI example' : 'AI 예시'}</p>
+      {loadState === 'failed' && (
+        <button
+          type="button"
+          className="absolute bottom-2 right-2 min-h-11 rounded-lg bg-[#f9f7f2] px-3 text-xs font-semibold text-[#1b1c19] underline"
+          onClick={() => {
+            setLoadState('loading');
+            setRetry(Date.now());
+          }}
+        >
+          {en ? 'Reload full photo' : '선명한 사진 다시 불러오기'}
+        </button>
+      )}
+    </div>
   );
 }
